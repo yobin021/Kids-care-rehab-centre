@@ -1,0 +1,175 @@
+/* =========================
+   RESET
+========================= */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+body{
+    background:#f5f7fb;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+/* =========================
+   MAIN CARD
+========================= */
+
+.container{
+    width:420px;
+    background:#ffffff;
+    padding:30px;
+    border-radius:15px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.08);
+}
+
+/* =========================
+   ROLE BUTTONS
+========================= */
+
+.role-buttons{
+    display:flex;
+    gap:10px;
+    margin-bottom:25px;
+}
+
+.role{
+    flex:1;
+    height:45px;
+    border:none;
+    border-radius:8px;
+    background:#e5e7eb;
+    color:#333;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.role:hover{
+    background:#d1d5db;
+}
+
+.role.active{
+    background:#3b82f6;
+    color:#fff;
+}
+
+/* =========================
+   TITLES
+========================= */
+
+h2{
+    margin-bottom:20px;
+    color:#111827;
+    font-size:30px;
+    font-weight:700;
+}
+
+/* =========================
+   INPUTS
+========================= */
+
+input{
+    width:100%;
+    height:48px;
+    border:1px solid #d1d5db;
+    border-radius:8px;
+    padding:0 15px;
+    font-size:15px;
+    margin-bottom:18px;
+    outline:none;
+    transition:0.3s;
+}
+
+input:focus{
+    border-color:#3b82f6;
+}
+
+/* =========================
+   BUTTON
+========================= */
+
+.main-btn{
+    width:100%;
+    height:48px;
+    border:none;
+    border-radius:8px;
+    background:#6d4aff;
+    color:#fff;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+.main-btn:hover{
+    background:#5a3be0;
+}
+
+/* =========================
+   SWITCH LINK
+========================= */
+
+.switch{
+    margin-top:18px;
+    text-align:center;
+    color:#6b7280;
+    font-size:15px;
+}
+
+.switch a{
+    text-decoration:none;
+    color:#6d4aff;
+    font-weight:600;
+}
+
+.switch a:hover{
+    text-decoration:underline;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media(max-width:768px){
+
+    .container{
+        width:90%;
+        padding:25px;
+    }
+
+    h2{
+        font-size:26px;
+    }
+
+}
+
+@media(max-width:480px){
+
+    .container{
+        width:95%;
+        padding:20px;
+    }
+
+    .role{
+        font-size:14px;
+        height:42px;
+    }
+
+    h2{
+        font-size:24px;
+    }
+
+    input,
+    .main-btn{
+        height:45px;
+    }
+
+}

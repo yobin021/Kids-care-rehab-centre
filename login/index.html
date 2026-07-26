@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>College Portal</title>
+
+<link rel="stylesheet" href="style.css">
+
+<link
+href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+rel="stylesheet">
+
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Role Buttons -->
+
+    <div class="role-buttons">
+
+        <button class="role active"
+        onclick="changeRole('Admin')">
+            Admin
+        </button>
+
+        <button class="role"
+        onclick="changeRole('Staff')">
+            Staff
+        </button>
+
+        <button class="role"
+        onclick="changeRole('Parent')">
+            Parent
+        </button>
+
+    </div>
+
+    <!-- LOGIN FORM -->
+
+    <div id="loginForm">
+
+        <h2 id="loginTitle">
+            Admin Login
+        </h2>
+
+        <input
+        type="email"
+        placeholder="Email">
+
+        <input
+        type="password"
+        placeholder="Password">
+
+        <button class="main-btn">
+            Login
+        </button>
+
+        <p class="switch">
+
+            Don't have an account?
+
+            <a href="#"
+            onclick="showRegister(event)">
+                Sign Up
+            </a>
+
+        </p>
+
+    </div>
+
+    <!-- REGISTER FORM -->
+
+    <div id="registerForm" style="display:none;">
+
+        <h2 id="registerTitle">
+            Admin Register
+        </h2>
+
+        <input
+        type="text"
+        placeholder="Full Name">
+
+        <input
+        type="email"
+        placeholder="Email">
+
+        <input
+        type="password"
+        placeholder="Password">
+
+        <input
+        type="password"
+        placeholder="Confirm Password">
+
+        <button class="main-btn">
+            Register
+        </button>
+
+        <p class="switch">
+
+            Already have an account?
+
+            <a href="#"
+            onclick="showLogin(event)">
+                Login
+            </a>
+
+        </p>
+
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>

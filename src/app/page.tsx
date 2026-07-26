@@ -42,24 +42,14 @@ function DashboardContent() {
         return <OverviewTab />;
       case "children":
         return <ChildManagementTab />;
-      case "assessments":
-        return <AssessmentReviewTab />;
-      case "therapy":
-        return <TherapyManagementTab />;
       case "staff":
         return <StaffManagementTab />;
       case "reports":
         return <ReportsTab />;
-      case "escalations":
-        return <EscalationCenterTab />;
       
       // Therapist Views
       case "therapist-home":
         return <TherapistOverview />;
-      case "therapist-patients":
-        return <TherapistPatients />;
-      case "therapist-session":
-        return <SessionEntryForm />;
       case "therapist-assessment":
         return <NewAssessmentForm />;
       case "therapist-stats":
@@ -70,10 +60,6 @@ function DashboardContent() {
         return <ParentOverview />;
       case "parent-exercises":
         return <ParentExercises />;
-      case "parent-progress":
-        return <ParentProgress />;
-      case "parent-appointments":
-        return <ParentAppointments />;
       case "parent-reports":
         return <ParentReports />;
       
@@ -84,14 +70,14 @@ function DashboardContent() {
 
 
   return (
-    <div className="flex min-h-screen w-full bg-slate-50/50 bg-[url('/bg.png')] bg-cover bg-center bg-fixed">
+    <div className="flex min-h-screen w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/30 via-slate-50 to-indigo-50/30 bg-fixed">
       {/* Navigation Sidebar */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
       {/* Main Panel */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Navbar */}
-        <Navbar />
+        <Navbar onMenuClick={() => setSidebarOpen(true)} />
 
         {/* Content Body */}
         <main className="flex-1 overflow-y-auto px-6 py-8 md:px-8 max-w-7xl w-full mx-auto">

@@ -2,41 +2,25 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useDashboard } from "@/context/DashboardContext";
-import {
-  Bell,
-  LayoutDashboard,
-  Users,
-  ClipboardCheck,
-  Activity,
-  HeartHandshake,
-  FileBarChart2,
-  AlertTriangle,
-  NotebookPen,
-  FilePlus,
-  BarChart,
-} from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { cn } from "@/components/ui/ui";
 
-export default function Navbar() {
+interface NavbarProps {
+  onMenuClick?: () => void;
+}
+
+export default function Navbar({ onMenuClick }: NavbarProps) {
   const {
     activeTab,
-    setActiveTab,
     notifications,
     markNotificationRead,
     markAllNotificationsRead,
-    userRole,
-    activeTherapistId,
-    children,
-    assessments,
-    escalations,
   } = useDashboard();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const pendingReviewsCount = assessments.filter((a) => a.status === "Pending Review").length;
-  const activeEscalationsCount = escalations.filter((e) => e.status === "Open").length;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -51,126 +35,89 @@ export default function Navbar() {
   const handleNotificationClick = (notif: any) => {
     markNotificationRead(notif.id);
     setDropdownOpen(false);
-    if (notif.type === "escalation") {
-      setActiveTab("escalations");
-    } else if (notif.type === "review") {
-      setActiveTab("assessments");
+  };
+
+  const getHeaderMeta = () => {
+    switch (activeTab) {
+      // Admin Tabs
+      case "dashboard":
+        return { title: "Dashboard Overview", subtitle: "Clinical health status, daily traffic logs, and active case indicators." };
+      case "children":
+        return { title: "Child Management", subtitle: "Register patients, assign therapists, and manage case profiles." };
+      case "staff":
+        return { title: "Staff Management", subtitle: "Monitor therapist capacities, specializations, workloads, and leave schedules." };
+      case "reports":
+        return { title: "Reports & Audits", subtitle: "Analyze attendance stats, treatment success trends, and operational efficiency." };
+        
+      // Therapist Tabs
+      case "therapist-home":
+        return { title: "Therapist Overview", subtitle: "Today's calendar slots, patient workloads, and quick action shortcuts." };
+      case "therapist-assessment":
+        return { title: "New Assessment Form", subtitle: "Perform new developmental, OT, or PT evaluations and screening checklists." };
+      case "therapist-stats":
+        return { title: "Reports", subtitle: "Analyze therapist activity, patient compliance metrics, and progress trends." };
+
+      // Parent Tabs
+      case "parent-home":
+        return { title: "Overview", subtitle: "Aarav's clinical status summary, home schedule, and therapist assignments." };
+      case "parent-exercises":
+        return { title: "Home Exercises", subtitle: "Assigned home programs. Keep practicing and mark completed when done!" };
+      case "parent-reports":
+        return { title: "Clinical Reports", subtitle: "Download therapist-signed assessments, plans, and case histories." };
+        
+      default:
+        return { title: "Console Dashboard", subtitle: "Kids Care Rehab Centre Management Console." };
     }
   };
 
-  const getNavItems = () => {
-    if (userRole === "admin") {
-      return [
-        { id: "dashboard", label: "Dashboard Overview", icon: LayoutDashboard },
-        { id: "children", label: "Child Management", icon: Users },
-        {
-          id: "assessments",
-          label: "Assessment Review",
-          icon: ClipboardCheck,
-          badge: pendingReviewsCount > 0 ? pendingReviewsCount : undefined,
-          badgeVariant: "info" as const,
-        },
-        { id: "therapy", label: "Therapy Management", icon: Activity },
-        { id: "staff", label: "Staff Management", icon: HeartHandshake },
-        { id: "reports", label: "Reports & Audits", icon: FileBarChart2 },
-        {
-          id: "escalations",
-          label: "Escalation Center",
-          icon: AlertTriangle,
-          badge: activeEscalationsCount > 0 ? activeEscalationsCount : undefined,
-          badgeVariant: "danger" as const,
-        },
-      ];
-    } else if (userRole === "parent") {
-      return [
-        { id: "parent-home", label: "Overview", icon: LayoutDashboard },
-        { id: "parent-progress", label: "Track Progress", icon: BarChart },
-        { id: "parent-exercises", label: "Home Exercises", icon: Activity },
-        { id: "parent-appointments", label: "Schedule & Appointments", icon: ClipboardCheck },
-        { id: "parent-reports", label: "Clinical Reports", icon: FileBarChart2 },
-      ];
-    } else {
-      const myPatientsCount = children.filter((c) => c.assignedTherapistId === activeTherapistId).length;
-      return [
-        { id: "therapist-home", label: "Therapist Home", icon: LayoutDashboard },
-        {
-          id: "therapist-patients",
-          label: "Patient Roster",
-          icon: Users,
-          badge: myPatientsCount > 0 ? myPatientsCount : undefined,
-          badgeVariant: "info" as const,
-        },
-        { id: "therapist-session", label: "Daily Session Log", icon: NotebookPen },
-        { id: "therapist-assessment", label: "New Assessment Form", icon: FilePlus },
-        { id: "therapist-stats", label: "Workload & Stats", icon: BarChart },
-      ];
-    }
-  };
+  const meta = getHeaderMeta();
 
   return (
-    <header className="border-b border-blue-50/60 bg-white sticky top-0 z-30 shadow-xs w-full">
-      {/* Horizontal Navigation Tabs + Notifications */}
-      <div className="flex h-14 items-center justify-between px-6 overflow-x-auto bg-slate-50/50 scrollbar-none">
-        <nav className="flex items-center gap-1.5 py-2">
-          {getNavItems().map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+    <header className="border-b border-slate-200/50 bg-white/75 backdrop-blur-md sticky top-0 z-30 shadow-[0_1px_10px_-8px_rgba(0,0,0,0.05)] w-full">
+      <div className="flex h-16 items-center justify-between px-6 md:px-8">
+        
+        {/* Left Side: Menu Trigger + Page Title */}
+        <div className="flex items-center gap-3 min-w-0">
+          {onMenuClick && (
+            <button
+              onClick={onMenuClick}
+              className="lg:hidden flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
+              aria-label="Toggle Sidebar"
+            >
+              <Menu className="h-5 w-5 text-slate-600" />
+            </button>
+          )}
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-slate-800 tracking-tight leading-none">
+              {meta.title}
+            </h2>
+            <p className="text-[10px] font-medium text-slate-400 mt-1 truncate max-w-[280px] sm:max-w-md md:max-w-lg hidden xs:block">
+              {meta.subtitle}
+            </p>
+          </div>
+        </div>
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all duration-155 whitespace-nowrap border border-transparent cursor-pointer",
-                  isActive
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-150/70 hover:text-slate-900"
-                )}
-              >
-                <Icon className={cn("h-3.5 w-3.5", isActive ? "text-white" : "text-slate-400")} />
-                <span>{item.label}</span>
-                {item.badge !== undefined && (
-                  <span
-                    className={cn(
-                      "inline-flex h-4 items-center justify-center rounded-full px-1.5 text-[9px] font-extrabold border min-w-4",
-                      isActive
-                        ? "bg-white text-blue-600 border-white"
-                        : item.badgeVariant === "danger"
-                        ? "bg-rose-50 border-rose-100 text-rose-700 animate-pulse"
-                        : "bg-blue-50 border-blue-100 text-blue-700"
-                    )}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Notifications Bell */}
+        {/* Right Side: Notifications Bell */}
         <div className="relative shrink-0 ml-3" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="relative rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 transition-all duration-200 cursor-pointer"
             aria-label="Notifications"
           >
             <Bell className="h-4.5 w-4.5" />
             {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[8px] font-black text-white ring-2 ring-white animate-pulse">
-                {unreadCount}
-              </span>
+              <span className="absolute right-2 top-2 flex h-2 w-2 rounded-full bg-rose-600 ring-2 ring-white animate-pulse" />
             )}
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-100 bg-white py-2.5 shadow-xl ring-1 ring-black/5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-100 bg-white/95 backdrop-blur-md py-2.5 shadow-xl ring-1 ring-black/5 z-50 animate-scale-in">
               <div className="flex items-center justify-between border-b border-slate-100 px-4 pb-2 mb-1.5">
                 <span className="text-xs font-bold text-slate-800">System Alerts</span>
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllNotificationsRead}
-                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800"
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
                   >
                     Clear all
                   </button>
@@ -187,7 +134,7 @@ export default function Navbar() {
                       key={notif.id}
                       onClick={() => handleNotificationClick(notif)}
                       className={cn(
-                        "flex w-full flex-col gap-0.5 border-b border-slate-50 px-4 py-2.5 text-left text-xs transition-colors hover:bg-slate-50/80",
+                        "flex w-full flex-col gap-0.5 border-b border-slate-50 px-4 py-2.5 text-left text-xs transition-colors hover:bg-slate-50/80 cursor-pointer",
                         !notif.read && "bg-blue-50/20 font-semibold"
                       )}
                     >

@@ -4,83 +4,138 @@ import React, { useState } from "react";
 import { DashboardProvider, useDashboard } from "@/context/DashboardContext";
 import Sidebar from "@/components/layout/Sidebar";
 import Navbar from "@/components/layout/Navbar";
-import OverviewTab from "@/components/dashboard/OverviewTab";
-import ChildManagementTab from "@/components/dashboard/ChildManagementTab";
-import AssessmentReviewTab from "@/components/dashboard/AssessmentReviewTab";
-import TherapyManagementTab from "@/components/dashboard/TherapyManagementTab";
-import StaffManagementTab from "@/components/dashboard/StaffManagementTab";
-import ReportsTab from "@/components/dashboard/ReportsTab";
-import EscalationCenterTab from "@/components/dashboard/EscalationCenterTab";
-
-// Therapist views
-import TherapistOverview from "@/components/dashboard/TherapistOverview";
-import TherapistPatients from "@/components/dashboard/TherapistPatients";
-import SessionEntryForm from "@/components/dashboard/SessionEntryForm";
-import NewAssessmentForm from "@/components/dashboard/NewAssessmentForm";
-import TherapistStats from "@/components/dashboard/TherapistStats";
-
-// Parent views
-import ParentOverview from "@/components/dashboard/ParentOverview";
-import ParentExercises from "@/components/dashboard/ParentExercises";
-import ParentProgress from "@/components/dashboard/ParentProgress";
-import ParentAppointments from "@/components/dashboard/ParentAppointments";
-import ParentReports from "@/components/dashboard/ParentReports";
 import Login from "@/components/dashboard/Login";
 
+// Dashboards
+import AdminDashboard from "@/components/dashboard/AdminDashboard";
+import StaffDashboard from "@/components/dashboard/StaffDashboard";
+import ParentHome from "@/components/dashboard/ParentHome";
+
+// Shared Pages
+import ChildrenList from "@/components/dashboard/ChildrenList";
+import ChildRegistration from "@/components/dashboard/ChildRegistration";
+import AppointmentBooking from "@/components/dashboard/AppointmentBooking";
+import EnquiryLog from "@/components/dashboard/EnquiryLog";
+import StaffManagement from "@/components/dashboard/StaffManagement";
+import ReportsTab from "@/components/dashboard/ReportsTab";
+
+// Phase 2/3 Forms
+import ClinicalAssessmentForm from "@/components/dashboard/ClinicalAssessmentForm";
+import SessionEntryForm from "@/components/dashboard/SessionEntryForm";
+import ParentReport from "@/components/dashboard/ParentReport";
+
+import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
+
 function DashboardContent() {
-  const { activeTab, isLoggedIn } = useDashboard();
+  const { activeTab, isLoggedIn, userRole, toasts, removeToast } = useDashboard();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // If not logged in, render Login page (Route: /login)
   if (!isLoggedIn) {
     return <Login />;
   }
 
+  // Active view router per role and tab
   const renderActiveTab = () => {
+    // Role-based protection: if staff tries to open staff management, redirect to dashboard
+    if (userRole === "staff" && activeTab === "staff") {
+      return <StaffDashboard />;
+    }
+    // Role-based protection: if parent tries to open children list, redirect to parent home
+    if (userRole === "parent" && (activeTab === "children" || activeTab === "children-new" || activeTab === "staff")) {
+      return <ParentHome />;
+    }
+
     switch (activeTab) {
-      // Admin Views
+      // Role Dashboards
       case "dashboard":
-        return <OverviewTab />;
+        if (userRole === "admin") return <AdminDashboard />;
+        if (userRole === "staff") return <StaffDashboard />;
+        return <ParentHome />;
+
+      // Shared Navigation Pages
       case "children":
-        return <ChildManagementTab />;
+        return <ChildrenList />;
+
+      case "children-new":
+        return <ChildRegistration />;
+
+      case "appointments":
+        return <AppointmentBooking />;
+
+      case "enquiries":
+        return <EnquiryLog />;
+
       case "staff":
-        return <StaffManagementTab />;
+        return <StaffManagement />;
+
       case "reports":
         return <ReportsTab />;
-      
-      // Therapist Views
-      case "therapist-home":
-        return <TherapistOverview />;
-      case "therapist-assessment":
-        return <NewAssessmentForm />;
-      case "therapist-stats":
-        return <TherapistStats />;
 
-      // Parent Views
+      case "new-assessment":
+        return <ClinicalAssessmentForm />;
+
+      case "daily-session":
+        return <SessionEntryForm />;
+
+      // Parent Specific Pages
       case "parent-home":
-        return <ParentOverview />;
-      case "parent-exercises":
-        return <ParentExercises />;
+        return <ParentHome />;
+
       case "parent-reports":
-        return <ParentReports />;
-      
+        return <ParentReport />;
+
+      case "parent-exercises":
+        return <ParentHome />;
+
+      case "parent-progress":
+        return <ParentHome />;
+
       default:
-        return <OverviewTab />;
+        if (userRole === "admin") return <AdminDashboard />;
+        if (userRole === "staff") return <StaffDashboard />;
+        return <ParentHome />;
     }
   };
 
-
   return (
-    <div className="flex min-h-screen w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/30 via-slate-50 to-indigo-50/30 bg-fixed">
-      {/* Navigation Sidebar */}
+    <div className="flex min-h-screen w-full bg-[#F8F8F6] text-[#2C2C2A] font-sans">
+      {/* Toast Notifications Overlay */}
+      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`p-3.5 rounded-[8px] border shadow-lg text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 ${
+              t.type === "success"
+                ? "bg-[#3B6D11] text-white border-[#3B6D11]"
+                : t.type === "error"
+                ? "bg-[#993C1D] text-white border-[#993C1D]"
+                : "bg-[#185FA5] text-white border-[#185FA5]"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {t.type === "success" && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+              {t.type === "error" && <AlertCircle className="h-4 w-4 shrink-0" />}
+              {t.type === "info" && <Info className="h-4 w-4 shrink-0" />}
+              <span>{t.message}</span>
+            </div>
+            <button onClick={() => removeToast(t.id)} className="hover:opacity-80">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Shared Layout: Left Sidebar */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      {/* Main Panel */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Navbar */}
+      {/* Main Content Container */}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        {/* Shared Layout: Top Bar */}
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
 
-        {/* Content Body */}
-        <main className="flex-1 overflow-y-auto px-6 py-8 md:px-8 max-w-7xl w-full mx-auto">
+        {/* Main Active Page Content */}
+        <main className="flex-1 overflow-y-auto p-6 max-w-7xl w-full mx-auto">
           {renderActiveTab()}
         </main>
       </div>

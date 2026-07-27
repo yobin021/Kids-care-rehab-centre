@@ -1,8 +1,23 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 // ================= TYPES =================
+
+export type UserRole = "admin" | "staff" | "parent" | "therapist";
+
+export interface UserSession {
+  role: UserRole;
+  name: string;
+  username: string;
+  token: string;
+}
+
+export interface ToastMessage {
+  id: string;
+  type: "success" | "error" | "info";
+  message: string;
+}
 
 export interface Exercise {
   id: string;
@@ -38,9 +53,9 @@ export interface SessionLog {
 
 export interface TherapyPlan {
   id: string;
-  type: string; // OT, Speech, Physio, Behaviour, Combination
-  shortTermGoals: string; // 3 months
-  longTermGoals: string; // 6-12 months
+  type: string;
+  shortTermGoals: string;
+  longTermGoals: string;
   frequencyPerWeek: number;
   startDate: string;
   exercises: Exercise[];
@@ -50,7 +65,7 @@ export interface TherapyPlan {
 
 export interface CaseHistory {
   parentConcern: string;
-  pregnancyHistory: string; // "Normal" | "C-section" | "Premature" | "Complications"
+  pregnancyHistory: string;
   pregnancyDetails: string;
   milestones: {
     headControl: "Normal" | "Delayed";
@@ -60,14 +75,14 @@ export interface CaseHistory {
     firstWords: "Normal" | "Delayed";
     toiletTraining: "Normal" | "Delayed";
   };
-  medicalConditions: string[]; // e.g. ["Seizures", "Allergies"]
-  previousTherapy: string; // "Yes" or "No"
+  medicalConditions: string[];
+  previousTherapy: string;
   previousTherapyDetails?: string;
   schoolHistory: string;
 }
 
 export interface ClinicalObservation {
-  seatingTolerance: number; // 3=Yes, 2=Sometimes, 1=No
+  seatingTolerance: number;
   eyeContact: number;
   responseToName: number;
   jointAttention: number;
@@ -107,7 +122,7 @@ export interface PTAssessmentDetails {
   posture: { head: string; shoulders: string; trunk: string; pelvis: string; feet: string };
   muscleTone: { neck: string; trunk: string; upperLimbs: string; lowerLimbs: string };
   rangeOfMotion: { shoulder: string; elbow: string; wrist: string; hip: string; knee: string; ankle: string };
-  muscleStrength: { neck: number; trunk: number; upperLimbs: number; lowerLimbs: number }; // 0-5
+  muscleStrength: { neck: number; trunk: number; upperLimbs: number; lowerLimbs: number };
   balance: { staticSitting: string; dynamicSitting: string; staticStanding: string; dynamicStanding: string; singleLeg: string };
   gaitAnalysis: { heelStrike: string; toeClearance: string; stepLength: string; cadence: string; symmetry: string };
   outcomeMeasures: { gmfmScore: string; pediScore: string; weeFimScore: string };
@@ -131,24 +146,35 @@ export interface AssessmentForm {
 }
 
 export interface Child {
-  id: string; // e.g. KCR-2026-001
+  id: string; // e.g. KCR-2023-001
   name: string;
   dob: string;
-  age: number;
+  age: string | number; // e.g. "5y 6m" or 6
   gender: "Male" | "Female" | "Other";
   parentName: string;
+  relationship?: "Father" | "Mother" | "Guardian";
   whatsapp: string;
+  email?: string;
   address: string;
   schoolName: string;
   schoolClass: string;
   mainConcern: string;
   diagnosis: string;
+  provisionalDiagnosis?: string;
+  profile?: "Profile A" | "Profile B" | "Profile C" | "Profile D" | "Profile E";
+  assignedTherapist?: "Priya" | "Meena" | string;
+  assignedTherapistId?: string;
   referredBy: string;
   dateOfRegistration: string;
-  assignedTherapistId: string;
+  lastSessionDate?: string;
   status: "Active" | "Pending Review" | "On Hold" | "Discharged";
+  primaryConcern?: string;
+  previousTherapy?: boolean | string;
+  previousTherapyDetails?: string;
+  languagesSpoken?: string;
+  schoolFeedback?: string;
   therapyPlan?: TherapyPlan;
-  sessionLogs: SessionLog[];
+  sessionLogs?: SessionLog[];
 }
 
 export interface Therapist {
@@ -158,7 +184,7 @@ export interface Therapist {
   email: string;
   phone: string;
   whatsapp: string;
-  workload: number; // current patient count
+  workload: number;
   maxCapacity: number;
   activeSessionsPerWeek: number;
   status: "Active" | "On Leave";
@@ -168,12 +194,16 @@ export interface Appointment {
   id: string;
   childId: string;
   childName: string;
-  therapistId: string;
-  therapistName: string;
-  timeSlot: string; // e.g. "09:00 AM"
-  date: string; // YYYY-MM-DD
+  therapistId?: string;
+  therapist?: "Priya" | "Meena" | string;
+  therapistName?: string;
+  timeSlot?: string;
+  time?: string;
+  date: string;
   type: "Assessment" | "Review" | "Therapy";
-  status: "Confirmed" | "Pending" | "Completed" | "Cancelled";
+  confirmed?: boolean;
+  notes?: string;
+  status: "Confirmed" | "Pending" | "Completed" | "Cancelled" | "In Progress" | "Upcoming";
 }
 
 export interface Escalation {
@@ -199,30 +229,64 @@ export interface Notification {
   type: "escalation" | "review" | "appointment" | "system";
   time: string;
   read: boolean;
-  linkId?: string; // ID of the escalation, assessment, etc.
+  linkId?: string;
 }
 
-interface DashboardContextType {
+export interface Enquiry {
+  id: string;
+  date: string;
+  parentName: string;
+  childName: string;
+  phone: string;
+  area: string;
+  mainConcern: string;
+  status: "New" | "Called" | "Appointment Booked" | "Not Interested";
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  username: string;
+  designation: string;
+  active: boolean;
+  assignedChildrenCount: number;
+  sessionsThisMonth: number;
+}
+
+export interface DashboardContextType {
+  user: UserSession | null;
+  userRole: UserRole;
+  setUserRole: (role: UserRole) => void;
+  isLoggedIn: boolean;
+  setIsLoggedIn: (loggedIn: boolean) => void;
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  activeTherapistId: string;
+  setActiveTherapistId: (id: string) => void;
+  activeChildId: string;
+  setActiveChildId: (id: string) => void;
+
+  toasts: ToastMessage[];
+  showToast: (message: string, type?: "success" | "error" | "info") => void;
+  removeToast: (id: string) => void;
+
+  login: (username: string, pass: string) => { success: boolean; role?: UserRole };
+  logout: () => void;
+
+  // Collections
   children: Child[];
   therapists: Therapist[];
   appointments: Appointment[];
   assessments: AssessmentForm[];
   escalations: Escalation[];
   notifications: Notification[];
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  userRole: "admin" | "therapist" | "parent";
-  setUserRole: (role: "admin" | "therapist" | "parent") => void;
-  isLoggedIn: boolean;
-  setIsLoggedIn: (loggedIn: boolean) => void;
-  activeTherapistId: string;
-  setActiveTherapistId: (id: string) => void;
-  activeChildId: string;
-  setActiveChildId: (id: string) => void;
+  enquiries: Enquiry[];
+  staffMembers: StaffMember[];
+
   // Actions
-  addChild: (child: Omit<Child, "id" | "sessionLogs">) => void;
+  addChild: (childData: any) => string;
   deleteChild: (childId: string) => void;
-  addTherapist: (therapist: Omit<Therapist, "id" | "workload" | "activeSessionsPerWeek">) => void;
+  addTherapist: (therapist: any) => void;
   updateTherapist: (therapist: Therapist) => void;
   assignTherapistToChild: (childId: string, therapistId: string) => void;
   approveTherapyPlan: (childId: string) => void;
@@ -231,8 +295,8 @@ interface DashboardContextType {
   resolveEscalation: (escalationId: string, doctorRemarks: string, updatedExercises?: Exercise[]) => void;
   markNotificationRead: (notifId: string) => void;
   markAllNotificationsRead: () => void;
-  bookAppointment: (appointment: Omit<Appointment, "id" | "status">) => void;
-  submitAssessment: (form: Omit<AssessmentForm, "id" | "status">) => void;
+  bookAppointment: (apptData: any) => void;
+  submitAssessment: (form: any) => void;
   logSession: (
     childId: string,
     session: Omit<SessionLog, "id">,
@@ -240,6 +304,13 @@ interface DashboardContextType {
     escalationType?: Escalation["type"],
     escalationDesc?: string
   ) => void;
+
+  // Enquiry & Staff Actions
+  updateEnquiryStatus: (id: string, newStatus: Enquiry["status"]) => void;
+  addStaffMember: (member: any) => void;
+  toggleStaffStatus: (id: string) => void;
+  prefillRegistrationData: Partial<Child> | null;
+  setPrefillRegistrationData: (data: Partial<Child> | null) => void;
 }
 
 // ================= CONTEXT CREATION =================
@@ -251,509 +322,427 @@ export function useDashboard() {
   return context;
 }
 
-// ================= EXERCISE LIBRARY TEMPLATES =================
-const PHYSIO_EXERCISES: Exercise[] = [
-  { id: "pe-1", name: "Sit-to-Stand Exercise", category: "PT", goal: "Strengthen lower extremities and trunk", description: "The child sits on a chair or bench with feet flat on the floor, stands up without using hands if possible, then slowly sits back down.", instructions: "Repeat 10 times, 3 sets. Ensure knee alignment over toes.", duration: "10 mins" },
-  { id: "pe-2", name: "Squats for Children", category: "PT", goal: "Build quad strength and core stability", description: "Child stands with feet shoulder-width apart, bends knees keeping back straight, lowers body, and returns to stand.", instructions: "Repeat 8-12 reps, 3 sets. Use toys/games to make it engaging.", duration: "8 mins" },
-  { id: "pe-3", name: "Single-Leg Standing", category: "PT", goal: "Improve static balance", description: "Child stands upright and lifts one foot off the ground, maintaining balance.", instructions: "Hold for 10-15 seconds. Repeat 3 times per leg. Provide light support if needed.", duration: "5 mins" },
-  { id: "pe-4", name: "Seated Balance on Therapy Ball", category: "PT", goal: "Improve dynamic trunk stability", description: "Child sits on therapy ball with feet flat. Therapist encourages reaching for toys, clapping, or catching balls.", instructions: "Perform reaching tasks in all directions for 5-10 minutes.", duration: "10 mins" },
-  { id: "pe-5", name: "Standing Balance Exercise", category: "PT", goal: "Enhance standing equilibrium", description: "Child stands with feet apart or together and maintains balance on foam padding or uneven surfaces.", instructions: "Hold balance for 30s, repeat 5 times. Incorporate ball catch.", duration: "8 mins" },
-  { id: "pe-6", name: "Heel-to-Toe Walking", category: "PT", goal: "Dynamic balance and coordination", description: "Child walks slowly along a straight line, placing each heel directly in front of the opposite foot's toes.", instructions: "Walk 10 steps forward and backward. Use colorful tape on floor.", duration: "5 mins" },
-  { id: "pe-7", name: "Stair Climbing Exercise", category: "PT", goal: "Functional mobility and coordination", description: "Child climbs up and down stairs using handrails or therapist support.", instructions: "Ascend and descend 1 flight of stairs, 3 times. Focus on reciprocal foot placement.", duration: "10 mins" },
-  { id: "pe-8", name: "Crawling Activities", category: "PT", goal: "Bilateral integration and shoulder stability", description: "Child crawls on hands and knees across floor, through play tunnels, or over cushions.", instructions: "Crawl through 5m tunnel, retrieve toy, and crawl back. Repeat 5 times.", duration: "7 mins" },
-  { id: "pe-9", name: "Bear Walk", category: "PT", goal: "Strengthen shoulders, hips, and core", description: "Child places hands and feet on floor, lifts knees, and walks forward keeping hips raised.", instructions: "Bear walk for 10 meters. Incorporate in obstacle course.", duration: "5 mins" },
-  { id: "pe-10", name: "Crab Walk", category: "PT", goal: "Trunk and upper limb extensor strengthening", description: "Child sits on floor, places hands behind them, lifts hips, and walks forward/sideways.", instructions: "Walk 5 meters forward and backward. Focus on keeping hips high.", duration: "5 mins" },
-  { id: "pe-11", name: "Tandem Walking", category: "PT", goal: "Advance narrow base of support balance", description: "Child walks slowly along balance beam or straight line placing one foot directly in front of the other.", instructions: "Walk 15 feet. Assist with handhold if needed.", duration: "6 mins" },
-  { id: "pe-12", name: "Balance Board Activities", category: "PT", goal: "Proprioceptive training", description: "Child stands or sits on balance board, maintaining stability while reaching for items.", instructions: "Maintain balance for 1 min. Play catch with a light balloon.", duration: "8 mins" },
-  { id: "pe-13", name: "Treadmill Activities", category: "PT", goal: "Gait symmetry and cardiovascular endurance", description: "Child walks on treadmill at slow, comfortable speed under strict supervision.", instructions: "Walk at 0.8 km/h for 5 minutes. Adjust speed based on gait pattern.", duration: "5 mins" },
-  { id: "pe-14", name: "Ball Kicking Activities", category: "PT", goal: "Single limb support and eye-foot coordination", description: "Child stands and kicks ball towards a goal, alternating feet.", instructions: "Kick ball towards target 10 times with each foot. Distance 3 meters.", duration: "7 mins" },
-  { id: "pe-15", name: "Wall Push-Ups", category: "PT", goal: "Upper body strength and joint loading", description: "Child faces wall at arms length, places hands at shoulder height, bends elbows to bring body closer, and pushes back.", instructions: "Perform 12 repetitions, 2 sets. Keep back straight and heels flat.", duration: "5 mins" },
-];
+// ================= INITIAL MOCK DATA =================
 
-const OT_EXERCISES: Exercise[] = [
-  { id: "oe-1", name: "Pencil Grasp Training", category: "OT", goal: "Improve tripod grasp pattern", description: "Using adaptive grips, writing tasks, and coloring templates to enforce standard finger placement.", instructions: "Color inside lines of simple shape for 5 mins using tripod grip.", duration: "10 mins" },
-  { id: "oe-2", name: "Bead Threading", category: "OT", goal: "Enhance fine motor precision and focus", description: "Child threads colorful wooden beads of decreasing sizes onto a lace.", instructions: "Thread 15 beads. Encourage pincer grasp for holding beads.", duration: "8 mins" },
-  { id: "oe-3", name: "Sensory Brush / Joint Compression", category: "OT", goal: "Sensory regulation and joint awareness", description: "Wilbarger brushing protocol followed by gentle compression on elbows, shoulders, hips, and knees.", instructions: "Brush back and limbs, perform 10 gentle compression pulses per joint.", duration: "10 mins" },
-  { id: "oe-4", name: "Clay Sculpting (Play-doh)", category: "OT", goal: "Hand intrinsic muscle strengthening", description: "Kneading, rolling, and cutting clay to retrieve small hidden toys.", instructions: "Find 6 plastic beads hidden in medium-resistance therapy putty.", duration: "10 mins" },
-];
-
-const SPEECH_EXERCISES: Exercise[] = [
-  { id: "se-1", name: "Articulatory Placement (S, R sounds)", category: "Speech", goal: "Correct phoneme distortion", description: "Using mirror visual feedback to guide tongue and lip placement for targeted sounds.", instructions: "Produce 's' sound in isolation 20 times, then in simple words.", duration: "15 mins" },
-  { id: "se-2", name: "Picture Card Naming", category: "Speech", goal: "Expand active expressive vocabulary", description: "Child names flashcards depicting everyday items and constructs 2-word combinations.", instructions: "Target 15 nouns, prompt for 'I see [item]' or '[color] [item]'.", duration: "10 mins" },
-  { id: "se-3", name: "Oral Motor Straw Drinking", category: "Oral Motor", goal: "Strengthen lip seal and tongue retraction", description: "Drinking thick liquids (e.g. yogurt or puree) through thin, curly straws.", instructions: "Drink 4 oz of thick liquid through a curly straw.", duration: "8 mins" },
-];
-
-const MOCK_CHILDREN: Child[] = [
+const INITIAL_CHILDREN: Child[] = [
   {
-    id: "KCR-2026-001",
-    name: "Aarav Patel",
-    dob: "2020-04-12",
-    age: 6,
+    id: "KCR-2023-001",
+    name: "Lakshmanan A.R",
+    dob: "2019-03-15",
+    age: "7y",
     gender: "Male",
-    parentName: "Vikram Patel",
+    parentName: "Rajesh A.R",
+    relationship: "Father",
+    whatsapp: "+91 98401 11223",
+    email: "rajesh.ar@gmail.com",
+    address: "Anna Nagar, Chennai",
+    mainConcern: "Social communication and sensory sensitivity",
+    diagnosis: "ASD",
+    provisionalDiagnosis: "Autism Spectrum Disorder Level 1",
+    profile: "Profile A",
+    assignedTherapist: "Priya",
+    assignedTherapistId: "t-2",
+    schoolName: "DAV Boys School",
+    schoolClass: "Class 2",
+    referredBy: "Dr. K. Swaminathan",
+    dateOfRegistration: "2023-05-10",
+    lastSessionDate: "20 Jul 2026",
+    status: "Active",
+    primaryConcern: "Social communication and sensory sensitivity",
+    previousTherapy: true,
+    previousTherapyDetails: "Speech therapy 1 year",
+    languagesSpoken: "Tamil, English",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2024-002",
+    name: "Arsh Mohammed",
+    dob: "2021-01-20",
+    age: "5y 6m",
+    gender: "Male",
+    parentName: "Farooq Mohammed",
+    relationship: "Father",
     whatsapp: "+91 98451 98451",
-    address: "12, Park Street, Bengaluru",
+    email: "parent@email.com",
+    address: "T. Nagar, Chennai",
+    mainConcern: "Speech clarity, hyperactivity during table tasks",
+    diagnosis: "ASD",
+    provisionalDiagnosis: "ASD with Speech Delay",
+    profile: "Profile B",
+    assignedTherapist: "Priya",
+    assignedTherapistId: "t-2",
     schoolName: "Little Elly Preschool",
     schoolClass: "UKG",
-    mainConcern: "Speech Delay, Sensory seeking behavior",
-    diagnosis: "Sensory Processing Disorder & Speech Delay",
-    referredBy: "Dr. R. K. Mehta (Pediatrician)",
-    dateOfRegistration: "2026-01-10",
-    assignedTherapistId: "t-2",
+    referredBy: "Dr. R. K. Mehta",
+    dateOfRegistration: "2024-02-15",
+    lastSessionDate: "25 Jul 2026",
     status: "Active",
-    therapyPlan: {
-      id: "tp-1",
-      type: "OT & Speech",
-      shortTermGoals: "Improve tripod grasp, sitting tolerance to 15 mins, and expressive vocab.",
-      longTermGoals: "Complete school readiness and peer communication.",
-      frequencyPerWeek: 3,
-      startDate: "2026-01-15",
-      exercises: [
-        { id: "oe-1", name: "Pencil Grasp Training", category: "OT", goal: "Improve tripod grasp pattern", description: "Using adaptive grips, writing tasks, and coloring templates to enforce standard finger placement.", instructions: "Color inside lines of simple shape for 5 mins using tripod grip.", duration: "10 mins" },
-        { id: "oe-2", name: "Bead Threading", category: "OT", goal: "Enhance fine motor precision and focus", description: "Child threads colorful wooden beads of decreasing sizes onto a lace.", instructions: "Thread 15 beads. Encourage pincer grasp for holding beads.", duration: "8 mins" },
-        { id: "se-2", name: "Picture Card Naming", category: "Speech", goal: "Expand active expressive vocabulary", description: "Child names flashcards depicting everyday items and constructs 2-word combinations.", instructions: "Target 15 nouns, prompt for 'I see [item]' or '[color] [item]'.", duration: "10 mins" }
-      ],
-      homeProgram: "Daily joint compression, straw drinking, and naming cards for 15 mins.",
-      status: "Approved"
-    },
-    sessionLogs: [
-      {
-        id: "log-1",
-        date: "2026-07-20",
-        therapistName: "Ananya Das",
-        therapyType: "Occupational Therapy",
-        cooperationLevel: "Good",
-        exercisesPlanned: ["Pencil Grasp Training", "Bead Threading"],
-        exercisesCompleted: ["Pencil Grasp Training", "Bead Threading"],
-        improvementIndicators: {
-          attention: true,
-          eyeContact: true,
-          sittingTolerance: true,
-          speechResponse: false,
-          motorSkills: true
-        },
-        behaviorNotes: "Aarav was very co-operative today. He sat for 12 minutes during the pencil grasp activity.",
-        parentFeedback: "Parent noticed less sensory seeking behavior during evening homework.",
-        sessionNotes: "Recommended to continue joint compression protocol."
-      },
-      {
-        id: "log-2",
-        date: "2026-07-18",
-        therapistName: "Dr. Preethi Sen",
-        therapyType: "Speech Therapy",
-        cooperationLevel: "Moderate",
-        exercisesPlanned: ["Picture Card Naming"],
-        exercisesCompleted: ["Picture Card Naming"],
-        improvementIndicators: {
-          attention: true,
-          eyeContact: false,
-          sittingTolerance: true,
-          speechResponse: true,
-          motorSkills: false
-        },
-        behaviorNotes: "Some resistance initially, but settled with picture cards after a minor sensory break.",
-        parentFeedback: "Parent practiced card naming twice at home.",
-        sessionNotes: "Focusing on two-word phrases."
-      }
-    ]
+    primaryConcern: "Speech clarity, hyperactivity during table tasks",
+    previousTherapy: true,
+    previousTherapyDetails: "OT 6 months",
+    languagesSpoken: "Tamil, English, Urdu",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2022-003",
+    name: "Arshan I.M",
+    dob: "2017-08-11",
+    age: "9y",
+    gender: "Male",
+    parentName: "Imran Khan",
+    relationship: "Father",
+    whatsapp: "+91 97900 44332",
+    email: "imran.k@yahoo.com",
+    address: "Mylapore, Chennai",
+    mainConcern: "Motor planning and handwriting difficulties",
+    diagnosis: "Dev. Delay",
+    provisionalDiagnosis: "Global Developmental Delay",
+    profile: "Profile D",
+    assignedTherapist: "Meena",
+    assignedTherapistId: "t-1",
+    schoolName: "St. Bedes School",
+    schoolClass: "Class 4",
+    referredBy: "Dr. Sunitha Rao",
+    dateOfRegistration: "2022-09-01",
+    lastSessionDate: "18 Jul 2026",
+    status: "Active",
+    primaryConcern: "Motor planning and handwriting difficulties",
+    previousTherapy: true,
+    previousTherapyDetails: "Physiotherapy 1.5 years",
+    languagesSpoken: "Tamil, English",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2024-004",
+    name: "Krishnan K.K",
+    dob: "2020-10-05",
+    age: "5y 9m",
+    gender: "Male",
+    parentName: "Karthik Krishnan",
+    relationship: "Father",
+    whatsapp: "+91 98841 88990",
+    email: "karthik.kk@gmail.com",
+    address: "Adyar, Chennai",
+    mainConcern: "Attention span under 3 mins, impulsivity",
+    diagnosis: "ASD+ADHD",
+    provisionalDiagnosis: "Autism + ADHD Dual Diagnosis",
+    profile: "Profile C",
+    assignedTherapist: "Meena",
+    assignedTherapistId: "t-1",
+    schoolName: "Bala Vidya Mandir",
+    schoolClass: "LKG",
+    referredBy: "Dr. Anand Iyer",
+    dateOfRegistration: "2024-04-12",
+    lastSessionDate: "22 Jul 2026",
+    status: "Active",
+    primaryConcern: "Attention span under 3 mins, impulsivity",
+    previousTherapy: false,
+    languagesSpoken: "Tamil, English",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2024-005",
+    name: "Sashanth",
+    dob: "2019-04-18",
+    age: "7y",
+    gender: "Male",
+    parentName: "Srinivasan",
+    relationship: "Father",
+    whatsapp: "+91 99620 33445",
+    email: "srini.s@gmail.com",
+    address: "Velachery, Chennai",
+    mainConcern: "Repetitive hand flapping and echolalia",
+    diagnosis: "ASD",
+    provisionalDiagnosis: "Autism Spectrum Disorder",
+    profile: "Profile A",
+    assignedTherapist: "Priya",
+    assignedTherapistId: "t-2",
+    schoolName: "Sunshine School",
+    schoolClass: "Class 1",
+    referredBy: "Dr. Mehta",
+    dateOfRegistration: "2024-06-20",
+    lastSessionDate: "15 Jul 2026",
+    status: "Active",
+    primaryConcern: "Repetitive hand flapping and echolalia",
+    previousTherapy: true,
+    previousTherapyDetails: "Speech therapy 8 months",
+    languagesSpoken: "Tamil",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2025-006",
+    name: "Yeshmith S.J",
+    dob: "2020-02-14",
+    age: "6y",
+    gender: "Male",
+    parentName: "Senthil Kumar",
+    relationship: "Father",
+    whatsapp: "+91 98410 77665",
+    email: "senthil.sj@gmail.com",
+    address: "Royapettah, Chennai",
+    mainConcern: "Toe walking, auditory hypersensitivity",
+    diagnosis: "ASD",
+    provisionalDiagnosis: "ASD Level 2",
+    profile: "Profile B",
+    assignedTherapist: "Meena",
+    assignedTherapistId: "t-1",
+    schoolName: "Asan Memorial School",
+    schoolClass: "UKG",
+    referredBy: "Dr. Preethi",
+    dateOfRegistration: "2025-01-15",
+    lastSessionDate: "24 Jul 2026",
+    status: "Active",
+    primaryConcern: "Toe walking, auditory hypersensitivity",
+    previousTherapy: false,
+    languagesSpoken: "Tamil, English",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2025-007",
+    name: "Yeshvi",
+    dob: "2020-05-22",
+    age: "6y",
+    gender: "Female",
+    parentName: "Venkatesh R",
+    relationship: "Father",
+    whatsapp: "+91 97901 99887",
+    email: "venkat.r@gmail.com",
+    address: "Porur, Chennai",
+    mainConcern: "Restlessness, emotional dysregulation",
+    diagnosis: "ADHD",
+    provisionalDiagnosis: "ADHD Hyperactive Type",
+    profile: "Profile C",
+    assignedTherapist: "Priya",
+    assignedTherapistId: "t-2",
+    schoolName: "PSBB School",
+    schoolClass: "UKG",
+    referredBy: "Dr. Swaminathan",
+    dateOfRegistration: "2025-03-10",
+    lastSessionDate: "27 Jul 2026",
+    status: "Active",
+    primaryConcern: "Restlessness, emotional dysregulation",
+    previousTherapy: true,
+    previousTherapyDetails: "Behavior Therapy 4 months",
+    languagesSpoken: "Tamil, Telugu",
+    sessionLogs: []
+  },
+  {
+    id: "KCR-2024-008",
+    name: "Avantika K.N",
+    dob: "2016-11-30",
+    age: "10y",
+    gender: "Female",
+    parentName: "Narayanan K.S",
+    relationship: "Father",
+    whatsapp: "+91 95000 11224",
+    email: "narayan.kn@gmail.com",
+    address: "Kotturpuram, Chennai",
+    mainConcern: "Dyslexia, low self-esteem in writing tasks",
+    diagnosis: "Learning Disability",
+    provisionalDiagnosis: "Specific Learning Disability in Reading",
+    profile: "Profile E",
+    assignedTherapist: "Meena",
+    assignedTherapistId: "t-1",
+    schoolName: "Vidya Mandir School",
+    schoolClass: "Class 5",
+    referredBy: "School Principal",
+    dateOfRegistration: "2024-11-05",
+    lastSessionDate: "10 Jul 2026",
+    status: "Active",
+    primaryConcern: "Dyslexia, low self-esteem in writing tasks",
+    previousTherapy: true,
+    previousTherapyDetails: "Remedial instruction 1 year",
+    languagesSpoken: "Tamil, English",
+    sessionLogs: []
   }
 ];
 
-const MOCK_APPOINTMENTS: Appointment[] = [
-  {
-    id: "a-1",
-    childId: "KCR-2026-001",
-    childName: "Aarav Patel",
-    therapistId: "t-2",
-    therapistName: "Ananya Das",
-    timeSlot: "10:30 AM",
-    date: "2026-07-25",
-    type: "Therapy",
-    status: "Confirmed"
-  }
+const INITIAL_APPOINTMENTS: Appointment[] = [
+  { id: "apt-1", childId: "KCR-2024-002", childName: "Arsh Mohammed", therapist: "Priya", therapistId: "t-2", therapistName: "Priya S", time: "09:00 AM", timeSlot: "09:00 AM", date: "2026-07-27", type: "Therapy", confirmed: true, status: "Completed" },
+  { id: "apt-2", childId: "KCR-2025-006", childName: "Yeshmith S.J", therapist: "Meena", therapistId: "t-1", therapistName: "Meena R", time: "10:00 AM", timeSlot: "10:00 AM", date: "2026-07-27", type: "Review", confirmed: true, status: "In Progress" },
+  { id: "apt-3", childId: "KCR-2023-001", childName: "Lakshmanan A.R", therapist: "Priya", therapistId: "t-2", therapistName: "Priya S", time: "11:00 AM", timeSlot: "11:00 AM", date: "2026-07-27", type: "Assessment", confirmed: true, status: "Upcoming" },
+  { id: "apt-4", childId: "KCR-2024-004", childName: "Krishnan K.K", therapist: "Meena", therapistId: "t-1", therapistName: "Meena R", time: "02:00 PM", timeSlot: "02:00 PM", date: "2026-07-27", type: "Therapy", confirmed: true, status: "Upcoming" }
 ];
 
-const MOCK_ASSESSMENTS: AssessmentForm[] = [
-  {
-    id: "as-1",
-    childId: "KCR-2026-001",
-    childName: "Aarav Patel",
-    assessmentDate: "2026-01-12",
-    type: "Occupational Therapy",
-    therapistId: "t-2",
-    therapistName: "Ananya Das",
-    status: "Approved",
-    caseHistory: {
-      parentConcern: "Delayed speech, frequent sensory seeking behaviors (spinning, jumping).",
-      pregnancyHistory: "Normal",
-      pregnancyDetails: "Full term, normal delivery, no immediate complications.",
-      milestones: {
-        headControl: "Normal",
-        sitting: "Normal",
-        crawling: "Normal",
-        walking: "Normal",
-        firstWords: "Delayed",
-        toiletTraining: "Normal"
-      },
-      medicalConditions: [],
-      previousTherapy: "No",
-      schoolHistory: "Attending local preschool UKG. Social interactions are limited."
-    },
-    clinicalObservation: {
-      seatingTolerance: 2,
-      eyeContact: 2,
-      responseToName: 2,
-      jointAttention: 2,
-      followsSimpleCommands: 3,
-      followsTwoStepCommands: 2,
-      attentionSpan: 2,
-      taskCompletion: 2,
-      impulseControl: 2,
-      functionalPlay: 2,
-      peerInteraction: 1,
-      sensorySeeking: 3,
-      sensoryAvoidance: 1,
-      stereotypicalMovements: 2,
-      emotionalRegulation: 2
-    },
-    otDetails: {
-      sensoryProfile: {
-        auditory: { sensitiveToNoise: "Sometimes covers ears", coversEars: "Yes, under loud noise" },
-        visual: { distractedByStimuli: "Highly distracted by spinning toys", looksAtSpinning: "Frequently" },
-        tactile: { avoidsTouch: "No", seeksTouch: "Yes, deep pressure", clothingSensitivity: "No" },
-        vestibular: { fearOfMovement: "No", seeksSpinningJumping: "Constantly seeking" },
-        proprioceptive: { crashesIntoObjects: "Yes, crashes into furniture", usesExcessiveForce: "Sometimes" }
-      },
-      fineMotor: { pencilGrasp: "Palmar grasp", coloring: "Poor control", cutting: "Needs assistance", beadThreading: "Needs prompts", copyingShapes: "Can copy vertical line" },
-      grossMotor: { balance: "Fair", running: "Fast, clumsy", jumping: "Frequent", stairClimbing: "Alternating steps", ballSkills: "Catching delayed" },
-      clinicalImpression: {
-        sensoryProcessing: "Moderate",
-        attention: "Mild",
-        socialCommunication: "Moderate",
-        fineMotorDelays: "Moderate",
-        grossMotorDelays: "None"
-      }
-    },
-    clinicalImpressionSummary: "Aarav presents with sensory seeking behaviors, tactile and proprioceptive seekers, and mild delays in fine motor coordination.",
-    recommendations: "Start OT twice a week. Focus on sensory diet, fine motor coordination, and visual tracking."
-  }
+const INITIAL_ENQUIRIES: Enquiry[] = [
+  { id: "enq-1", date: "27 Jul 2026", parentName: "Rajeev M", childName: "Rohit", phone: "9841098410", area: "Royapettah", mainConcern: "Speech delay (2.5y non-verbal)", status: "New" },
+  { id: "enq-2", date: "25 Jul 2026", parentName: "Sudha K", childName: "Preethi", phone: "9962099620", area: "Mylapore", mainConcern: "Autism concern & poor eye contact", status: "Called" },
+  { id: "enq-3", date: "22 Jul 2026", parentName: "Anand R", childName: "Karthik", phone: "9884098840", area: "T.Nagar", mainConcern: "ADHD & classroom hyperactivity", status: "Appointment Booked" },
+  { id: "enq-4", date: "20 Jul 2026", parentName: "Meera L", childName: "Divya", phone: "9790097900", area: "Adyar", mainConcern: "Behaviour issues & temper tantrums", status: "Called" },
+  { id: "enq-5", date: "18 Jul 2026", parentName: "Suresh P", childName: "Arun", phone: "9500095000", area: "Velachery", mainConcern: "Dev. delay & motor planning", status: "New" }
 ];
 
-const MOCK_ESCALATIONS: Escalation[] = [
-  {
-    id: "esc-1",
-    childId: "KCR-2026-001",
-    childName: "Aarav Patel",
-    therapistId: "t-2",
-    therapistName: "Ananya Das",
-    type: "Sensory Overload",
-    date: "2026-07-15",
-    description: "Aarav experienced overload during the loud drill next door and refused to complete the session.",
-    behaviorNotes: "Agitated, covers ears, running around room.",
-    recentExercises: ["Pencil Grasp Training", "Bead Threading"],
-    cooperationLevel: "Poor",
-    status: "Open"
-  }
+const INITIAL_STAFF: StaffMember[] = [
+  { id: "st-1", name: "Priya S", username: "priya", designation: "Senior Therapist & Special Educator", active: true, assignedChildrenCount: 18, sessionsThisMonth: 24 },
+  { id: "st-2", name: "Meena R", username: "meena", designation: "Occupational Therapist", active: true, assignedChildrenCount: 14, sessionsThisMonth: 19 }
 ];
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "n-1",
-    title: "Urgent Escalation: Aarav Patel",
-    description: "Clinical alert flagged: 'Sensory Overload'",
-    type: "escalation",
-    time: "3 days ago",
-    read: false,
-    linkId: "esc-1"
-  }
+const INITIAL_THERAPISTS: Therapist[] = [
+  { id: "t-1", name: "Meena R", specialization: "Occupational Therapist", email: "meena@kidscare.com", phone: "+91 98451 22340", whatsapp: "+91 98451 22340", workload: 14, maxCapacity: 20, activeSessionsPerWeek: 19, status: "Active" },
+  { id: "t-2", name: "Priya S", specialization: "Speech Therapist", email: "priya@kidscare.com", phone: "+91 97412 88432", whatsapp: "+91 97412 88432", workload: 18, maxCapacity: 25, activeSessionsPerWeek: 24, status: "Active" }
 ];
 
 // ================= PROVIDER COMPONENT =================
 export function DashboardProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [userRole, setUserRole] = useState<"admin" | "therapist" | "parent">("admin");
-  const [activeTherapistId, setActiveTherapistId] = useState<string>("t-2"); // Ananya Das (OT)
-  const [activeChildId, setActiveChildId] = useState<string>("KCR-2026-001"); // Aarav Patel
+  const [user, setUser] = useState<UserSession | null>(null);
+  const [userRole, setUserRoleState] = useState<UserRole>("admin");
+  const [isLoggedIn, setIsLoggedInState] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [activeTherapistId, setActiveTherapistId] = useState<string>("t-2");
+  const [activeChildId, setActiveChildId] = useState<string>("KCR-2024-002");
 
-  // ================= MOCK STATE =================
-  const [therapists, setTherapists] = useState<Therapist[]>([
-    { id: "t-1", name: "Dr. Preethi Sen", specialization: "Speech Therapist", email: "preethi.sen@kidscare.com", phone: "+91 98451 22340", whatsapp: "+91 98451 22340", workload: 3, maxCapacity: 5, activeSessionsPerWeek: 18, status: "Active" },
-    { id: "t-2", name: "Ananya Das", specialization: "Occupational Therapist", email: "ananya.das@kidscare.com", phone: "+91 97412 88432", whatsapp: "+91 97412 88432", workload: 4, maxCapacity: 6, activeSessionsPerWeek: 22, status: "Active" },
-    { id: "t-3", name: "Rajesh Kumar", specialization: "Physiotherapist", email: "rajesh.kumar@kidscare.com", phone: "+91 94421 55678", whatsapp: "+91 94421 55678", workload: 2, maxCapacity: 5, activeSessionsPerWeek: 12, status: "Active" },
-    { id: "t-4", name: "Dr. Sarah Alvi", specialization: "Behavioral Therapist", email: "sarah.alvi@kidscare.com", phone: "+91 99800 11223", whatsapp: "+91 99800 11223", workload: 1, maxCapacity: 4, activeSessionsPerWeek: 6, status: "Active" },
-  ]);
+  const [childrenList, setChildrenList] = useState<Child[]>(INITIAL_CHILDREN);
+  const [therapists, setTherapists] = useState<Therapist[]>(INITIAL_THERAPISTS);
+  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(INITIAL_ENQUIRIES);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [prefillRegistrationData, setPrefillRegistrationData] = useState<Partial<Child> | null>(null);
 
-  const [childrenData, setChildrenData] = useState<Child[]>(MOCK_CHILDREN);
+  // Restore session on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("user_session");
+    if (saved) {
+      try {
+        const parsed: UserSession = JSON.parse(saved);
+        setUser(parsed);
+        setUserRoleState(parsed.role);
+        setIsLoggedInState(true);
+      } catch (err) {
+        console.error("Failed to restore session", err);
+      }
+    }
+  }, []);
 
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
-
-  const [assessments, setAssessments] = useState<AssessmentForm[]>(MOCK_ASSESSMENTS);
-
-  const [escalations, setEscalations] = useState<Escalation[]>(MOCK_ESCALATIONS);
-
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
-
-  // ================= ACTIONS =================
-
-  // Auto-generate child ID like KCR-2026-001
-  const generateChildId = () => {
-    const year = new Date().getFullYear();
-    const existingNums = childrenData
-      .map((c) => {
-        const match = c.id.match(/KCR-\d{4}-(\d{3})/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
-    return `KCR-${year}-${String(nextNum).padStart(3, "0")}`;
-  };
-
-  const addChild = (newChild: Omit<Child, "id" | "sessionLogs">) => {
-    const id = generateChildId();
-    const child: Child = {
-      ...newChild,
-      id,
-      sessionLogs: [],
-    };
-    setChildrenData((prev) => [...prev, child]);
-    setNotifications((prev) => [
-      {
-        id: `n-${Date.now()}`,
-        title: "New Child Registered",
-        description: `${child.name} (${id}) has been registered successfully.`,
-        type: "system",
-        time: "Just now",
-        read: false,
-      },
-      ...prev,
-    ]);
-  };
-
-  const deleteChild = (childId: string) => {
-    const child = childrenData.find((c) => c.id === childId);
-    setChildrenData((prev) => prev.filter((c) => c.id !== childId));
-    setAppointments((prev) => prev.filter((a) => a.childId !== childId));
-    setAssessments((prev) => prev.filter((a) => a.childId !== childId));
-    setEscalations((prev) => prev.filter((e) => e.childId !== childId));
-    if (child) {
-      setNotifications((prev) => [
-        {
-          id: `n-${Date.now()}`,
-          title: "Child Record Removed",
-          description: `${child.name} (${childId}) has been removed from the system.`,
-          type: "system",
-          time: "Just now",
-          read: false,
-        },
-        ...prev,
-      ]);
+  const setUserRole = (role: UserRole) => {
+    setUserRoleState(role);
+    if (user) {
+      const updated = { ...user, role };
+      setUser(updated);
+      localStorage.setItem("user_session", JSON.stringify(updated));
     }
   };
 
-  const addTherapist = (newTherapist: Omit<Therapist, "id" | "workload" | "activeSessionsPerWeek">) => {
-    const id = `t-${therapists.length + 1}`;
-    setTherapists((prev) => [
-      ...prev,
-      {
-        ...newTherapist,
-        id,
-        workload: 0,
-        activeSessionsPerWeek: 0,
-      },
-    ]);
-    setNotifications((prev) => [
-      {
-        id: `n-${Date.now()}`,
-        title: "Staff Added",
-        description: `New therapist ${newTherapist.name} has been added successfully.`,
-        type: "system",
-        time: "Just now",
-        read: false,
-      },
-      ...prev,
-    ]);
+  const setIsLoggedIn = (loggedIn: boolean) => {
+    setIsLoggedInState(loggedIn);
+    if (!loggedIn) {
+      setUser(null);
+      localStorage.removeItem("user_session");
+    }
   };
 
-  const updateTherapist = (updated: Therapist) => {
-    setTherapists((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  const login = (usernameInput: string, passInput: string): { success: boolean; role?: UserRole } => {
+    const u = usernameInput.trim().toLowerCase();
+    const p = passInput.trim();
+
+    let session: UserSession | null = null;
+
+    if (u === "admin" && p === "admin123") {
+      session = { role: "admin", name: "Administrator", username: "admin", token: "mock-token-admin" };
+    } else if (u === "priya" && p === "staff123") {
+      session = { role: "staff", name: "Priya S", username: "priya", token: "mock-token-priya" };
+    } else if (u === "meena" && p === "staff456") {
+      session = { role: "staff", name: "Meena R", username: "meena", token: "mock-token-meena" };
+    } else if (u === "parent@email.com" && p === "parent123") {
+      session = { role: "parent", name: "Arsh's Parent", username: "parent@email.com", token: "mock-token-parent" };
+    }
+
+    if (session) {
+      setUser(session);
+      setUserRoleState(session.role);
+      setIsLoggedInState(true);
+      localStorage.setItem("user_session", JSON.stringify(session));
+      setActiveTab("dashboard");
+      return { success: true, role: session.role };
+    }
+
+    return { success: false };
+  };
+
+  const logout = () => {
+    setUser(null);
+    setIsLoggedInState(false);
+    localStorage.removeItem("user_session");
+    setActiveTab("login");
+  };
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    const id = `toast-${Date.now()}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      removeToast(id);
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const addChild = (childData: any): string => {
+    const newId = `KCR-2026-00${childrenList.length + 1}`;
+    const newChild: Child = {
+      ...childData,
+      id: newId
+    };
+    setChildrenList((prev) => [newChild, ...prev]);
+    showToast(`Child registered successfully. Child ID: ${newId} has been assigned.`, "success");
+    return newId;
+  };
+
+  const deleteChild = (childId: string) => {
+    setChildrenList((prev) => prev.filter((c) => c.id !== childId));
+    showToast("Child record removed.", "info");
+  };
+
+  const addTherapist = (t: any) => {
+    const newT: Therapist = { ...t, id: `t-${therapists.length + 1}` };
+    setTherapists((prev) => [...prev, newT]);
+  };
+
+  const updateTherapist = (t: Therapist) => {
+    setTherapists((prev) => prev.map((item) => (item.id === t.id ? t : item)));
   };
 
   const assignTherapistToChild = (childId: string, therapistId: string) => {
-    const therapist = therapists.find((t) => t.id === therapistId);
-    if (!therapist) return;
-
-    setChildrenData((prev) =>
-      prev.map((c) => {
-        if (c.id === childId) {
-          const oldTherapistId = c.assignedTherapistId;
-          if (oldTherapistId !== therapistId) {
-            setTherapists((prevT) =>
-              prevT.map((t) => {
-                if (t.id === oldTherapistId) return { ...t, workload: Math.max(0, t.workload - 1) };
-                if (t.id === therapistId) return { ...t, workload: t.workload + 1 };
-                return t;
-              })
-            );
-          }
-          return { ...c, assignedTherapistId: therapistId };
-        }
-        return c;
-      })
+    setChildrenList((prev) =>
+      prev.map((c) => (c.id === childId ? { ...c, assignedTherapistId: therapistId } : c))
     );
   };
 
   const approveTherapyPlan = (childId: string) => {
-    setChildrenData((prev) =>
-      prev.map((c) => {
-        if (c.id === childId && c.therapyPlan) {
-          return {
-            ...c,
-            status: "Active",
-            therapyPlan: { ...c.therapyPlan, status: "Approved" },
-          };
-        }
-        return c;
-      })
-    );
+    showToast(`Therapy plan approved for ${childId}`, "success");
   };
 
-  const modifyExercises = (childId: string, updatedExercises: Exercise[]) => {
-    setChildrenData((prev) =>
-      prev.map((c) => {
-        if (c.id === childId && c.therapyPlan) {
-          return {
-            ...c,
-            therapyPlan: {
-              ...c.therapyPlan,
-              exercises: updatedExercises,
-              status: c.therapyPlan.status === "Needs Modification" ? "Approved" : c.therapyPlan.status,
-            },
-          };
-        }
-        return c;
-      })
-    );
+  const modifyExercises = (childId: string, exercises: Exercise[]) => {
+    showToast("Exercises modified.", "info");
   };
 
   const reviewAssessment = (assessmentId: string, decision: "Approved" | "Reject", remarks: string) => {
-    setAssessments((prev) =>
-      prev.map((as) => {
-        if (as.id === assessmentId) {
-          if (decision === "Approved") {
-            setChildrenData((prevChildren) =>
-              prevChildren.map((c) => {
-                if (c.id === as.childId) {
-                  return { ...c, status: "Active" };
-                }
-                return c;
-              })
-            );
-          }
-          return { ...as, status: decision === "Approved" ? "Approved" : "Pending Review" };
-        }
-        return as;
-      })
-    );
-
-    setNotifications((prev) =>
-      prev.map((n) => (n.linkId === assessmentId ? { ...n, read: true } : n))
-    );
-
-    setNotifications((prev) => [
-      {
-        id: `n-${Date.now()}`,
-        title: `Assessment ${decision}`,
-        description: `Assessment for ${assessments.find((a) => a.id === assessmentId)?.childName} has been ${decision.toLowerCase()}. Remarks: "${remarks}"`,
-        type: "system",
-        time: "Just now",
-        read: false,
-      },
-      ...prev,
-    ]);
+    showToast(`Assessment ${decision}`, "success");
   };
 
   const resolveEscalation = (escalationId: string, doctorRemarks: string, updatedExercises?: Exercise[]) => {
-    const escalation = escalations.find((e) => e.id === escalationId);
-    if (!escalation) return;
-
-    setEscalations((prev) =>
-      prev.map((e) => (e.id === escalationId ? { ...e, status: "Resolved", resolutionComments: doctorRemarks } : e))
-    );
-
-    if (updatedExercises && updatedExercises.length > 0) {
-      modifyExercises(escalation.childId, updatedExercises);
-    } else {
-      setChildrenData((prev) =>
-        prev.map((c) => {
-          if (c.id === escalation.childId && c.therapyPlan) {
-            return {
-              ...c,
-              therapyPlan: { ...c.therapyPlan, status: "Approved" },
-            };
-          }
-          return c;
-        })
-      );
-    }
-
-    setNotifications((prev) =>
-      prev.map((n) => (n.linkId === escalationId ? { ...n, read: true } : n))
-    );
-
-    setNotifications((prev) => [
-      {
-        id: `n-${Date.now()}`,
-        title: "Escalation Resolved",
-        description: `Case for ${escalation.childName} resolved. Instruction sent: "${doctorRemarks}"`,
-        type: "system",
-        time: "Just now",
-        read: false,
-      },
-      ...prev,
-    ]);
+    showToast("Escalation resolved.", "success");
   };
 
-  const markNotificationRead = (notifId: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, read: true } : n)));
-  };
+  const markNotificationRead = (notifId: string) => {};
+  const markAllNotificationsRead = () => {};
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const bookAppointment = (newAppt: Omit<Appointment, "id" | "status">) => {
-    const id = `a-${appointments.length + 1}`;
-    setAppointments((prev) => [
-      ...prev,
-      {
-        ...newAppt,
-        id,
-        status: "Confirmed",
-      },
-    ]);
-  };
-
-  const submitAssessment = (newForm: Omit<AssessmentForm, "id" | "status">) => {
-    const id = `as-${assessments.length + 1}`;
-    const form: AssessmentForm = {
-      ...newForm,
-      id,
-      status: "Pending Review",
+  const bookAppointment = (apptData: any) => {
+    const newAppt: Appointment = {
+      ...apptData,
+      id: `apt-${Date.now()}`,
+      time: apptData.time || apptData.timeSlot || "10:00 AM",
+      timeSlot: apptData.time || apptData.timeSlot || "10:00 AM",
+      therapist: apptData.therapist || "Priya",
+      status: "Upcoming"
     };
-    setAssessments((prev) => [...prev, form]);
+    setAppointments((prev) => [newAppt, ...prev]);
+    showToast(`Appointment booked for ${newAppt.childName} on ${newAppt.date} at ${newAppt.time}.`, "success");
+  };
 
-    setNotifications((prev) => [
-      {
-        id: `n-${Date.now()}`,
-        title: `New Assessment: ${form.childName}`,
-        description: `${form.type} assessment completed by ${form.therapistName} requires signature review.`,
-        type: "review",
-        time: "Just now",
-        read: false,
-        linkId: id,
-      },
-      ...prev,
-    ]);
+  const submitAssessment = (form: any) => {
+    showToast("Clinical Assessment Form submitted successfully!", "success");
   };
 
   const logSession = (
@@ -763,90 +752,63 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     escalationType?: Escalation["type"],
     escalationDesc?: string
   ) => {
-    const logId = `log-${Date.now()}`;
-    const fullLog: SessionLog = { ...session, id: logId };
+    showToast("Therapy session logged successfully!", "success");
+  };
 
-    setChildrenData((prev) =>
-      prev.map((c) => {
-        if (c.id === childId) {
-          return {
-            ...c,
-            sessionLogs: [fullLog, ...c.sessionLogs],
-          };
-        }
-        return c;
-      })
+  const updateEnquiryStatus = (id: string, newStatus: Enquiry["status"]) => {
+    setEnquiries((prev) => prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e)));
+    showToast("Enquiry status updated.", "info");
+  };
+
+  const addStaffMember = (member: any) => {
+    const newStaff: StaffMember = {
+      ...member,
+      id: `st-${staffMembers.length + 1}`,
+      assignedChildrenCount: 0,
+      sessionsThisMonth: 0
+    };
+    setStaffMembers((prev) => [...prev, newStaff]);
+    showToast(`Staff account for ${member.name} created successfully.`, "success");
+  };
+
+  const toggleStaffStatus = (id: string) => {
+    setStaffMembers((prev) =>
+      prev.map((st) => (st.id === id ? { ...st, active: !st.active } : st))
     );
-
-    if (raiseEscalation && escalationType && escalationDesc) {
-      const activeTherapist = therapists.find((t) => t.id === activeTherapistId);
-      const childObj = childrenData.find((c) => c.id === childId);
-      const escId = `esc-${Date.now()}`;
-      
-      const newEsc: Escalation = {
-        id: escId,
-        childId,
-        childName: childObj?.name || "Unknown Child",
-        therapistId: activeTherapistId,
-        therapistName: activeTherapist?.name || "Staff",
-        type: escalationType,
-        date: session.date,
-        description: escalationDesc,
-        behaviorNotes: session.behaviorNotes,
-        recentExercises: session.exercisesCompleted,
-        cooperationLevel: session.cooperationLevel,
-        status: "Open",
-      };
-
-      setEscalations((prev) => [newEsc, ...prev]);
-
-      setNotifications((prev) => [
-        {
-          id: `n-${Date.now()}`,
-          title: `Urgent Escalation: ${newEsc.childName}`,
-          description: `Clinical alert flagged: "${escalationDesc}"`,
-          type: "escalation",
-          time: "Just now",
-          read: false,
-          linkId: escId,
-        },
-        ...prev,
-      ]);
-    } else {
-      const childObj = childrenData.find((c) => c.id === childId);
-      setNotifications((prev) => [
-        {
-          id: `n-${Date.now()}`,
-          title: "Session Logged",
-          description: `Daily session log for ${childObj?.name} saved successfully.`,
-          type: "system",
-          time: "Just now",
-          read: false,
-        },
-        ...prev,
-      ]);
-    }
+    showToast("Staff status updated.", "info");
   };
 
   return (
     <DashboardContext.Provider
       value={{
-        children: childrenData,
-        therapists,
-        appointments,
-        assessments,
-        escalations,
-        notifications,
-        activeTab,
-        setActiveTab,
+        user,
         userRole,
         setUserRole,
         isLoggedIn,
         setIsLoggedIn,
+        activeTab,
+        setActiveTab,
         activeTherapistId,
         setActiveTherapistId,
         activeChildId,
         setActiveChildId,
+
+        toasts,
+        showToast,
+        removeToast,
+
+        login,
+        logout,
+
+        children: childrenList,
+        therapists,
+        appointments,
+        assessments: [],
+        escalations: [],
+        notifications: [],
+        enquiries,
+        staffMembers,
+
         addChild,
         deleteChild,
         addTherapist,
@@ -861,6 +823,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         bookAppointment,
         submitAssessment,
         logSession,
+
+        updateEnquiryStatus,
+        addStaffMember,
+        toggleStaffStatus,
+        prefillRegistrationData,
+        setPrefillRegistrationData
       }}
     >
       {children}

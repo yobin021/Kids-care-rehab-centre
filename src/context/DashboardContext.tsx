@@ -22,33 +22,61 @@ export interface ToastMessage {
 export interface Exercise {
   id: string;
   name: string;
-  category: "PT" | "OT" | "Speech" | "Behavior" | "Oral Motor" | "Social Skills";
+  category: "PT" | "OT" | "Speech" | "Behavior" | "Oral Motor" | "Social Skills" | "Cognitive" | "Communication" | "Sensory";
   goal: string;
   description: string;
   instructions: string;
-  duration: string; // e.g. "10 mins" or "3 sets of 10 reps"
+  duration: string;
   completed?: boolean;
-  response?: "Good" | "Partial" | "Refused" | "";
+  response?: "Good" | "Partial" | "Refused" | "Great" | "Okay" | "Difficult" | "";
+  benefits?: string[];
 }
 
-export interface SessionLog {
+export interface ChildSession {
   id: string;
+  childId: string;
   date: string;
   therapistName: string;
-  therapyType: string;
-  cooperationLevel: "Good" | "Moderate" | "Poor";
-  exercisesPlanned: string[];
-  exercisesCompleted: string[];
-  improvementIndicators: {
-    attention: boolean;
-    eyeContact: boolean;
-    sittingTolerance: boolean;
-    speechResponse: boolean;
-    motorSkills: boolean;
-  };
-  behaviorNotes: string;
-  parentFeedback: string;
+  type: "Therapy" | "Review" | "Assessment";
+  duration: string;
+  response: "Good" | "Moderate" | "Poor";
+  escalated: boolean;
+  notes: string;
+}
+
+export interface ChildReport {
+  id: string;
+  childId: string;
+  reportDate: string;
+  generatedBy: string;
+  publishedBy?: string;
+  status: "Published" | "Draft";
+  therapistText: string;
+  parentText: string;
+  assignedExercises: string[];
+}
+
+export interface ParentAccount {
+  phone: string;
+  password: string;
+  childId: string;
+  active: boolean;
+}
+
+export interface EscalationDetailItem {
+  id: string;
+  childId: string;
+  childName: string;
+  date: string;
+  therapistName: string;
+  status: "Open" | "Reviewed";
   sessionNotes: string;
+  plannedCount: number;
+  completedCount: number;
+  cooperationLevel: "Good" | "Moderate" | "Poor";
+  behavioursNoted: string[];
+  adminRemarks?: string;
+  nextSessionActions?: string[];
 }
 
 export interface TherapyPlan {
@@ -143,13 +171,16 @@ export interface AssessmentForm {
   ptDetails?: PTAssessmentDetails;
   clinicalImpressionSummary: string;
   recommendations: string;
+  isaaScore?: number;
+  severityBand?: string;
+  profileAssigned?: string;
 }
 
 export interface Child {
-  id: string; // e.g. KCR-2023-001
+  id: string;
   name: string;
   dob: string;
-  age: string | number; // e.g. "5y 6m" or 6
+  age: string | number;
   gender: "Male" | "Female" | "Other";
   parentName: string;
   relationship?: "Father" | "Mother" | "Guardian";
@@ -173,8 +204,7 @@ export interface Child {
   previousTherapyDetails?: string;
   languagesSpoken?: string;
   schoolFeedback?: string;
-  therapyPlan?: TherapyPlan;
-  sessionLogs?: SessionLog[];
+  parentPortalActive?: boolean;
 }
 
 export interface Therapist {
@@ -271,6 +301,7 @@ export interface DashboardContextType {
   removeToast: (id: string) => void;
 
   login: (username: string, pass: string) => { success: boolean; role?: UserRole };
+  parentLogin: (phone: string, pass: string) => { success: boolean; message?: string };
   logout: () => void;
 
   // Collections
@@ -282,10 +313,16 @@ export interface DashboardContextType {
   notifications: Notification[];
   enquiries: Enquiry[];
   staffMembers: StaffMember[];
+  sessions: ChildSession[];
+  reports: ChildReport[];
+  parentAccounts: Record<string, ParentAccount>;
+  escalationItems: EscalationDetailItem[];
 
   // Actions
   addChild: (childData: any) => string;
+  updateChild: (childId: string, updatedFields: Partial<Child>) => void;
   deleteChild: (childId: string) => void;
+  createParentPortalLogin: (childId: string, phone: string, pass: string) => void;
   addTherapist: (therapist: any) => void;
   updateTherapist: (therapist: Therapist) => void;
   assignTherapistToChild: (childId: string, therapistId: string) => void;
@@ -297,13 +334,11 @@ export interface DashboardContextType {
   markAllNotificationsRead: () => void;
   bookAppointment: (apptData: any) => void;
   submitAssessment: (form: any) => void;
-  logSession: (
-    childId: string,
-    session: Omit<SessionLog, "id">,
-    raiseEscalation: boolean,
-    escalationType?: Escalation["type"],
-    escalationDesc?: string
-  ) => void;
+  logSession: (sessionData: any) => void;
+
+  // Phase 2 specific actions
+  publishReport: (reportId: string, therapistText: string, parentText: string, exercises: string[]) => void;
+  reviewEscalationDetail: (id: string, adminRemarks: string, selectedActions: string[]) => void;
 
   // Enquiry & Staff Actions
   updateEnquiryStatus: (id: string, newStatus: Enquiry["status"]) => void;
@@ -326,6 +361,36 @@ export function useDashboard() {
 
 const INITIAL_CHILDREN: Child[] = [
   {
+    id: "KCR-2024-002",
+    name: "Arsh Mohammed",
+    dob: "2021-01-15",
+    age: "5y 6m",
+    gender: "Male",
+    parentName: "Sirajudeen",
+    relationship: "Father",
+    whatsapp: "9841000001",
+    email: "siraj@email.com",
+    address: "T. Nagar, Chennai",
+    mainConcern: "Speech clarity, hyperactivity during table tasks",
+    diagnosis: "ASD",
+    provisionalDiagnosis: "ASD with Speech Delay",
+    profile: "Profile B",
+    assignedTherapist: "Priya",
+    assignedTherapistId: "t-2",
+    schoolName: "St. Christopher's Academy",
+    schoolClass: "UKG",
+    referredBy: "Self",
+    dateOfRegistration: "2022-07-27",
+    lastSessionDate: "25 Jul 2026",
+    status: "Active",
+    primaryConcern: "Poor eye contact and reduced social communication skills",
+    previousTherapy: true,
+    previousTherapyDetails: "OT 6 months",
+    languagesSpoken: "Tamil, English, Urdu",
+    schoolFeedback: "Friendly with peers, needs prompt for table activities.",
+    parentPortalActive: true
+  },
+  {
     id: "KCR-2023-001",
     name: "Lakshmanan A.R",
     dob: "2019-03-15",
@@ -333,7 +398,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Male",
     parentName: "Rajesh A.R",
     relationship: "Father",
-    whatsapp: "+91 98401 11223",
+    whatsapp: "9840111223",
     email: "rajesh.ar@gmail.com",
     address: "Anna Nagar, Chennai",
     mainConcern: "Social communication and sensory sensitivity",
@@ -352,36 +417,7 @@ const INITIAL_CHILDREN: Child[] = [
     previousTherapy: true,
     previousTherapyDetails: "Speech therapy 1 year",
     languagesSpoken: "Tamil, English",
-    sessionLogs: []
-  },
-  {
-    id: "KCR-2024-002",
-    name: "Arsh Mohammed",
-    dob: "2021-01-20",
-    age: "5y 6m",
-    gender: "Male",
-    parentName: "Farooq Mohammed",
-    relationship: "Father",
-    whatsapp: "+91 98451 98451",
-    email: "parent@email.com",
-    address: "T. Nagar, Chennai",
-    mainConcern: "Speech clarity, hyperactivity during table tasks",
-    diagnosis: "ASD",
-    provisionalDiagnosis: "ASD with Speech Delay",
-    profile: "Profile B",
-    assignedTherapist: "Priya",
-    assignedTherapistId: "t-2",
-    schoolName: "Little Elly Preschool",
-    schoolClass: "UKG",
-    referredBy: "Dr. R. K. Mehta",
-    dateOfRegistration: "2024-02-15",
-    lastSessionDate: "25 Jul 2026",
-    status: "Active",
-    primaryConcern: "Speech clarity, hyperactivity during table tasks",
-    previousTherapy: true,
-    previousTherapyDetails: "OT 6 months",
-    languagesSpoken: "Tamil, English, Urdu",
-    sessionLogs: []
+    parentPortalActive: false
   },
   {
     id: "KCR-2022-003",
@@ -391,7 +427,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Male",
     parentName: "Imran Khan",
     relationship: "Father",
-    whatsapp: "+91 97900 44332",
+    whatsapp: "9790044332",
     email: "imran.k@yahoo.com",
     address: "Mylapore, Chennai",
     mainConcern: "Motor planning and handwriting difficulties",
@@ -410,7 +446,7 @@ const INITIAL_CHILDREN: Child[] = [
     previousTherapy: true,
     previousTherapyDetails: "Physiotherapy 1.5 years",
     languagesSpoken: "Tamil, English",
-    sessionLogs: []
+    parentPortalActive: false
   },
   {
     id: "KCR-2024-004",
@@ -420,7 +456,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Male",
     parentName: "Karthik Krishnan",
     relationship: "Father",
-    whatsapp: "+91 98841 88990",
+    whatsapp: "9884188990",
     email: "karthik.kk@gmail.com",
     address: "Adyar, Chennai",
     mainConcern: "Attention span under 3 mins, impulsivity",
@@ -438,7 +474,7 @@ const INITIAL_CHILDREN: Child[] = [
     primaryConcern: "Attention span under 3 mins, impulsivity",
     previousTherapy: false,
     languagesSpoken: "Tamil, English",
-    sessionLogs: []
+    parentPortalActive: false
   },
   {
     id: "KCR-2024-005",
@@ -448,7 +484,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Male",
     parentName: "Srinivasan",
     relationship: "Father",
-    whatsapp: "+91 99620 33445",
+    whatsapp: "9962033445",
     email: "srini.s@gmail.com",
     address: "Velachery, Chennai",
     mainConcern: "Repetitive hand flapping and echolalia",
@@ -467,7 +503,7 @@ const INITIAL_CHILDREN: Child[] = [
     previousTherapy: true,
     previousTherapyDetails: "Speech therapy 8 months",
     languagesSpoken: "Tamil",
-    sessionLogs: []
+    parentPortalActive: false
   },
   {
     id: "KCR-2025-006",
@@ -477,7 +513,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Male",
     parentName: "Senthil Kumar",
     relationship: "Father",
-    whatsapp: "+91 98410 77665",
+    whatsapp: "9841077665",
     email: "senthil.sj@gmail.com",
     address: "Royapettah, Chennai",
     mainConcern: "Toe walking, auditory hypersensitivity",
@@ -495,7 +531,7 @@ const INITIAL_CHILDREN: Child[] = [
     primaryConcern: "Toe walking, auditory hypersensitivity",
     previousTherapy: false,
     languagesSpoken: "Tamil, English",
-    sessionLogs: []
+    parentPortalActive: false
   },
   {
     id: "KCR-2025-007",
@@ -505,7 +541,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Female",
     parentName: "Venkatesh R",
     relationship: "Father",
-    whatsapp: "+91 97901 99887",
+    whatsapp: "9790199887",
     email: "venkat.r@gmail.com",
     address: "Porur, Chennai",
     mainConcern: "Restlessness, emotional dysregulation",
@@ -524,7 +560,7 @@ const INITIAL_CHILDREN: Child[] = [
     previousTherapy: true,
     previousTherapyDetails: "Behavior Therapy 4 months",
     languagesSpoken: "Tamil, Telugu",
-    sessionLogs: []
+    parentPortalActive: false
   },
   {
     id: "KCR-2024-008",
@@ -534,7 +570,7 @@ const INITIAL_CHILDREN: Child[] = [
     gender: "Female",
     parentName: "Narayanan K.S",
     relationship: "Father",
-    whatsapp: "+91 95000 11224",
+    whatsapp: "9500011224",
     email: "narayan.kn@gmail.com",
     address: "Kotturpuram, Chennai",
     mainConcern: "Dyslexia, low self-esteem in writing tasks",
@@ -553,7 +589,53 @@ const INITIAL_CHILDREN: Child[] = [
     previousTherapy: true,
     previousTherapyDetails: "Remedial instruction 1 year",
     languagesSpoken: "Tamil, English",
-    sessionLogs: []
+    parentPortalActive: false
+  }
+];
+
+const INITIAL_SESSIONS: ChildSession[] = [
+  { id: "s-1", childId: "KCR-2024-002", date: "25 Jul 2026", therapistName: "Priya", type: "Therapy", duration: "60 min", response: "Good", escalated: false, notes: "Completed all exercises" },
+  { id: "s-2", childId: "KCR-2024-002", date: "18 Jul 2026", therapistName: "Priya", type: "Therapy", duration: "60 min", response: "Moderate", escalated: false, notes: "Partial completion, good eye contact" },
+  { id: "s-3", childId: "KCR-2024-002", date: "11 Jul 2026", therapistName: "Priya", type: "Therapy", duration: "60 min", response: "Poor", escalated: true, notes: "Aggressive behaviour noted" },
+  { id: "s-4", childId: "KCR-2024-002", date: "04 Jul 2026", therapistName: "Meena", type: "Review", duration: "45 min", response: "Good", escalated: false, notes: "Significant improvement in communication" },
+  { id: "s-5", childId: "KCR-2024-002", date: "27 Jun 2026", therapistName: "Priya", type: "Therapy", duration: "60 min", response: "Good", escalated: false, notes: "All exercises done, parent present" }
+];
+
+const INITIAL_REPORTS: ChildReport[] = [
+  {
+    id: "rep-1",
+    childId: "KCR-2024-002",
+    reportDate: "20 Jul 2026",
+    generatedBy: "Priya S (Senior Therapist)",
+    publishedBy: "Dr. R. Radha Balachandar",
+    status: "Published",
+    therapistText: `Master Arsh Mohammed, aged 5 years 6 months, presented for a comprehensive developmental evaluation. Assessment using the Corner Parent Rating Scale and Vineland Social Maturity Scale indicated limitations in social communication, expressive and receptive language, sensory processing, and sitting tolerance.
+
+Following approximately one year of therapy including Social Skills Training, Brain Gym, Sensory Integration, Speech Therapy with oral-motor exercises, and visual cue card training, significant progress has been observed. The child now communicates using multiple words and sentences, initiates conversations with peers, and demonstrates improved eye contact and task attendance.
+
+Continued therapy is recommended with focus on narrative skills, social communication, and expressive language development.`,
+    parentText: `We are happy to share that Arsh has made wonderful progress over the past year. When he first came to us, he had difficulty with eye contact and communication. Today, he communicates using full sentences, makes friends easily, and responds well in conversation.
+
+We will continue to work on helping him tell stories, answer questions, and communicate more confidently in different situations. We recommend continued therapy sessions twice a week for the next six months.
+
+With your support at home and our guidance at the clinic, Arsh will continue to grow beautifully.`,
+    assignedExercises: ["Brain Gym Exercises", "Communication Cards", "Sensory Integration"]
+  }
+];
+
+const INITIAL_ESCALATIONS_DETAIL: EscalationDetailItem[] = [
+  {
+    id: "esc-101",
+    childId: "KCR-2025-007",
+    childName: "Yeshvi",
+    date: "27 Jul 2026",
+    therapistName: "Meena",
+    status: "Open",
+    sessionNotes: "Child became aggressive when asked to complete writing task. Threw objects. Screamed for 10 minutes. Could not complete planned exercises. Parent was not present during session.",
+    plannedCount: 3,
+    completedCount: 0,
+    cooperationLevel: "Poor",
+    behavioursNoted: ["Aggression", "Throwing objects", "Non-cooperation"]
   }
 ];
 
@@ -596,10 +678,16 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [enquiries, setEnquiries] = useState<Enquiry[]>(INITIAL_ENQUIRIES);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
+  const [sessions, setSessions] = useState<ChildSession[]>(INITIAL_SESSIONS);
+  const [reports, setReports] = useState<ChildReport[]>(INITIAL_REPORTS);
+  const [escalationItems, setEscalationItems] = useState<EscalationDetailItem[]>(INITIAL_ESCALATIONS_DETAIL);
+  const [parentAccounts, setParentAccounts] = useState<Record<string, ParentAccount>>({
+    "9841000001": { phone: "9841000001", password: "parent123", childId: "KCR-2024-002", active: true }
+  });
+
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [prefillRegistrationData, setPrefillRegistrationData] = useState<Partial<Child> | null>(null);
 
-  // Restore session on mount
   useEffect(() => {
     const saved = localStorage.getItem("user_session");
     if (saved) {
@@ -659,6 +747,37 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return { success: false };
   };
 
+  const parentLogin = (phoneInput: string, passInput: string): { success: boolean; message?: string } => {
+    const cleanPhone = phoneInput.trim().replace(/\D/g, "");
+    const cleanPass = passInput.trim();
+
+    const found = Object.values(parentAccounts).find(
+      (acc) => acc.phone.replace(/\D/g, "") === cleanPhone && acc.password === cleanPass && acc.active
+    );
+
+    if (found || (cleanPhone.endsWith("9841000001") && cleanPass === "parent123")) {
+      const targetChildId = found?.childId || "KCR-2024-002";
+      const session: UserSession = {
+        role: "parent",
+        name: "Arsh's Parent",
+        username: phoneInput,
+        token: "mock-parent-token"
+      };
+      setUser(session);
+      setUserRoleState("parent");
+      setIsLoggedInState(true);
+      setActiveChildId(targetChildId);
+      localStorage.setItem("user_session", JSON.stringify(session));
+      setActiveTab("parent-home");
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      message: "Incorrect phone number or password. Please check with your therapist."
+    };
+  };
+
   const logout = () => {
     setUser(null);
     setIsLoggedInState(false);
@@ -689,9 +808,30 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return newId;
   };
 
+  const updateChild = (childId: string, updatedFields: Partial<Child>) => {
+    setChildrenList((prev) =>
+      prev.map((c) => (c.id === childId ? { ...c, ...updatedFields } : c))
+    );
+    showToast("Child details updated successfully.", "success");
+  };
+
   const deleteChild = (childId: string) => {
     setChildrenList((prev) => prev.filter((c) => c.id !== childId));
     showToast("Child record removed.", "info");
+  };
+
+  const createParentPortalLogin = (childId: string, phone: string, pass: string) => {
+    const cleanPhone = phone.trim();
+    setParentAccounts((prev) => ({
+      ...prev,
+      [cleanPhone]: { phone: cleanPhone, password: pass, childId, active: true }
+    }));
+
+    setChildrenList((prev) =>
+      prev.map((c) => (c.id === childId ? { ...c, parentPortalActive: true, whatsapp: cleanPhone } : c))
+    );
+
+    showToast("Parent portal access created. Share login details with the parent.", "success");
   };
 
   const addTherapist = (t: any) => {
@@ -745,14 +885,49 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     showToast("Clinical Assessment Form submitted successfully!", "success");
   };
 
-  const logSession = (
-    childId: string,
-    session: Omit<SessionLog, "id">,
-    raiseEscalation: boolean,
-    escalationType?: Escalation["type"],
-    escalationDesc?: string
-  ) => {
+  const logSession = (sessionData: any) => {
+    const newS: ChildSession = {
+      id: `s-${Date.now()}`,
+      childId: sessionData.childId || activeChildId,
+      date: sessionData.date || new Date().toISOString().split("T")[0],
+      therapistName: sessionData.therapistName || "Priya",
+      type: sessionData.type || "Therapy",
+      duration: sessionData.duration || "60 min",
+      response: sessionData.response || "Good",
+      escalated: sessionData.escalated || false,
+      notes: sessionData.notes || "Session completed successfully."
+    };
+    setSessions((prev) => [newS, ...prev]);
     showToast("Therapy session logged successfully!", "success");
+  };
+
+  const publishReport = (reportId: string, therapistText: string, parentText: string, exercises: string[]) => {
+    setReports((prev) =>
+      prev.map((r) =>
+        r.id === reportId
+          ? {
+              ...r,
+              status: "Published",
+              therapistText,
+              parentText,
+              assignedExercises: exercises,
+              publishedBy: "Dr. R. Radha Balachandar"
+            }
+          : r
+      )
+    );
+    showToast("Report published successfully. Parent can now view it on their portal.", "success");
+  };
+
+  const reviewEscalationDetail = (id: string, adminRemarks: string, selectedActions: string[]) => {
+    setEscalationItems((prev) =>
+      prev.map((esc) =>
+        esc.id === id
+          ? { ...esc, status: "Reviewed", adminRemarks, nextSessionActions: selectedActions }
+          : esc
+      )
+    );
+    showToast("Escalation reviewed. Therapist will see updated plan in next session.", "success");
   };
 
   const updateEnquiryStatus = (id: string, newStatus: Enquiry["status"]) => {
@@ -798,19 +973,44 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         removeToast,
 
         login,
+        parentLogin,
         logout,
 
         children: childrenList,
         therapists,
         appointments,
-        assessments: [],
+        assessments: [
+          {
+            id: "ass-1",
+            childId: "KCR-2024-002",
+            childName: "Arsh Mohammed",
+            assessmentDate: "15 Jun 2026",
+            type: "Autism Screening",
+            therapistId: "t-2",
+            therapistName: "Priya S",
+            status: "Approved",
+            isaaScore: 92,
+            severityBand: "Mild Autism (70–106)",
+            profileAssigned: "Profile B",
+            caseHistory: { parentConcern: "Speech delay", pregnancyHistory: "Normal", pregnancyDetails: "", milestones: { headControl: "Normal", sitting: "Normal", crawling: "Normal", walking: "Normal", firstWords: "Delayed", toiletTraining: "Normal" }, medicalConditions: [], previousTherapy: "Yes", schoolHistory: "Preschool" },
+            clinicalObservation: { seatingTolerance: 2, eyeContact: 2, responseToName: 2, jointAttention: 2, followsSimpleCommands: 2, followsTwoStepCommands: 1, attentionSpan: 2, taskCompletion: 2, impulseControl: 2, functionalPlay: 2, peerInteraction: 2, sensorySeeking: 2, sensoryAvoidance: 1, stereotypicalMovements: 1, emotionalRegulation: 2 },
+            clinicalImpressionSummary: "Shows progress in sitting tolerance and response to name.",
+            recommendations: "Continue OT and Speech Therapy."
+          }
+        ],
         escalations: [],
         notifications: [],
         enquiries,
         staffMembers,
+        sessions,
+        reports,
+        parentAccounts,
+        escalationItems,
 
         addChild,
+        updateChild,
         deleteChild,
+        createParentPortalLogin,
         addTherapist,
         updateTherapist,
         assignTherapistToChild,
@@ -823,6 +1023,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         bookAppointment,
         submitAssessment,
         logSession,
+        publishReport,
+        reviewEscalationDetail,
 
         updateEnquiryStatus,
         addStaffMember,

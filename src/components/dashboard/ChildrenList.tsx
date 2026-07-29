@@ -5,7 +5,7 @@ import { useDashboard, Child } from "@/context/DashboardContext";
 import { PlusCircle, Search, Eye, Play } from "lucide-react";
 
 export default function ChildrenList() {
-  const { children, setActiveTab } = useDashboard();
+  const { children, setActiveTab, setActiveChildId } = useDashboard();
   const [searchTerm, setSearchTerm] = useState("");
   const [profileFilter, setProfileFilter] = useState("All");
   const [therapistFilter, setTherapistFilter] = useState("All");
@@ -142,7 +142,10 @@ export default function ChildrenList() {
                   </td>
                   <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
                     <button
-                      onClick={() => alert(`Viewing details for ${c.name}`)}
+                      onClick={() => {
+                        setActiveChildId(c.id);
+                        setActiveTab("child-profile");
+                      }}
                       className="px-2.5 py-1 bg-[#F8F8F6] hover:bg-slate-200 text-[#2C2C2A] rounded-[6px] border border-[#D3D1C7] text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
                     >
                       <Eye className="h-3 w-3 text-[#5F5E5A]" />

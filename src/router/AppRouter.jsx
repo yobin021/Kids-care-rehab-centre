@@ -20,9 +20,11 @@ import ParentDashboard from "../views/ParentDashboard";
 import ParentReportView from "../views/ParentReportView";
 import ParentExercises from "../views/ParentExercises";
 
-// Phase 3 Views
+// Phase 3 & 4 Views
 import AssessmentForm from "../views/AssessmentForm";
 import AssessmentResults from "../views/AssessmentResults";
+import ReportGenerationEditor from "../views/ReportGenerationEditor";
+import TherapistReportView from "../views/TherapistReportView";
 
 // Protected Route Wrapper
 function ProtectedRoute({ children, allowedRoles }) {
@@ -118,6 +120,32 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>
               <AssessmentResults />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Phase 4 Report Routes */}
+        <Route
+          path="/reports/new/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <ReportGenerationEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/:id/review"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <ReportGenerationEditor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/:id/therapist"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <TherapistReportView />
             </ProtectedRoute>
           }
         />

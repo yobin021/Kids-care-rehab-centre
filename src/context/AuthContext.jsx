@@ -1,206 +1,216 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { mockUsers, mockParentUsers, mockChildren, mockStaff } from "../data/mockData";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { mockUsers, mockParentUsers, mockStaff } from "../data/mockData";
+import { authService } from "../services/authService";
+import { childrenService } from "../services/childrenService";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [childrenList, setChildrenList] = useState(mockChildren);
+  const [childrenList, setChildrenList] = useState([]);
   const [staffList, setStaffList] = useState(mockStaff);
   const [toasts, setToasts] = useState([]);
+  const toastIdRef = useRef(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Restore auth on mount
+  // Method 2: Always start with user = null so app opens on Login page
   useEffect(() => {
-    const savedUser = localStorage.getItem("kcr_user");
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (err) {
-        console.error("Failed to parse saved user", err);
-      }
-    }
+    authService.logout(); // Clear any saved localStorage session
+    setUser(null);
+
+    // Load children from Supabase or fallback
+    childrenService.getAll()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setChildrenList(data);
+        }
+      })
+      .catch((err) => {
+        console.warn("Using local children fallback:", err.message);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
-  const role = user ? user.role : null;
-  const isAdmin = role === "admin";
-  const isStaff = role === "staff";
-  const isParent = role === "parent";
-  const canManageStaff = isAdmin;
-
-  const showToast = (message, type = "success") => {
-    const id = `toast-${Date.now()}`;
+  const showToast = useCallback((message, type = "success") => {
+    const id = ++toastIdRef.current;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
-      removeToast(id);
-    }, 3000);
-  };
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
 
-  const removeToast = (id) => {
+  const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const toast = toasts.length > 0 ? toasts[toasts.length - 1] : null;
+  const closeToast = () => {
+    if (toast) removeToast(toast.id);
   };
 
-  const login = (inputIdentifier, password, portalType = "staff") => {
-    if (portalType === "staff") {
-      const match = mockUsers.find(
-        (u) => u.username.toLowerCase() === inputIdentifier.trim().toLowerCase() && u.password === password.trim()
-      );
-      if (match) {
-        const userObj = { ...match };
-        setUser(userObj);
-        localStorage.setItem("kcr_user", JSON.stringify(userObj));
+  // Staff Login
+  const loginStaff = async (username, password) => {
+    try {
+      const res = await authService.loginStaff(username, password);
+      if (res.success && res.user) {
+        setUser(res.user);
+        showToast(`Welcome back, ${res.user.name}!`, "success");
         return { success: true };
       }
-    } else {
-      // Parent portal login (match on phone and password)
-      const cleanPhone = inputIdentifier.trim().replace(/\D/g, "");
-      const match = mockParentUsers.find(
-        (pu) => pu.phone.replace(/\D/g, "") === cleanPhone && pu.password === password.trim()
-      );
-      
-      // Also check dynamically created parent logins on mockChildren
-      const childMatch = childrenList.find(
-        (c) => c.parent?.phone?.replace(/\D/g, "") === cleanPhone && c.parent?.portalPassword === password.trim() && c.parent?.portalActive
-      );
-
-      if (match || childMatch) {
-        const parentUserObj = match || {
-          id: Date.now(),
-          phone: cleanPhone,
-          password: password.trim(),
-          role: "parent",
-          name: childMatch.parent.name,
-          childId: childMatch.id
-        };
-        setUser(parentUserObj);
-        localStorage.setItem("kcr_user", JSON.stringify(parentUserObj));
-        return { success: true };
-      }
+    } catch (err) {
+      console.warn("Supabase staff auth fallback:", err.message);
     }
 
-    return {
-      success: false,
-      error: portalType === "staff"
-        ? "Invalid username or password. Please try again."
-        : "Incorrect phone number or password. Please check with your therapist."
-    };
+    // Fallback to local mock users
+    const foundUser = mockUsers.find(
+      (u) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
+    );
+
+    if (foundUser) {
+      const sessionUser = {
+        id: foundUser.id,
+        name: foundUser.name,
+        username: foundUser.username,
+        role: foundUser.role,
+        designation: foundUser.designation
+      };
+      setUser(sessionUser);
+      showToast(`Welcome back, ${foundUser.name}!`, "success");
+      return { success: true };
+    }
+
+    return { success: false, error: "Invalid username or password" };
   };
 
+  // Parent Login
+  const loginParent = async (phone, password) => {
+    try {
+      const res = await authService.loginParent(phone, password);
+      if (res.success && res.user) {
+        setUser(res.user);
+        showToast(`Welcome to ${res.user.childName || "your child"}'s therapy portal!`, "success");
+        return { success: true };
+      }
+    } catch (err) {
+      console.warn("Supabase parent auth fallback:", err.message);
+    }
+
+    // Fallback to local mock parent users
+    const foundParent = mockParentUsers.find(
+      (p) => p.phone === phone && p.password === password
+    );
+
+    if (foundParent) {
+      const sessionUser = {
+        id: foundParent.id,
+        name: foundParent.name,
+        phone: foundParent.phone,
+        role: "parent",
+        childId: foundParent.childId
+      };
+      setUser(sessionUser);
+      showToast(`Welcome, ${foundParent.name}!`, "success");
+      return { success: true };
+    }
+
+    return { success: false, error: "Invalid phone number or password" };
+  };
+
+  // Logout
   const logout = () => {
+    authService.logout();
     setUser(null);
-    localStorage.removeItem("kcr_user");
+    showToast("Logged out successfully.", "info");
   };
 
-  // State Mutators
-  const addChild = (childData) => {
-    const nextNum = childrenList.length + 1;
-    const newId = `KCR-2026-0${nextNum < 10 ? "0" + nextNum : nextNum}`;
-    const newChild = {
-      ...childData,
-      id: newId,
-      reportsCount: 0,
-      lastReportDate: null
-    };
+  const addRegisteredChild = (newChild) => {
     setChildrenList((prev) => [newChild, ...prev]);
-    return newChild;
   };
 
-  const updateChildDetails = (id, updatedFields) => {
+  const updateChildDetails = (childId, updatedFields) => {
     setChildrenList((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updatedFields } : c))
+      prev.map((c) => (c.id === childId ? { ...c, ...updatedFields } : c))
     );
   };
 
   const setupParentPortal = (childId, phone, password) => {
-    setChildrenList((prev) =>
-      prev.map((c) =>
-        c.id === childId
-          ? {
-              ...c,
-              parent: {
-                ...c.parent,
-                phone: phone,
-                portalActive: true,
-                portalPassword: password
-              }
-            }
-          : c
-      )
-    );
-    showToast(`Parent portal access created. Share the login details with parent.`);
+    updateChildDetails(childId, {
+      parent: {
+        ...(childrenList.find((c) => c.id === childId)?.parent || {}),
+        phone,
+        portalActive: true,
+        portalPassword: password
+      }
+    });
+    showToast("Parent portal access activated successfully!", "success");
   };
 
   const resetParentPassword = (childId, newPassword) => {
-    setChildrenList((prev) =>
-      prev.map((c) =>
-        c.id === childId
-          ? { ...c, parent: { ...c.parent, portalPassword: newPassword } }
-          : c
-      )
-    );
-    showToast("Password updated. Share new password with parent.");
+    updateChildDetails(childId, {
+      parent: {
+        ...(childrenList.find((c) => c.id === childId)?.parent || {}),
+        portalPassword: newPassword
+      }
+    });
+    showToast("Parent password reset successfully!", "success");
   };
 
-  const addStaff = (staffData) => {
-    const newStaff = {
-      ...staffData,
-      id: staffList.length + 1,
-      isActive: true,
-      childrenHandled: 0,
-      sessionsThisMonth: 0,
-      joinedDate: new Date().toISOString().split("T")[0]
-    };
+  const addStaffMember = (newStaff) => {
     setStaffList((prev) => [...prev, newStaff]);
-    showToast(`${staffData.name} has been added.`);
+    showToast(`Staff member ${newStaff.name} added.`, "success");
   };
 
-  const toggleStaffActive = (staffId) => {
+  const toggleStaffStatus = (staffId) => {
     setStaffList((prev) =>
       prev.map((s) => (s.id === staffId ? { ...s, isActive: !s.isActive } : s))
     );
-    showToast("Staff status updated.");
+    showToast("Staff status updated.", "info");
   };
 
   const resetStaffPassword = (staffId, newPassword) => {
     setStaffList((prev) =>
       prev.map((s) => (s.id === staffId ? { ...s, password: newPassword } : s))
     );
-    showToast("Password reset successfully.");
+    showToast("Password reset successfully.", "success");
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        role,
-        isAdmin,
-        isStaff,
-        isParent,
-        canManageStaff,
-        login,
-        logout,
-        childrenList,
-        staffList,
-        toasts,
-        showToast,
-        removeToast,
-        addChild,
-        updateChildDetails,
-        setupParentPortal,
-        resetParentPassword,
-        addStaff,
-        toggleStaffActive,
-        resetStaffPassword
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    user,
+    role: user?.role || null,
+    isAdmin: user?.role === "admin",
+    isStaff: user?.role === "staff" || user?.role === "admin",
+    isParent: user?.role === "parent",
+    loginStaff,
+    loginParent,
+    logout,
+    childrenList,
+    setChildrenList,
+    staffList,
+    addRegisteredChild,
+    updateChildDetails,
+    setupParentPortal,
+    resetParentPassword,
+    addStaffMember,
+    toggleStaffStatus,
+    resetStaffPassword,
+    toast,
+    toasts,
+    showToast,
+    closeToast,
+    removeToast
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
   return context;
 }

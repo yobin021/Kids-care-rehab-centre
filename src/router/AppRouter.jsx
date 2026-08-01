@@ -45,12 +45,26 @@ function ProtectedRoute({ children, allowedRoles }) {
 }
 
 export default function AppRouter() {
-  const { isAdmin, isParent } = useAuth();
+  const { user, isAdmin, isParent } = useAuth();
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* Root Route */}
+        <Route
+          path="/"
+          element={
+            !user ? (
+              <Navigate to="/login" replace />
+            ) : isParent ? (
+              <Navigate to="/parent/home" replace />
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          }
+        />
+
+        {/* Public Login Routes */}
         <Route path="/login" element={<StaffLogin />} />
         <Route path="/parent/login" element={<ParentLogin />} />
 
@@ -190,7 +204,9 @@ export default function AppRouter() {
         <Route
           path="*"
           element={
-            isParent ? (
+            !user ? (
+              <Navigate to="/login" replace />
+            ) : isParent ? (
               <Navigate to="/parent/home" replace />
             ) : (
               <Navigate to="/dashboard" replace />

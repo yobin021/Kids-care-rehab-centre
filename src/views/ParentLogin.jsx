@@ -7,7 +7,7 @@ import { Eye, EyeOff, AlertCircle, Phone } from "lucide-react";
 import Button from "../components/ui/Button";
 
 export default function ParentLogin() {
-  const { login } = useAuth();
+  const { loginParent } = useAuth();
   const navigate = useNavigate();
 
   const [phone, setPhone] = useState("9841000001");
@@ -15,11 +15,11 @@ export default function ParentLogin() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    const res = login(phone, password, "parent");
+    const res = await loginParent(phone, password);
     if (res.success) {
       navigate("/parent/home");
     } else {

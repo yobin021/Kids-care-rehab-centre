@@ -1,31 +1,63 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Search, PlusCircle, Eye, FilePlus } from "lucide-react";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import EmptyState from "../components/ui/EmptyState";
+import Card from "../components/ui/Card";
+import Input from "../components/ui/Input";
+import { SkeletonCard } from "../components/ui/Skeleton";
+import ErrorMessage from "../components/ui/ErrorMessage";
+import { childrenService } from "../services/childrenService";
 
 export default function ChildrenList() {
-  const { childrenList } = useAuth();
+  const { childrenList: contextChildren } = useAuth();
   const navigate = useNavigate();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeProfile, setActiveProfile] = useState("All");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("all");
+
+  const fetchChildren = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await childrenService.getAll();
+      setData(result && result.length > 0 ? result : contextChildren);
+    } catch (err) {
+      console.warn("Children fetch error fallback:", err.message);
+      // Fallback to local context if available, otherwise set error
+      if (contextChildren && contextChildren.length > 0) {
+        setData(contextChildren);
+      } else {
+        setError(err.message || "Failed to load children list.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChildren();
+  }, []);
 
   const filteredChildren = useMemo(() => {
-    return childrenList.filter((c) => {
-      const matchSearch =
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const list = data || [];
+    return list.filter((child) => {
+      const q = searchQuery.toLowerCase();
+      const matchesQuery =
+        child.name.toLowerCase().includes(q) ||
+        child.id.toLowerCase().includes(q) ||
+        child.diagnosis.toLowerCase().includes(q);
 
-      const matchProfile = activeProfile === "All" || c.profile === activeProfile;
-
-      return matchSearch && matchProfile;
+      if (selectedFilter === "all") return matchesQuery;
+      return matchesQuery && child.profile === selectedFilter;
     });
-  }, [childrenList, searchTerm, activeProfile]);
+  }, [data, searchQuery, selectedFilter]);
 
   const getProfileVariant = (profile) => {
     switch (profile) {
@@ -41,9 +73,9 @@ export default function ChildrenList() {
   return (
     <div className="space-y-6 text-[#2C2C2A]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-[20px] font-bold text-[#2C2C2A]">Children & Reports</h2>
-          <Badge label={`${childrenList.length} children`} variant="blue" size="md" />
+        <div>
+          <h2 className="text-[20px] font-bold text-[#2C2C2A]">Children Registry</h2>
+          <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">Manage registered children, profiles, and assessment records.</p>
         </div>
 
         <Button icon={PlusCircle} onClick={() => navigate("/children/new")}>
@@ -51,98 +83,77 @@ export default function ChildrenList() {
         </Button>
       </div>
 
-      <div className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex flex-col md:flex-row items-center gap-4">
-        <div className="relative flex-1 w-full">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-[#9B9A96]" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name or child ID"
-            className="w-full h-10 pl-9 pr-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium outline-none focus:border-[#185FA5]"
-          />
-        </div>
+      <Card padding="p-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="relative w-full sm:w-80">
+            <Input
+              placeholder="Search by name, ID, or diagnosis..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+            <Search className="h-4 w-4 text-[#9B9A96] absolute left-3 top-3.5" />
+          </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-          {["All", "A", "B", "C", "D", "E"].map((p) => {
-            const label = p === "All" ? "All" : `Profile ${p}`;
-            const isSelected = activeProfile === (p === "All" ? "All" : p);
-
-            return (
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+            {["all", "A", "B", "C", "D", "E"].map((prof) => (
               <button
-                key={p}
-                onClick={() => setActiveProfile(p === "All" ? "All" : p)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  isSelected
+                key={prof}
+                onClick={() => setSelectedFilter(prof)}
+                className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  selectedFilter === prof
                     ? "bg-[#185FA5] text-white shadow-xs"
                     : "bg-[#F8F8F6] text-[#5F5E5A] hover:bg-slate-200 border border-[#D3D1C7]"
                 }`}
               >
-                {label}
+                {prof === "all" ? "All Profiles" : `Profile ${prof}`}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      </Card>
 
-      {filteredChildren.length > 0 ? (
-        <div className="bg-white rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] overflow-hidden">
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-[#F8F8F6] border-b border-[#D3D1C7] text-[#5F5E5A]">
-                  <th className="p-3.5 font-bold">Child ID</th>
-                  <th className="p-3.5 font-bold">Name</th>
-                  <th className="p-3.5 font-bold">Age</th>
-                  <th className="p-3.5 font-bold">Diagnosis</th>
-                  <th className="p-3.5 font-bold">Profile</th>
-                  <th className="p-3.5 font-bold">Reports</th>
-                  <th className="p-3.5 font-bold">Registered</th>
-                  <th className="p-3.5 font-bold text-right">Actions</th>
+      {/* THREE STATES: LOADING, ERROR, DATA */}
+      {loading ? (
+        <SkeletonCard count={4} />
+      ) : error ? (
+        <ErrorMessage error={error} onRetry={fetchChildren} />
+      ) : (
+        <>
+          <div className="hidden md:block bg-white rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#F8F8F6] border-b border-[#D3D1C7] text-[#5F5E5A] uppercase text-[10px] font-bold">
+                <tr>
+                  <th className="px-4 py-3">Child ID</th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Age / Gender</th>
+                  <th className="px-4 py-3">Diagnosis</th>
+                  <th className="px-4 py-3">Profile</th>
+                  <th className="px-4 py-3">Parent Name & Phone</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredChildren.map((c, index) => (
-                  <tr
-                    key={c.id}
-                    className={`border-b border-[#D3D1C7]/40 hover:bg-slate-50 transition-colors ${
-                      index % 2 === 1 ? "bg-[#F8F8F6]" : "bg-white"
-                    }`}
-                  >
-                    <td className="p-3.5 font-mono text-[#9B9A96]">{c.id}</td>
-                    <td className="p-3.5 font-bold text-[#2C2C2A]">{c.name}</td>
-                    <td className="p-3.5 font-medium text-[#5F5E5A]">{c.age}</td>
-                    <td className="p-3.5 font-semibold text-[#2C2C2A]">{c.diagnosis}</td>
-                    <td className="p-3.5">
-                      <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} />
+              <tbody className="divide-y divide-[#D3D1C7]/60 font-semibold">
+                {filteredChildren.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-[#185FA5]">{c.id}</td>
+                    <td className="px-4 py-3 font-bold text-[#2C2C2A]">{c.name}</td>
+                    <td className="px-4 py-3 text-[#5F5E5A]">{c.age} / {c.gender}</td>
+                    <td className="px-4 py-3"><Badge label={c.diagnosis} variant="gray" /></td>
+                    <td className="px-4 py-3"><Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} /></td>
+                    <td className="px-4 py-3 text-[#5F5E5A]">
+                      <div>{c.parent?.name || c.parent_accounts?.parent_name || "Parent"}</div>
+                      <div className="text-[10px] font-mono text-[#9B9A96]">{c.parent?.phone || c.parent_accounts?.phone}</div>
                     </td>
-                    <td className="p-3.5">
-                      {c.reportsCount > 0 ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3B6D11]/10 text-[#3B6D11]">
-                          {c.reportsCount} report{c.reportsCount > 1 ? "s" : ""}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-[#9B9A96]">None</span>
-                      )}
-                    </td>
-                    <td className="p-3.5 text-[#5F5E5A]">{c.registeredDate}</td>
-                    <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
-                      <Button
-                        variant="outlined"
-                        size="sm"
-                        icon={Eye}
-                        onClick={() => navigate(`/children/${c.id}`)}
-                      >
-                        View
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon={FilePlus}
-                        onClick={() => navigate(`/children/${c.id}`)}
-                      >
-                        + Assessment
-                      </Button>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button variant="ghost" size="sm" icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
+                          View Profile
+                        </Button>
+                        <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(`/assessment/new/${c.id}`)}>
+                          + Assessment
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -150,57 +161,29 @@ export default function ChildrenList() {
             </table>
           </div>
 
-          <div className="block md:hidden divide-y divide-[#D3D1C7]/60">
+          <div className="grid grid-cols-1 gap-4 md:hidden">
             {filteredChildren.map((c) => (
-              <div key={c.id} className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-[#2C2C2A]">{c.name}</h4>
-                  <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} size="sm" />
+              <Card key={c.id} padding="p-4" className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#2C2C2A]">{c.name}</h3>
+                    <span className="font-mono text-xs text-[#185FA5]">{c.id}</span>
+                  </div>
+                  <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} />
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-[#5F5E5A]">
-                  <span className="font-mono text-[#9B9A96]">{c.id}</span>
-                  <span>{c.age} • {c.diagnosis}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-[#9B9A96] pt-1">
-                  <span>Registered: {c.registeredDate}</span>
-                  <span>Reports: {c.reportsCount}</span>
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    variant="outlined"
-                    size="sm"
-                    fullWidth
-                    onClick={() => navigate(`/children/${c.id}`)}
-                  >
+                <div className="flex items-center gap-2 pt-2 border-t border-[#D3D1C7]/60">
+                  <Button variant="outlined" size="sm" fullWidth icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
                     View Profile
                   </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    fullWidth
-                    onClick={() => navigate(`/children/${c.id}`)}
-                  >
+                  <Button size="sm" fullWidth icon={FilePlus} onClick={() => navigate(`/assessment/new/${c.id}`)}>
                     + Assessment
                   </Button>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
-        </div>
-      ) : (
-        <EmptyState
-          icon={Search}
-          title="No children match your search."
-          description="Try a different name or child ID."
-          action={
-            <Button variant="outlined" onClick={() => { setSearchTerm(""); setActiveProfile("All"); }}>
-              Clear Search
-            </Button>
-          }
-        />
+        </>
       )}
     </div>
   );

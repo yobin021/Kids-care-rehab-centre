@@ -3,10 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Printer, FileText } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
+import { SkeletonCard } from "../components/ui/Skeleton";
+import ErrorMessage from "../components/ui/ErrorMessage";
+import { reportService } from "../services/reportService";
 
 export default function TherapistReportView() {
   const { id } = useParams();
@@ -15,35 +18,70 @@ export default function TherapistReportView() {
 
   const child = childrenList.find((c) => c.id === id) || childrenList[1] || childrenList[0];
 
-  const [publishedReport, setPublishedReport] = useState(null);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const saved = localStorage.getItem(`report_published_${child?.id}`);
-    if (saved) {
-      try {
-        setPublishedReport(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+  const fetchReport = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await reportService.getById(id);
+      if (result) {
+        setData(result);
+      } else {
+        fallbackLocal();
+      }
+    } catch (err) {
+      console.warn("Therapist report fetch fallback:", err.message);
+      fallbackLocal();
+    } finally {
+      setLoading(false);
+    }
+
+    function fallbackLocal() {
+      const saved = localStorage.getItem(`report_published_${child?.id}`);
+      if (saved) {
+        try {
+          setData(JSON.parse(saved));
+        } catch (e) {
+          setError("Failed to parse saved report.");
+        }
+      } else {
+        setError("Therapist report not found.");
       }
     }
-  }, [child?.id]);
-
-  const reportData = publishedReport?.therapistReport || {
-    background: `${child?.name} is a ${child?.age} ${child?.gender} presenting with ${child?.primaryConcern}. Evaluated using ISAA protocol.`,
-    findings: "ISAA score of 94 indicates Mild Autism Spectrum Disorder. Primary deficits observed in receptive/expressive communication and social reciprocity.",
-    concerns: "Speech delay, poor eye contact, auditory sensory sensitivity, sitting tolerance 5-10 minutes.",
-    diagnosis: `${child?.diagnosis} — Profile B (ASD High Functioning)`,
-    recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program."
   };
+
+  useEffect(() => {
+    fetchReport();
+  }, [id, child?.id]);
+
+  const reportData = data?.therapist_report || data?.therapistReport || {
+    background: `${child?.name} is a ${child?.age} ${child?.gender} presenting with ${child?.primaryConcern}. Evaluated using ISAA protocol.`,
+    findings: "ISAA score of 94 indicates Mild Autism Spectrum Disorder. Deficits observed in social communication.",
+    concerns: "Speech delay, poor eye contact, sensory sensitivity, sitting tolerance 5-10 minutes.",
+    diagnosis: `${child?.diagnosis} — Profile B (ASD High Functioning)`,
+    recommendations: "Speech therapy 2x/week, Occupational therapy 2x/week, Parent guidance program."
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto py-4">
+        <SkeletonCard count={3} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <ErrorMessage error={error} onRetry={fetchReport} />;
+  }
 
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 max-w-4xl mx-auto print:p-0">
       <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-3 print:hidden">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(`/children/${child?.id}`)}
-            className="p-2 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer"
-          >
+          <button onClick={() => navigate(`/children/${child?.id}`)} className="p-2 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer">
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
           </button>
           <div>
@@ -70,7 +108,7 @@ export default function TherapistReportView() {
       </Card>
 
       <Card title="ISAA Evaluation & Findings">
-        <p className="text-xs text-[#2C2C2A] font-medium leading-relaxed">{reportData.findings}</p>
+        <p className="text-xs text-[#2C2C2A] font-medium leading-relaxed">{reportData.findings || reportData.assessmentFindings}</p>
       </Card>
 
       <Card title="Primary Clinical Concerns">

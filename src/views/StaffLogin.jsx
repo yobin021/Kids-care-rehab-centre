@@ -7,7 +7,7 @@ import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import Button from "../components/ui/Button";
 
 export default function StaffLogin() {
-  const { login } = useAuth();
+  const { loginStaff } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -15,11 +15,11 @@ export default function StaffLogin() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    const res = login(username, password, "staff");
+    const res = await loginStaff(username, password);
     if (res.success) {
       navigate("/dashboard");
     } else {

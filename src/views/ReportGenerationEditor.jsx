@@ -1,9 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate } from "react-router-dom";
-import { Sparkles, Save, Send, CheckCircle2, ArrowLeft, Plus, X, Eye } from "lucide-react";
+import {
+  ArrowLeft,
+  RotateCcw,
+  Sparkles,
+  Save,
+  Send,
+  Eye,
+  CheckCircle2,
+  AlertTriangle,
+  Plus,
+  X,
+  Trash2,
+  Search,
+  ChevronUp,
+  ChevronDown
+} from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -12,178 +27,375 @@ import Modal from "../components/ui/Modal";
 import { mockDefaultReport, mockExercises } from "../data/mockData";
 
 export default function ReportGenerationEditor() {
-  const { childId } = useParams();
+  const { id, childId: paramChildId, reportId } = useParams();
+  const targetId = paramChildId || reportId || id || "KCR-2024-002";
   const navigate = useNavigate();
   const { childrenList, updateChildDetails, showToast } = useAuth();
 
-  const child = childrenList.find((c) => c.id === childId) || childrenList[1] || childrenList[0];
-
-  // Loading AI Generation State
-  const [isGenerating, setIsGenerating] = useState(true);
-  const [genStep, setGenStep] = useState(0);
+  const child = childrenList.find((c) => c.id === targetId) || childrenList[1] || childrenList[0];
 
   // Active Tab: therapist | parent | exercises
   const [activeTab, setActiveTab] = useState("therapist");
+
+  // Save Status: idle | unsaved | saving | saved
+  const [saveStatus, setSaveStatus] = useState("saved");
+  const [lastSavedTime, setLastSavedTime] = useState(new Date());
+  const [isManualSaving, setIsManualSaving] = useState(false);
+  const [manualSaveSuccess, setManualSaveSuccess] = useState(false);
+
+  // Status: draft | published
+  const [reportStatus, setReportStatus] = useState(child?.reportsCount > 0 ? "published" : "draft");
+
+  // Modals & Banners
+  const [showParentPreviewModal, setShowParentPreviewModal] = useState(false);
+  const [showRegenTherapistModal, setShowRegenTherapistModal] = useState(false);
+  const [showRegenParentModal, setShowRegenParentModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
-  const [isPublishedSuccess, setIsPublishedSuccess] = useState(false);
+  const [showAddExModal, setShowAddExModal] = useState(false);
+  const [addExType, setAddExType] = useState("clinic"); // clinic | home
+  const [exSearch, setExSearch] = useState("");
 
-  // Therapist Report Form State
-  const [therapistReport, setTherapistReport] = useState({
-    background: `${child?.name} is a ${child?.age} ${child?.gender} presenting with ${child?.primaryConcern}. Evaluated using ISAA protocol.`,
-    findings: "ISAA score of 94 indicates Mild Autism Spectrum Disorder. Primary deficits observed in receptive/expressive communication and social reciprocity.",
-    concerns: "Speech delay, poor eye contact, auditory sensory sensitivity, sitting tolerance 5-10 minutes.",
-    diagnosis: `${child?.diagnosis} — Profile B (ASD High Functioning)`,
-    recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program."
+  // Validation & Section Loading States
+  const [validationErrors, setValidationErrors] = useState({});
+  const [sectionLoading, setSectionLoading] = useState({});
+  const [rowLoading, setRowLoading] = useState({});
+
+  // Single Form State Object for All Editable Fields
+  const [formState, setFormState] = useState({
+    therapistReport: {
+      background: `${child?.name} is a ${child?.age} ${child?.gender} presenting with ${child?.primaryConcern}. Evaluated using ISAA protocol by therapy team.`,
+      assessmentFindings: "ISAA score of 94 indicates Mild Autism Spectrum Disorder. Primary deficits observed in receptive/expressive communication and social reciprocity.",
+      currentStatus: `${child?.name} responds to name call consistently and follows 1-step commands. Shows progress in understanding routines, while working on turn-taking.`,
+      recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program.",
+      reviewPlan: "Progress will be re-evaluated in 12 weeks to assess gains in expressive vocabulary and sitting tolerance.",
+      preparedBy: "Priya S",
+      designation: "Senior Therapist",
+      date: new Date().toISOString().split("T")[0]
+    },
+    parentReport: {
+      aboutYourChild: mockDefaultReport.aboutYourChild,
+      whatWeFound: `${child?.name} shows strong visual processing and enthusiasm for learning activities. Speech clarity and social interaction are being actively supported.`,
+      strengths: [...mockDefaultReport.strengths],
+      workingOn: "Building two-word phrase communication, sitting tolerance, and turn-taking with peers.",
+      focusAreas: [...mockDefaultReport.supportAreas],
+      therapyPlan: mockDefaultReport.plan.type,
+      therapyType: "Speech + Occupational Therapy",
+      sessionsPerWeek: 2,
+      duration: "6 months",
+      nextReviewDate: "2026-10-15",
+      homeAdvice: mockDefaultReport.homeAdvice,
+      homeSuggestions: [...mockDefaultReport.homeSuggestions],
+      encouragement: mockDefaultReport.encouragement
+    },
+    exercises: {
+      clinicExercises: [
+        "Brain Gym Exercises",
+        "Sensory Integration Activities",
+        "Speech Therapy Exercises",
+        "Communication Cards",
+        "Social Skills Training"
+      ],
+      homeExercises: [
+        "Brain Gym Exercises",
+        "Communication Cards",
+        "Sensory Integration Activities"
+      ],
+      parentNotes: "Practise 15 minutes daily before bedtime.",
+      therapyDays: ["Mon", "Wed", "Fri"],
+      sessionTime: "10:00",
+      sessionDuration: "60",
+      frequencyPerWeek: 2,
+      startDate: new Date().toISOString().split("T")[0],
+      nextReviewDate: "2026-10-15"
+    }
   });
 
-  // Parent Report Form State
-  const [parentReport, setParentReport] = useState({
-    aboutYourChild: mockDefaultReport.aboutYourChild,
-    strengths: [...mockDefaultReport.strengths],
-    supportAreas: [...mockDefaultReport.supportAreas],
-    planType: mockDefaultReport.plan.type,
-    planFrequency: mockDefaultReport.plan.frequency,
-    planDuration: mockDefaultReport.plan.duration,
-    planNextReview: mockDefaultReport.plan.nextReview,
-    homeAdvice: mockDefaultReport.homeAdvice,
-    homeSuggestions: [...mockDefaultReport.homeSuggestions],
-    encouragement: mockDefaultReport.encouragement
-  });
-
-  // Exercise Assignments State
-  const [clinicEx, setClinicEx] = useState([
-    "Brain Gym Exercises",
-    "Sensory Integration Activities",
-    "Speech Therapy Exercises",
-    "Communication Cards",
-    "Social Skills Training"
-  ]);
-
-  const [homeEx, setHomeEx] = useState([
-    "Brain Gym Exercises",
-    "Communication Cards",
-    "Sensory Integration Activities"
-  ]);
-
-  // Simulated AI Generation Steps
+  // Load saved draft/published report from localStorage on mount
   useEffect(() => {
-    const steps = [
-      "Analyzing ISAA assessment ratings...",
-      "Mapping domain scores & clinical profile...",
-      "Generating clinical recommendations...",
-      "Translating to parent-friendly language...",
-      "Finalizing report draft..."
-    ];
-
-    let current = 0;
-    const interval = setInterval(() => {
-      current++;
-      if (current < steps.length) {
-        setGenStep(current);
-      } else {
-        clearInterval(interval);
-        setIsGenerating(false);
+    const saved = localStorage.getItem(`report_published_${child?.id}`) || localStorage.getItem(`report_draft_${child?.id}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.formState) {
+          setFormState(parsed.formState);
+        } else {
+          setFormState((prev) => ({
+            ...prev,
+            therapistReport: { ...prev.therapistReport, ...(parsed.therapistReport || {}) },
+            parentReport: { ...prev.parentReport, ...(parsed.parentReport || {}) },
+            exercises: {
+              ...prev.exercises,
+              clinicExercises: parsed.clinicEx || prev.exercises.clinicExercises,
+              homeExercises: parsed.homeEx || prev.exercises.homeExercises
+            }
+          }));
+        }
+        if (parsed.publishedDate || localStorage.getItem(`report_published_${child?.id}`)) {
+          setReportStatus("published");
+        }
+      } catch (e) {
+        console.error(e);
       }
-    }, 600);
+    }
+  }, [child?.id]);
 
-    return () => clearInterval(interval);
-  }, []);
+  // Auto-Save Debounce Handler (3 seconds)
+  const autoSaveTimer = useRef(null);
 
-  const handlePublish = () => {
+  const triggerAutoSave = (nextState) => {
+    setSaveStatus("unsaved");
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+
+    autoSaveTimer.current = setTimeout(() => {
+      setSaveStatus("saving");
+      const payload = {
+        childId: child?.id,
+        formState: nextState || formState,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(`report_draft_${child?.id}`, JSON.stringify(payload));
+      setTimeout(() => {
+        setSaveStatus("saved");
+        setLastSavedTime(new Date());
+      }, 400);
+    }, 3000);
+  };
+
+  // Keyboard Shortcuts (Ctrl+S / Cmd+S and Escape)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        handleManualSave();
+      }
+      if (e.key === "Escape" && showParentPreviewModal) {
+        setShowParentPreviewModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [formState, showParentPreviewModal]);
+
+  // Manual Immediate Save
+  const handleManualSave = () => {
+    setIsManualSaving(true);
+    setSaveStatus("saving");
+    const payload = {
+      childId: child?.id,
+      formState,
+      savedAt: new Date().toISOString()
+    };
+    localStorage.setItem(`report_draft_${child?.id}`, JSON.stringify(payload));
+    setTimeout(() => {
+      setIsManualSaving(false);
+      setManualSaveSuccess(true);
+      setSaveStatus("saved");
+      setLastSavedTime(new Date());
+      showToast("Report draft saved manually.", "success");
+      setTimeout(() => setManualSaveSuccess(false), 2000);
+    }, 500);
+  };
+
+  // State Update Helpers
+  const updateTherapist = (field, val) => {
+    const next = {
+      ...formState,
+      therapistReport: { ...formState.therapistReport, [field]: val }
+    };
+    setFormState(next);
+    triggerAutoSave(next);
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => ({ ...prev, [field]: false }));
+    }
+  };
+
+  const updateParent = (field, val) => {
+    const next = {
+      ...formState,
+      parentReport: { ...formState.parentReport, [field]: val }
+    };
+    setFormState(next);
+    triggerAutoSave(next);
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => ({ ...prev, [field]: false }));
+    }
+  };
+
+  const updateExercises = (field, val) => {
+    const next = {
+      ...formState,
+      exercises: { ...formState.exercises, [field]: val }
+    };
+    setFormState(next);
+    triggerAutoSave(next);
+  };
+
+  // Single Section Rewrite API Call
+  const handleRewriteSection = async (sectionKey, promptText, targetTab = "therapist") => {
+    setSectionLoading((prev) => ({ ...prev, [sectionKey]: true }));
+    try {
+      const res = await fetch("/api/generate-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "singleSection",
+          sectionKey,
+          customPrompt: promptText,
+          childData: child
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.text) {
+        if (targetTab === "therapist") {
+          updateTherapist(sectionKey, data.text);
+        } else {
+          updateParent(sectionKey, data.text);
+        }
+        showToast("✓ Section updated", "success");
+      } else {
+        throw new Error(data.error || "Generation failed");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not regenerate this section. Please edit manually.", "danger");
+      setValidationErrors((prev) => ({ ...prev, [sectionKey]: true }));
+    } finally {
+      setSectionLoading((prev) => ({ ...prev, [sectionKey]: false }));
+    }
+  };
+
+  // Full Tab Regeneration API Call
+  const handleRegenerateEntireReport = async (targetTab) => {
+    if (targetTab === "therapist") setShowRegenTherapistModal(false);
+    else setShowRegenParentModal(false);
+
+    setSectionLoading((prev) => ({ ...prev, fullTab: true }));
+
+    try {
+      const savedResult = localStorage.getItem(`assessment_result_${child?.id}`);
+      let isaaRes = null;
+      let domainScores = null;
+      if (savedResult) {
+        const parsed = JSON.parse(savedResult);
+        isaaRes = parsed.isaa;
+        domainScores = parsed.domainScores;
+      }
+
+      const res = await fetch("/api/generate-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "full",
+          childData: child,
+          isaaResults: isaaRes,
+          domainScores
+        })
+      });
+
+      const resData = await res.json();
+      if (resData.success && resData.data) {
+        if (targetTab === "therapist" && resData.data.therapistReport) {
+          setFormState((prev) => ({
+            ...prev,
+            therapistReport: { ...prev.therapistReport, ...resData.data.therapistReport }
+          }));
+        } else if (targetTab === "parent" && resData.data.parentReport) {
+          setFormState((prev) => ({
+            ...prev,
+            parentReport: { ...prev.parentReport, ...resData.data.parentReport }
+          }));
+        }
+        triggerAutoSave();
+        showToast("Report regenerated successfully", "success");
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Regeneration failed. Please edit manually.", "danger");
+    } finally {
+      setSectionLoading((prev) => ({ ...prev, fullTab: false }));
+    }
+  };
+
+  // Validation Check before Publish
+  const handleValidateAndPublish = () => {
+    const errors = {};
+    const fallbackPhrases = ["please write this section.", "please fill manually.", ""];
+
+    // Check therapist report fields
+    ["background", "assessmentFindings", "currentStatus", "recommendations", "reviewPlan"].forEach((f) => {
+      const val = (formState.therapistReport[f] || "").trim().toLowerCase();
+      if (fallbackPhrases.includes(val)) {
+        errors[f] = true;
+      }
+    });
+
+    // Check parent report fields
+    ["aboutYourChild", "whatWeFound", "workingOn", "homeAdvice", "encouragement"].forEach((f) => {
+      const val = (formState.parentReport[f] || "").trim().toLowerCase();
+      if (fallbackPhrases.includes(val)) {
+        errors[f] = true;
+      }
+    });
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      showToast(`${Object.keys(errors).length} section(s) need attention before publishing.`, "danger");
+
+      // Auto scroll to first failed element
+      const firstFailed = document.querySelector(".border-red-500");
+      if (firstFailed) {
+        firstFailed.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+
+    setValidationErrors({});
+    setShowPublishModal(true);
+  };
+
+  // Publish / Republish Action
+  const executePublish = () => {
     const pubDate = new Date().toISOString().split("T")[0];
-
     const fullPublishedData = {
       childId: child.id,
       childName: child.name,
       publishedDate: pubDate,
-      therapistReport,
-      parentReport,
-      clinicEx,
-      homeEx
+      formState,
+      therapistReport: formState.therapistReport,
+      parentReport: formState.parentReport,
+      clinicEx: formState.exercises.clinicExercises,
+      homeEx: formState.exercises.homeExercises
     };
 
-    // Save to localStorage
     localStorage.setItem(`report_published_${child.id}`, JSON.stringify(fullPublishedData));
-
-    // Update child details in context
     updateChildDetails(child.id, {
       reportsCount: (child.reportsCount || 0) + 1,
       lastReportDate: pubDate
     });
 
+    setReportStatus("published");
     setShowPublishModal(false);
-    setIsPublishedSuccess(true);
     showToast(`Report published successfully for ${child.name}!`, "success");
   };
 
-  if (isGenerating) {
-    const steps = [
-      "Analyzing ISAA assessment ratings...",
-      "Mapping domain scores & clinical profile...",
-      "Generating clinical recommendations...",
-      "Translating to parent-friendly language...",
-      "Finalizing report draft..."
-    ];
-
-    return (
-      <div className="max-w-xl mx-auto py-20 text-center space-y-6">
-        <div className="bg-white p-8 rounded-[16px] border border-[#D3D1C7] shadow-lg space-y-6">
-          <div className="h-16 w-16 bg-[#185FA5]/10 text-[#185FA5] rounded-full flex items-center justify-center mx-auto">
-            <Sparkles className="h-8 w-8 animate-spin text-[#185FA5]" />
-          </div>
-
-          <div className="space-y-2">
-            <h2 className="text-xl font-bold text-[#2C2C2A]">Generating Report for {child?.name}</h2>
-            <p className="text-xs font-semibold text-[#185FA5]">{steps[genStep]}</p>
-          </div>
-
-          <div className="w-full bg-[#F8F8F6] rounded-full h-3 overflow-hidden border border-[#D3D1C7]">
-            <div
-              className="h-full bg-[#185FA5] transition-all duration-500 ease-out rounded-full"
-              style={{ width: `${((genStep + 1) / steps.length) * 100}%` }}
-            />
-          </div>
-
-          <p className="text-[11px] text-[#9B9A96]">Drafting both Therapist Clinical Report and Parent Simple Report...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isPublishedSuccess) {
-    return (
-      <div className="max-w-xl mx-auto py-12 text-center space-y-6">
-        <div className="bg-white p-8 rounded-[16px] border border-[#D3D1C7] shadow-lg space-y-4">
-          <div className="h-16 w-16 bg-[#3B6D11]/10 text-[#3B6D11] rounded-full flex items-center justify-center mx-auto animate-bounce">
-            <CheckCircle2 className="h-10 w-10" />
-          </div>
-
-          <h2 className="text-2xl font-extrabold text-[#2C2C2A]">Report Published Successfully!</h2>
-          <p className="text-sm text-[#5F5E5A] font-semibold">
-            {child?.parent?.name} can now view {child?.name}&apos;s report and daily exercises on the Parent Portal.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4 border-t border-[#D3D1C7]/60">
-            <Button variant="secondary" icon={Eye} onClick={() => navigate("/parent/report")}>
-              Preview Parent View
-            </Button>
-            <Button onClick={() => navigate("/dashboard")}>
-              Back to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Helper for Auto-save Time String
+  const getTimeAgoStr = () => {
+    const diffMins = Math.floor((new Date() - lastSavedTime) / 60000);
+    if (diffMins < 1) return "Just now";
+    return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+  };
 
   return (
-    <div className="space-y-6 text-[#2C2C2A] pb-12">
-      
-      {/* Top Header Bar */}
-      <div className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-4 text-[#2C2C2A] pb-24 max-w-6xl mx-auto">
+
+      {/* STICKY HEADER */}
+      <div className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-3">
+        
+        {/* LEFT */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(`/assessment/${child?.id}/results`)}
+            onClick={() => navigate(`/children/${child?.id}`)}
             className="p-1.5 rounded-[8px] border border-[#D3D1C7] hover:bg-slate-100 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
@@ -191,25 +403,110 @@ export default function ReportGenerationEditor() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-[#2C2C2A]">{child?.name}</h2>
-              <Badge label="Report Draft" variant="amber" size="sm" />
+              <span className="font-mono text-[12px] text-[#9B9A96]">{child?.id}</span>
             </div>
-            <p className="text-[11px] text-[#5F5E5A] font-semibold">Clinical & Parent Report Editor</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outlined" size="sm" icon={Save} onClick={() => showToast("Report draft saved.", "success")}>
-            Save Draft
+        {/* CENTER */}
+        <div className="hidden md:block text-sm font-bold text-[#185FA5]">
+          Report Review & Edit
+        </div>
+
+        {/* RIGHT (Four items in a row) */}
+        <div className="flex items-center gap-3 flex-wrap">
+          
+          {/* 1. Auto-save indicator */}
+          <div className="flex items-center gap-1.5 text-xs font-semibold">
+            {saveStatus === "unsaved" && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-amber-800 font-bold">Unsaved changes</span>
+              </>
+            )}
+            {saveStatus === "saving" && (
+              <>
+                <Sparkles className="h-3.5 w-3.5 text-[#185FA5] animate-spin" />
+                <span className="text-[#185FA5] font-bold">Saving...</span>
+              </>
+            )}
+            {saveStatus === "saved" && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-[#5F5E5A]">Saved {getTimeAgoStr()}</span>
+              </>
+            )}
+          </div>
+
+          {/* 2. Status Badge */}
+          <Badge
+            label={reportStatus === "published" ? "Published" : "Draft"}
+            variant={reportStatus === "published" ? "green" : "amber"}
+            size="md"
+          />
+
+          {/* 3. [Save Draft] button */}
+          <Button
+            variant="outlined"
+            size="sm"
+            icon={Save}
+            disabled={saveStatus === "saving" || isManualSaving}
+            onClick={handleManualSave}
+          >
+            {isManualSaving ? "Saving..." : manualSaveSuccess ? "Saved ✓" : "Save Draft"}
           </Button>
-          <Button size="sm" icon={Send} onClick={() => setShowPublishModal(true)}>
-            Publish Report
+
+          {/* 4. [Publish Report] button */}
+          <Button
+            variant={reportStatus === "published" ? "secondary" : "primary"}
+            size="sm"
+            icon={Send}
+            onClick={handleValidateAndPublish}
+          >
+            {reportStatus === "published" ? "Update & Republish" : "Publish Report"}
           </Button>
         </div>
+
       </div>
 
-      {/* Editor Tabs Navigation */}
+      {/* PUBLISHED REPORT EDIT BANNER */}
+      {reportStatus === "published" && (
+        <div className="bg-[#FEF3C7] border-l-4 border-[#854F0B] p-4 rounded-r-[8px] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="h-5 w-5 text-[#854F0B] shrink-0 mt-0.5" />
+            <div className="text-xs text-[#854F0B]">
+              <strong className="font-bold block">You are editing a published report.</strong>
+              <span>Any changes you save will immediately update what {child?.parent?.name} sees on their portal.</span>
+            </div>
+          </div>
+
+          <Button
+            variant="outlined"
+            size="sm"
+            className="border-[#854F0B] text-[#854F0B] hover:bg-amber-100 shrink-0"
+            icon={Eye}
+            onClick={() => setShowParentPreviewModal(true)}
+          >
+            View Current Parent Version
+          </Button>
+        </div>
+      )}
+
+      {/* TOP VALIDATION ERROR BANNER */}
+      {Object.keys(validationErrors).length > 0 && (
+        <div className="p-3.5 bg-red-50 border border-red-300 rounded-[12px] text-red-900 text-xs font-bold flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-700" />
+            <span>{Object.keys(validationErrors).length} section(s) need attention before you can publish.</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setValidationErrors({})}>Dismiss</Button>
+        </div>
+      )}
+
+      {/* TAB NAVIGATION */}
       <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-xs flex items-center gap-1 overflow-x-auto">
         <button
+          type="button"
           onClick={() => setActiveTab("therapist")}
           className={`px-4 py-2 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "therapist" ? "bg-[#185FA5] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
@@ -219,6 +516,7 @@ export default function ReportGenerationEditor() {
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab("parent")}
           className={`px-4 py-2 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "parent" ? "bg-[#0F6E56] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
@@ -228,6 +526,7 @@ export default function ReportGenerationEditor() {
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab("exercises")}
           className={`px-4 py-2 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "exercises" ? "bg-[#3C3489] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
@@ -239,80 +538,173 @@ export default function ReportGenerationEditor() {
 
       {/* TAB 1: THERAPIST REPORT */}
       {activeTab === "therapist" && (
-        <Card title="Clinical Developmental Assessment Report">
-          <div className="space-y-4">
-            <Input
-              label="Clinical Background"
-              type="textarea"
-              rows={3}
-              value={therapistReport.background}
-              onChange={(e) => setTherapistReport({ ...therapistReport, background: e.target.value })}
-            />
-
-            <Input
-              label="Assessment Findings & ISAA Observations"
-              type="textarea"
-              rows={3}
-              value={therapistReport.findings}
-              onChange={(e) => setTherapistReport({ ...therapistReport, findings: e.target.value })}
-            />
-
-            <Input
-              label="Primary Clinical Concerns"
-              type="textarea"
-              rows={2}
-              value={therapistReport.concerns}
-              onChange={(e) => setTherapistReport({ ...therapistReport, concerns: e.target.value })}
-            />
-
-            <Input
-              label="Provisional Diagnosis & Profile Classification"
-              value={therapistReport.diagnosis}
-              onChange={(e) => setTherapistReport({ ...therapistReport, diagnosis: e.target.value })}
-            />
-
-            <Input
-              label="Therapist Recommendations"
-              type="textarea"
-              rows={3}
-              value={therapistReport.recommendations}
-              onChange={(e) => setTherapistReport({ ...therapistReport, recommendations: e.target.value })}
-            />
+        <div className="space-y-6">
+          
+          {/* TOOLBAR */}
+          <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-2 text-xs">
+            <span className="text-[12px] text-[#5F5E5A] font-medium">AI Generated — Edit as needed</span>
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={RotateCcw}
+              onClick={() => setShowRegenTherapistModal(true)}
+            >
+              🔄 Regenerate Entire Report
+            </Button>
           </div>
-        </Card>
+
+          {/* FIVE SECTION CARDS */}
+          {[
+            { key: "background", label: "BACKGROUND", prompt: `Write the background section for a clinical therapy report for ${child?.name}, aged ${child?.age}, who has ${child?.diagnosis}. Primary concern: ${child?.primaryConcern}. Clinical tone.` },
+            { key: "assessmentFindings", label: "ASSESSMENT FINDINGS", prompt: `Write the assessment findings section for ${child?.name}. ISAA total: 94/200, severity: Mild Autism. Clinical language.` },
+            { key: "currentStatus", label: "CURRENT STATUS", prompt: `Write the current status section for ${child?.name} with ${child?.diagnosis}. What can the child do now, what is improving, what needs support. 3-4 sentences.` },
+            { key: "recommendations", label: "RECOMMENDATIONS", prompt: `Write the recommendations section for ${child?.name}. Recommended therapies: Speech & OT. Include frequency and duration.` },
+            { key: "reviewPlan", label: "REVIEW PLAN", prompt: `Write a review plan sentence for ${child?.name} with ${child?.diagnosis}. Mention when to review progress. 1-2 sentences.` }
+          ].map((sec) => {
+            const textVal = formState.therapistReport[sec.key] || "";
+            const isSecLoading = sectionLoading[sec.key];
+            const hasError = validationErrors[sec.key];
+
+            return (
+              <div
+                key={sec.key}
+                className={`bg-white rounded-[12px] border p-5 space-y-3 relative shadow-xs transition-all ${
+                  hasError ? "border-red-500 bg-red-50/20" : "border-[#D3D1C7]"
+                }`}
+              >
+                {/* Section Top Bar */}
+                <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+                  <span className="text-[11px] font-bold text-[#9B9A96] tracking-wider uppercase">{sec.label}</span>
+                  <button
+                    type="button"
+                    disabled={isSecLoading}
+                    onClick={() => handleRewriteSection(sec.key, sec.prompt, "therapist")}
+                    className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCcw className={`h-3.5 w-3.5 ${isSecLoading ? "animate-spin" : ""}`} />
+                    <span>↺ Rewrite</span>
+                  </button>
+                </div>
+
+                {/* Section Textarea Area with Loading Overlay */}
+                <div className="relative min-h-[100px]">
+                  <textarea
+                    rows={4}
+                    value={textVal}
+                    onChange={(e) => updateTherapist(sec.key, e.target.value)}
+                    className={`w-full p-3 text-xs font-medium text-[#2C2C2A] bg-white rounded-[8px] border outline-none resize-none transition-colors ${
+                      hasError ? "border-red-500" : "border-[#D3D1C7] focus:border-[#185FA5]"
+                    }`}
+                  />
+
+                  {/* Loading Overlay */}
+                  {isSecLoading && (
+                    <div className="absolute inset-0 bg-slate-100/80 backdrop-blur-xs rounded-[8px] flex flex-col items-center justify-center gap-2">
+                      <Sparkles className="h-6 w-6 text-[#185FA5] animate-spin" />
+                      <span className="text-xs font-bold text-[#185FA5]">Generating...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Section Bottom Bar */}
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#D3D1C7]/30">
+                  <button
+                    type="button"
+                    onClick={() => updateTherapist(sec.key, "")}
+                    className="text-[#993C1D] hover:underline font-semibold cursor-pointer"
+                  >
+                    Clear text
+                  </button>
+                  <span className="text-[#9B9A96] font-mono">{textVal.length} characters</span>
+                </div>
+
+                {hasError && (
+                  <p className="text-[11px] font-bold text-red-600">This section needs content before publishing.</p>
+                )}
+              </div>
+            );
+          })}
+
+        </div>
       )}
 
       {/* TAB 2: PARENT REPORT */}
       {activeTab === "parent" && (
-        <Card title="Parent Report (Simple & Reassuring Language)">
-          <div className="space-y-4">
-            <Input
-              label="About Your Child Summary"
-              type="textarea"
+        <div className="space-y-6">
+          
+          {/* TOOLBAR */}
+          <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-2 text-xs">
+            <span className="text-[12px] text-[#5F5E5A] font-medium">Simple language — no clinical terms or scores</span>
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={RotateCcw}
+              onClick={() => setShowRegenParentModal(true)}
+            >
+              🔄 Regenerate Parent Report
+            </Button>
+          </div>
+
+          {/* 1. ABOUT YOUR CHILD */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">ABOUT YOUR CHILD</span>
+              <button
+                type="button"
+                onClick={() => handleRewriteSection("aboutYourChild", `Write warm about your child summary for ${child?.name}.`, "parent")}
+                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
+              </button>
+            </div>
+            <textarea
               rows={3}
-              value={parentReport.aboutYourChild}
-              onChange={(e) => setParentReport({ ...parentReport, aboutYourChild: e.target.value })}
+              value={formState.parentReport.aboutYourChild}
+              onChange={(e) => updateParent("aboutYourChild", e.target.value)}
+              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
+            />
+            <span className="text-[11px] text-[#9B9A96]">Mention child&apos;s name, personality, and why they came to the clinic.</span>
+          </div>
+
+          {/* 2. WHAT WE FOUND & STRENGTHS EDITOR */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">WHAT WE FOUND</span>
+              <button
+                type="button"
+                onClick={() => handleRewriteSection("whatWeFound", `Write what we found summary for ${child?.name}.`, "parent")}
+                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
+              </button>
+            </div>
+            <textarea
+              rows={3}
+              value={formState.parentReport.whatWeFound}
+              onChange={(e) => updateParent("whatWeFound", e.target.value)}
+              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
             />
 
-            {/* Strengths List */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-[#3B6D11]">✨ Child&apos;s Strengths (Bulleted Checklist)</label>
-              {parentReport.strengths.map((str, idx) => (
+            {/* STRENGTHS EDITOR */}
+            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
+              <label className="block text-xs font-bold text-[#3B6D11]">Child&apos;s strengths to highlight:</label>
+              {formState.parentReport.strengths.map((str, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <input
                     type="text"
                     value={str}
                     onChange={(e) => {
-                      const next = [...parentReport.strengths];
+                      const next = [...formState.parentReport.strengths];
                       next[idx] = e.target.value;
-                      setParentReport({ ...parentReport, strengths: next });
+                      updateParent("strengths", next);
                     }}
                     className="flex-1 h-9 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
                   />
                   <button
+                    type="button"
                     onClick={() => {
-                      const next = parentReport.strengths.filter((_, i) => i !== idx);
-                      setParentReport({ ...parentReport, strengths: next });
+                      const next = formState.parentReport.strengths.filter((_, i) => i !== idx);
+                      updateParent("strengths", next);
                     }}
                     className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer"
                   >
@@ -320,35 +712,58 @@ export default function ReportGenerationEditor() {
                   </button>
                 </div>
               ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={Plus}
-                onClick={() => setParentReport({ ...parentReport, strengths: [...parentReport.strengths, "New Strength"] })}
-              >
-                + Add Strength
-              </Button>
+              {formState.parentReport.strengths.length < 6 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => updateParent("strengths", [...formState.parentReport.strengths, "New Strength"])}
+                >
+                  + Add Strength
+                </Button>
+              )}
             </div>
+          </div>
 
-            {/* Support Areas List */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-[#185FA5]">📌 Areas We Are Supporting</label>
-              {parentReport.supportAreas.map((area, idx) => (
+          {/* 3. WHAT WE ARE WORKING ON & FOCUS AREAS */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">WHAT WE ARE WORKING ON</span>
+              <button
+                type="button"
+                onClick={() => handleRewriteSection("workingOn", `Write what we are working on summary for ${child?.name}.`, "parent")}
+                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
+              </button>
+            </div>
+            <textarea
+              rows={3}
+              value={formState.parentReport.workingOn}
+              onChange={(e) => updateParent("workingOn", e.target.value)}
+              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
+            />
+
+            {/* FOCUS AREAS EDITOR */}
+            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
+              <label className="block text-xs font-bold text-[#185FA5]">Specific focus areas:</label>
+              {formState.parentReport.focusAreas.map((area, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <input
                     type="text"
                     value={area}
                     onChange={(e) => {
-                      const next = [...parentReport.supportAreas];
+                      const next = [...formState.parentReport.focusAreas];
                       next[idx] = e.target.value;
-                      setParentReport({ ...parentReport, supportAreas: next });
+                      updateParent("focusAreas", next);
                     }}
                     className="flex-1 h-9 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
                   />
                   <button
+                    type="button"
                     onClick={() => {
-                      const next = parentReport.supportAreas.filter((_, i) => i !== idx);
-                      setParentReport({ ...parentReport, supportAreas: next });
+                      const next = formState.parentReport.focusAreas.filter((_, i) => i !== idx);
+                      updateParent("focusAreas", next);
                     }}
                     className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer"
                   >
@@ -356,80 +771,545 @@ export default function ReportGenerationEditor() {
                   </button>
                 </div>
               ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={Plus}
-                onClick={() => setParentReport({ ...parentReport, supportAreas: [...parentReport.supportAreas, "New Focus Area"] })}
-              >
-                + Add Support Area
-              </Button>
+              {formState.parentReport.focusAreas.length < 6 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => updateParent("focusAreas", [...formState.parentReport.focusAreas, "New Focus Area"])}
+                >
+                  + Add Area
+                </Button>
+              )}
             </div>
-
-            <Input
-              label="Home Advice Paragraph"
-              type="textarea"
-              rows={2}
-              value={parentReport.homeAdvice}
-              onChange={(e) => setParentReport({ ...parentReport, homeAdvice: e.target.value })}
-            />
-
-            <Input
-              label="Encouraging Message for Parents"
-              type="textarea"
-              rows={2}
-              value={parentReport.encouragement}
-              onChange={(e) => setParentReport({ ...parentReport, encouragement: e.target.value })}
-            />
           </div>
-        </Card>
-      )}
 
-      {/* TAB 3: ASSIGNED EXERCISES */}
-      {activeTab === "exercises" && (
-        <div className="space-y-6">
-          <Card title="Clinic Prescribed Exercises">
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {clinicEx.map((ex, idx) => (
-                  <span key={idx} className="px-3 py-1.5 bg-[#185FA5]/10 text-[#185FA5] border border-[#185FA5]/30 rounded-full text-xs font-bold flex items-center gap-1.5">
-                    <span>{ex}</span>
-                    <button onClick={() => setClinicEx(clinicEx.filter((_, i) => i !== idx))} className="hover:text-red-600">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </span>
-                ))}
+          {/* 4. THERAPY PLAN & STRUCTURED FIELDS */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">THERAPY PLAN</span>
+              <button
+                type="button"
+                onClick={() => handleRewriteSection("therapyPlan", `Write therapy plan paragraph for ${child?.name}.`, "parent")}
+                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
+              </button>
+            </div>
+            <textarea
+              rows={2}
+              value={formState.parentReport.therapyPlan}
+              onChange={(e) => updateParent("therapyPlan", e.target.value)}
+              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
+            />
+
+            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
+              <label className="block text-xs font-bold text-[#2C2C2A]">Therapy plan details (shown on parent portal):</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <Input
+                  label="Therapy Type"
+                  value={formState.parentReport.therapyType}
+                  onChange={(e) => updateParent("therapyType", e.target.value)}
+                />
+                <Input
+                  label="Sessions / Week"
+                  type="number"
+                  min="1"
+                  max="7"
+                  value={formState.parentReport.sessionsPerWeek}
+                  onChange={(e) => updateParent("sessionsPerWeek", e.target.value)}
+                />
+                <Input
+                  label="Duration"
+                  placeholder="e.g. 6 months"
+                  value={formState.parentReport.duration}
+                  onChange={(e) => updateParent("duration", e.target.value)}
+                />
+                <Input
+                  label="Next Review Date"
+                  type="date"
+                  value={formState.parentReport.nextReviewDate}
+                  onChange={(e) => updateParent("nextReviewDate", e.target.value)}
+                />
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card title="Home Parent Exercises">
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {homeEx.map((ex, idx) => (
-                  <span key={idx} className="px-3 py-1.5 bg-[#0F6E56]/10 text-[#0F6E56] border border-[#0F6E56]/30 rounded-full text-xs font-bold flex items-center gap-1.5">
-                    <span>{ex}</span>
-                    <button onClick={() => setHomeEx(homeEx.filter((_, i) => i !== idx))} className="hover:text-red-600">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
+          {/* 5. WHAT YOU CAN DO AT HOME & HOME SUGGESTIONS */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">WHAT YOU CAN DO AT HOME</span>
+              <button
+                type="button"
+                onClick={() => handleRewriteSection("homeAdvice", `Write home advice paragraph for parents of ${child?.name}.`, "parent")}
+                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
+              </button>
             </div>
-          </Card>
+            <textarea
+              rows={2}
+              value={formState.parentReport.homeAdvice}
+              onChange={(e) => updateParent("homeAdvice", e.target.value)}
+              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
+            />
+
+            {/* THREE NUMBERED EDITABLE ROWS WITH PER-ROW REWRITE */}
+            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
+              <label className="block text-xs font-bold text-[#854F0B]">Specific home activities:</label>
+              {formState.parentReport.homeSuggestions.map((sug, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="h-6 w-6 rounded-full bg-[#854F0B] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    {idx + 1}
+                  </span>
+                  <input
+                    type="text"
+                    value={sug}
+                    onChange={(e) => {
+                      const next = [...formState.parentReport.homeSuggestions];
+                      next[idx] = e.target.value;
+                      updateParent("homeSuggestions", next);
+                    }}
+                    className="flex-1 h-9 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setRowLoading((prev) => ({ ...prev, [idx]: true }));
+                      await handleRewriteSection("homeAdvice", `Write one specific home activity for parents of ${child?.name} with ${child?.diagnosis}. 1-2 sentences.`, "parent");
+                      setRowLoading((prev) => ({ ...prev, [idx]: false }));
+                    }}
+                    className="p-1.5 border border-[#D3D1C7] rounded-[6px] hover:bg-slate-100 text-[#185FA5] cursor-pointer"
+                  >
+                    <RotateCcw className={`h-3.5 w-3.5 ${rowLoading[idx] ? "animate-spin" : ""}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = formState.parentReport.homeSuggestions.filter((_, i) => i !== idx);
+                      updateParent("homeSuggestions", next);
+                    }}
+                    className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {formState.parentReport.homeSuggestions.length < 5 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => updateParent("homeSuggestions", [...formState.parentReport.homeSuggestions, "New Home Activity"])}
+                >
+                  + Add Suggestion
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* 6. CLOSING MESSAGE CARD */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">CLOSING MESSAGE</span>
+              <button
+                type="button"
+                onClick={() => handleRewriteSection("encouragement", `Write one warm encouraging sentence for parents of ${child?.name}, a ${child?.age} year old.`, "parent")}
+                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={formState.parentReport.encouragement}
+                onChange={(e) => updateParent("encouragement", e.target.value)}
+                className="flex-1 h-12 px-4 border border-[#D3D1C7] rounded-[8px] text-[16px] font-bold text-[#0F6E56] outline-none focus:border-[#0F6E56]"
+              />
+            </div>
+          </div>
+
+          {/* PARENT PREVIEW BUTTON */}
+          <Button
+            variant="secondary"
+            fullWidth
+            className="h-12 text-sm font-bold border-2"
+            icon={Eye}
+            onClick={() => setShowParentPreviewModal(true)}
+          >
+            👁 Preview Parent Report
+          </Button>
+
         </div>
       )}
 
-      {/* PUBLISH CONFIRMATION MODAL */}
+      {/* TAB 3: EXERCISES & PLAN */}
+      {activeTab === "exercises" && (
+        <div className="space-y-6">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* CLINIC EXERCISES COLUMN */}
+            <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+                <h3 className="text-xs font-bold text-[#185FA5] uppercase">CLINIC PRESCRIBED EXERCISES</h3>
+                <span className="text-[11px] font-bold text-[#9B9A96]">{formState.exercises.clinicExercises.length} selected</span>
+              </div>
+
+              <div className="space-y-2">
+                {formState.exercises.clinicExercises.map((exName, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
+                    <span className="text-[#2C2C2A]">{exName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
+                        updateExercises("clinicExercises", next);
+                      }}
+                      className="text-[#993C1D] hover:bg-red-50 p-1 rounded cursor-pointer"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                variant="outlined"
+                fullWidth
+                size="sm"
+                icon={Plus}
+                onClick={() => {
+                  setAddExType("clinic");
+                  setShowAddExModal(true);
+                }}
+              >
+                + Add Clinic Exercise
+              </Button>
+            </div>
+
+            {/* HOME EXERCISES COLUMN */}
+            <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
+                <h3 className="text-xs font-bold text-[#0F6E56] uppercase">HOME PARENT EXERCISES</h3>
+                <span className="text-[11px] font-bold text-[#9B9A96]">{formState.exercises.homeExercises.length} selected</span>
+              </div>
+
+              {formState.exercises.homeExercises.length > 5 && (
+                <p className="text-[11px] font-bold text-[#854F0B] bg-amber-50 p-2 rounded border border-amber-200">
+                  ⚠ More than 5 exercises may overwhelm parents.
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {formState.exercises.homeExercises.map((exName, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
+                    <span className="text-[#2C2C2A]">{exName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
+                        updateExercises("homeExercises", next);
+                      }}
+                      className="text-[#993C1D] hover:bg-red-50 p-1 rounded cursor-pointer"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                variant="outlined"
+                fullWidth
+                size="sm"
+                icon={Plus}
+                onClick={() => {
+                  setAddExType("home");
+                  setShowAddExModal(true);
+                }}
+              >
+                + Add Home Exercise
+              </Button>
+            </div>
+
+          </div>
+
+          {/* SCHEDULE CARD */}
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
+            <h3 className="text-xs font-bold text-[#2C2C2A] uppercase border-b border-[#D3D1C7]/40 pb-2">SCHEDULE & APPOINTMENT DETAILS</h3>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-[#2C2C2A]">Therapy Days</label>
+              <div className="flex flex-wrap gap-2">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => {
+                  const isSel = formState.exercises.therapyDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => {
+                        const arr = [...formState.exercises.therapyDays];
+                        const next = isSel ? arr.filter((d) => d !== day) : [...arr, day];
+                        updateExercises("therapyDays", next);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                        isSel ? "bg-[#185FA5] text-white shadow-xs" : "bg-[#F8F8F6] text-[#5F5E5A] border border-[#D3D1C7]"
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+              <Input
+                label="Session Time"
+                type="time"
+                value={formState.exercises.sessionTime}
+                onChange={(e) => updateExercises("sessionTime", e.target.value)}
+              />
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-[#2C2C2A]">Duration</label>
+                <select
+                  value={formState.exercises.sessionDuration}
+                  onChange={(e) => updateExercises("sessionDuration", e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
+                >
+                  <option value="30">30 minutes</option>
+                  <option value="45">45 minutes</option>
+                  <option value="60">60 minutes</option>
+                </select>
+              </div>
+
+              <Input
+                label="Frequency per week"
+                type="number"
+                min="1"
+                max="7"
+                value={formState.exercises.frequencyPerWeek}
+                onChange={(e) => updateExercises("frequencyPerWeek", e.target.value)}
+              />
+
+              <Input
+                label="Start Date"
+                type="date"
+                value={formState.exercises.startDate}
+                onChange={(e) => updateExercises("startDate", e.target.value)}
+              />
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* FULL-SCREEN PARENT PREVIEW MODAL */}
+      {showParentPreviewModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex flex-col animate-in fade-in">
+          
+          {/* TOP BAR */}
+          <div className="bg-white border-b border-[#D3D1C7] p-4 flex items-center justify-between shadow-md">
+            <div>
+              <h3 className="text-base font-bold text-[#2C2C2A]">Parent Portal Preview</h3>
+              <p className="text-xs text-[#5F5E5A] font-semibold">{child?.name}&apos;s report as seen by parent</p>
+            </div>
+            <button
+              onClick={() => setShowParentPreviewModal(false)}
+              className="p-2 rounded-full hover:bg-slate-100 text-[#5F5E5A] cursor-pointer"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+
+          {/* SCROLLABLE LIVE PREVIEW CONTENT */}
+          <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full space-y-6">
+            
+            {/* Header Card */}
+            <div className="bg-[#185FA5] text-white p-6 rounded-[12px] shadow-sm space-y-1">
+              <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">Kids Care Rehab Centre</span>
+              <h2 className="text-xl font-black">{child?.name} — Assessment Report</h2>
+              <p className="text-xs text-blue-100">Report Date: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+            </div>
+
+            {/* About Your Child */}
+            <Card title="About Your Child">
+              <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium">
+                {formState.parentReport.aboutYourChild}
+              </p>
+            </Card>
+
+            {/* What We Found */}
+            <div className="bg-emerald-50/70 p-6 rounded-[12px] border border-emerald-200 space-y-3">
+              <h3 className="text-sm font-bold text-[#3B6D11] uppercase tracking-wider flex items-center gap-2">
+                <span>✨ Your Child&apos;s Strengths</span>
+              </h3>
+              <ul className="space-y-2 text-xs font-semibold text-[#2C2C2A]">
+                {formState.parentReport.strengths.map((str, idx) => (
+                  <li key={idx} className="flex items-start gap-2 bg-white p-2.5 rounded-[8px] border border-emerald-200/60">
+                    <CheckCircle2 className="h-4 w-4 text-[#3B6D11] shrink-0 mt-0.5" />
+                    <span>{str}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Working On */}
+            <div className="bg-blue-50/70 p-6 rounded-[12px] border border-blue-200 space-y-3">
+              <h3 className="text-sm font-bold text-[#185FA5] uppercase tracking-wider">
+                📌 Areas We Are Supporting
+              </h3>
+              <p className="text-xs text-[#2C2C2A] font-medium leading-relaxed">
+                {formState.parentReport.workingOn}
+              </p>
+              <ul className="space-y-2 text-xs font-semibold text-[#2C2C2A]">
+                {formState.parentReport.focusAreas.map((area, idx) => (
+                  <li key={idx} className="flex items-start gap-2 bg-white p-2.5 rounded-[8px] border border-blue-200/60">
+                    <span className="h-2 w-2 rounded-full bg-[#185FA5] mt-1.5 shrink-0" />
+                    <span>{area}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Therapy Plan */}
+            <Card title="🏥 Therapy Plan">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
+                  <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Therapy Type</span>
+                  <strong className="text-[#185FA5]">{formState.parentReport.therapyType}</strong>
+                </div>
+                <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
+                  <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Sessions / Week</span>
+                  <strong className="text-[#2C2C2A]">{formState.parentReport.sessionsPerWeek}</strong>
+                </div>
+                <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
+                  <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Duration</span>
+                  <strong className="text-[#2C2C2A]">{formState.parentReport.duration}</strong>
+                </div>
+                <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
+                  <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Next Review</span>
+                  <strong className="text-[#0F6E56]">{formState.parentReport.nextReviewDate}</strong>
+                </div>
+              </div>
+            </Card>
+
+            {/* Home Advice */}
+            <div className="bg-amber-50/70 p-6 rounded-[12px] border border-amber-200 space-y-3">
+              <h3 className="text-sm font-bold text-[#854F0B] uppercase tracking-wider">
+                🏠 What You Can Do At Home
+              </h3>
+              <p className="text-xs text-[#2C2C2A] font-medium leading-relaxed">
+                {formState.parentReport.homeAdvice}
+              </p>
+              <ol className="space-y-2 text-xs font-semibold text-[#2C2C2A] pt-1">
+                {formState.parentReport.homeSuggestions.map((sug, idx) => (
+                  <li key={idx} className="flex items-center gap-3 bg-white p-3 rounded-[8px] border border-amber-200/60">
+                    <span className="h-6 w-6 rounded-full bg-[#854F0B] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span>{sug}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* Closing Message */}
+            <div className="bg-[#0F6E56] text-white p-6 rounded-[12px] text-center italic text-sm font-bold shadow-sm">
+              &quot;{formState.parentReport.encouragement}&quot;
+            </div>
+
+          </div>
+
+          {/* BOTTOM BAR */}
+          <div className="bg-white border-t border-[#D3D1C7] p-4 flex items-center justify-between shadow-md">
+            <span className="text-xs font-semibold text-[#5F5E5A]">This is exactly what {child?.parent?.name} will see after publishing.</span>
+            <Button onClick={() => setShowParentPreviewModal(false)}>Close Preview</Button>
+          </div>
+
+        </div>
+      )}
+
+      {/* CONFIRM REGEN THERAPIST MODAL */}
+      <Modal isOpen={showRegenTherapistModal} onClose={() => setShowRegenTherapistModal(false)} title="Regenerate Therapist Report?">
+        <div className="space-y-4 text-xs font-semibold">
+          <p className="text-[#2C2C2A]">
+            This will replace all current therapist report content with a new AI-generated version. Your edits will be lost.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D3D1C7]">
+            <Button variant="outlined" onClick={() => setShowRegenTherapistModal(false)}>Cancel</Button>
+            <Button onClick={() => handleRegenerateEntireReport("therapist")}>Yes, Regenerate</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* CONFIRM REGEN PARENT MODAL */}
+      <Modal isOpen={showRegenParentModal} onClose={() => setShowRegenParentModal(false)} title="Regenerate Parent Report?">
+        <div className="space-y-4 text-xs font-semibold">
+          <p className="text-[#2C2C2A]">
+            This will replace all current parent report sections with new AI-generated content. Your edits will be lost.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D3D1C7]">
+            <Button variant="outlined" onClick={() => setShowRegenParentModal(false)}>Cancel</Button>
+            <Button onClick={() => handleRegenerateEntireReport("parent")}>Yes, Regenerate</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* PUBLISH CONFIRM MODAL */}
       <Modal isOpen={showPublishModal} onClose={() => setShowPublishModal(false)} title="Publish Assessment Report">
         <div className="space-y-4 text-xs font-semibold">
           <p className="text-[#2C2C2A]">
             Publish this report for <strong>{child?.name}</strong>? It will immediately become visible to {child?.parent?.name} on the Parent Portal.
           </p>
-
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D3D1C7]">
             <Button variant="outlined" onClick={() => setShowPublishModal(false)}>Cancel</Button>
-            <Button onClick={handlePublish}>Yes, Publish Report</Button>
+            <Button onClick={executePublish}>Yes, Publish Report</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* SEARCHABLE EXERCISE SELECTOR MODAL */}
+      <Modal isOpen={showAddExModal} onClose={() => setShowAddExModal(false)} title={`Add ${addExType === "clinic" ? "Clinic" : "Home"} Exercise`}>
+        <div className="space-y-4 text-xs font-semibold">
+          <Input
+            placeholder="Search exercises..."
+            value={exSearch}
+            onChange={(e) => setExSearch(e.target.value)}
+          />
+
+          <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+            {mockExercises
+              .filter((ex) => ex.name.toLowerCase().includes(exSearch.toLowerCase()))
+              .map((ex) => {
+                const targetList = addExType === "clinic" ? formState.exercises.clinicExercises : formState.exercises.homeExercises;
+                const isAdded = targetList.includes(ex.name);
+
+                return (
+                  <div key={ex.id} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
+                    <div>
+                      <span className="font-bold text-[#2C2C2A] block">{ex.name}</span>
+                      <span className="text-[10px] text-[#9B9A96]">{ex.category}</span>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant={isAdded ? "ghost" : "outlined"}
+                      disabled={isAdded}
+                      onClick={() => {
+                        const next = [...targetList, ex.name];
+                        updateExercises(addExType === "clinic" ? "clinicExercises" : "homeExercises", next);
+                        showToast(`Added ${ex.name}`, "success");
+                      }}
+                    >
+                      {isAdded ? "✓ Added" : "+ Add"}
+                    </Button>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </Modal>

@@ -405,16 +405,14 @@ export default function AssessmentForm() {
             key={t.num}
             type="button"
             onClick={() => setActiveTab(t.num)}
-            className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              activeTab === t.num
+            className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${activeTab === t.num
                 ? "bg-[#185FA5] text-white shadow-xs"
                 : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6] hover:text-[#2C2C2A]"
-            }`}
+              }`}
           >
             <span>{t.num}. {t.name}</span>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-              activeTab === t.num ? "bg-white/20 text-white" : "bg-[#EBEAE4] text-[#5F5E5A]"
-            }`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${activeTab === t.num ? "bg-white/20 text-white" : "bg-[#EBEAE4] text-[#5F5E5A]"
+              }`}>
               S{t.sec}
             </span>
           </button>
@@ -442,7 +440,7 @@ export default function AssessmentForm() {
             <Input label="Child Name *" value={formData.childName} onChange={(e) => updateField("childName", e.target.value)} />
             <Input label="Date of Birth *" type="date" value={formData.dob} onChange={(e) => updateField("dob", e.target.value)} />
             <Input label="Age" value={formData.age} onChange={(e) => updateField("age", e.target.value)} />
-            
+
             <div className="space-y-1">
               <label className="block text-xs font-bold text-[#2C2C2A]">Gender</label>
               <select value={formData.gender} onChange={(e) => updateField("gender", e.target.value)} className="w-full h-10 px-3 bg-white border border-[#D3D1C7] rounded-[8px] text-xs font-medium outline-none focus:border-[#185FA5]">
@@ -463,7 +461,7 @@ export default function AssessmentForm() {
             <Input label="Parent Name" value={formData.parentName} onChange={(e) => updateField("parentName", e.target.value)} />
             <Input label="Parent Phone" value={formData.phone} onChange={(e) => updateField("phone", e.target.value)} />
             <Input label="Assessment Date" type="date" value={formData.assessmentDate} onChange={(e) => updateField("assessmentDate", e.target.value)} />
-            
+
             <div className="space-y-1">
               <label className="block text-xs font-bold text-[#2C2C2A]">Assessment Type</label>
               <select value={formData.assessmentType} onChange={(e) => updateField("assessmentType", e.target.value)} className="w-full h-10 px-3 bg-white border border-[#D3D1C7] rounded-[8px] text-xs font-medium outline-none focus:border-[#185FA5]">
@@ -516,7 +514,7 @@ export default function AssessmentForm() {
             onChange={(v) => updateField("tab2_birthChips", v)}
           />
           <Input label="Birth Complications (if any)" type="textarea" rows={2} value={formData.tab2_birthComplications} onChange={(e) => updateField("tab2_birthComplications", e.target.value)} />
-          
+
           <CheckboxGrid
             label="Developmental Difficulties Observed"
             options={["Speech delay", "Motor delay", "Poor attention", "Sensory issues", "Social withdrawal", "Feeding issues", "Sleep problems", "Toilet training delayed"]}
@@ -1147,4 +1145,6 @@ export default function AssessmentForm() {
       </Modal>
     </div>
   );
+
+
 }

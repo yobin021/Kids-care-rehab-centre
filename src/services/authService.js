@@ -1,64 +1,73 @@
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/db'
 
 export const authService = {
 
   async loginStaff(username, password) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('username', username)
-      .eq('password_hash', password)
-      .eq('is_active', true)
-      .single()
+    try {
+      // users table: id (uuid), name, username (UNIQUE), password_hash, designation, role, is_active
+      const users = await db.select('users', {
+        match: { username, password_hash: password, is_active: true }
+      })
 
-    if (error || !data) {
-      return { 
-        success: false, 
-        error: 'Invalid credentials' 
+      const data = Array.isArray(users) ? users[0] : users
+
+      if (!data) {
+        return { success: false, error: 'Invalid username or password' }
       }
-    }
 
-    const user = {
-      id: data.id,
-      name: data.name,
-      username: data.username,
-      role: data.role,
-      designation: data.designation
-    }
+      const user = {
+        id: data.id,            // uuid
+        name: data.name,
+        username: data.username,
+        role: data.role,        // 'admin' | 'staff'
+        designation: data.designation || null
+      }
 
-    return { success: true, user }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('kcr_user', JSON.stringify(user))
+      }
+
+      return { success: true, user }
+    } catch (err) {
+      console.error('authService.loginStaff error:', err.message)
+      return { success: false, error: 'Login failed. Please try again.' }
+    }
   },
 
   async loginParent(phone, password) {
-    const { data, error } = await supabase
-      .from('parent_accounts')
-      .select(`
-        *,
-        children(id, name, diagnosis, 
-          profile)
-      `)
-      .eq('phone', phone)
-      .eq('password_hash', password)
-      .eq('portal_active', true)
-      .single()
+    try {
+      // parent_accounts: phone (UNIQUE), password_hash, portal_active, child_id → children
+      const accounts = await db.select('parent_accounts', {
+        select: '*, children(id, name, diagnosis, profile)',
+        match: { phone, password_hash: password, portal_active: true }
+      })
 
-    if (error || !data) {
-      return { 
-        success: false, 
-        error: 'Invalid credentials' 
+      const data = Array.isArray(accounts) ? accounts[0] : accounts
+
+      if (!data) {
+        return { success: false, error: 'Invalid phone or password' }
       }
-    }
 
-    const user = {
-      id: data.id,
-      name: data.parent_name,
-      phone: data.phone,
-      role: 'parent',
-      childId: data.child_id,
-      childName: data.children?.name
-    }
+      const child = Array.isArray(data.children) ? data.children[0] : data.children
 
-    return { success: true, user }
+      const user = {
+        id: data.id,                // uuid
+        name: data.parent_name,
+        phone: data.phone,
+        role: 'parent',
+        childId: data.child_id,
+        childName: child?.name || null
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('kcr_user', JSON.stringify(user))
+      }
+
+      return { success: true, user }
+    } catch (err) {
+      console.error('authService.loginParent error:', err.message)
+      return { success: false, error: 'Login failed. Please try again.' }
+    }
   },
 
   logout() {
@@ -68,6 +77,12 @@ export const authService = {
   },
 
   getCurrentUser() {
-    return null
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem('kcr_user')
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
   }
 }

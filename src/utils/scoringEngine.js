@@ -36,7 +36,11 @@ export function calculateISAAScore(isaaRatings = {}) {
   let severityLevel = 0;
   let clinicalBadge = "Routed to developmental pathway";
 
-  if (totalScore >= 154) {
+  if (totalScore === 0 && ratedCount === 0) {
+    severity = "Not Assessed";
+    severityLevel = 0;
+    clinicalBadge = "Assessment pending";
+  } else if (totalScore >= 154) {
     severity = "Severe Autism";
     severityLevel = 3;
     clinicalBadge = "Needs very substantial support";

@@ -115,15 +115,6 @@ export default function StaffLogin() {
           Go to Parent Portal →
         </Button>
 
-        {/* Demo Helper */}
-        <div className="pt-2 text-[10px] text-[#9B9A96] border-t border-[#D3D1C7]/40 space-y-0.5">
-          <p className="font-bold text-[#185FA5]">Demo Credentials:</p>
-          <div className="flex justify-between">
-            <span>Admin: <strong>admin / admin123</strong></span>
-            <span>Staff: <strong>priya / staff123</strong></span>
-          </div>
-        </div>
-
       </div>
     </div>
   );

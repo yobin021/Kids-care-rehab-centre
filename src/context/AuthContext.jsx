@@ -1,24 +1,26 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { mockUsers, mockParentUsers, mockStaff } from "../data/mockData";
 import { authService } from "../services/authService";
 import { childrenService } from "../services/childrenService";
+import { db } from "../services/../lib/db";
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [childrenList, setChildrenList] = useState([]);
-  const [staffList, setStaffList] = useState(mockStaff);
+  const [staffList, setStaffList] = useState([]);
   const [toasts, setToasts] = useState([]);
   const toastIdRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Method 2: Always start with user = null so app opens on Login page
+  // Restore session + load live data from DB on startup
   useEffect(() => {
-    authService.logout(); // Clear any saved localStorage session
-    setUser(null);
+    const savedUser = authService.getCurrentUser();
+    if (savedUser) {
+      setUser(savedUser);
+    }
 
     // Load children from Supabase or fallback
     childrenService.getAll()
@@ -32,6 +34,26 @@ export function AuthProvider({ children }) {
       })
       .finally(() => {
         setIsLoading(false);
+      });
+
+    // Load staff from DB so counts and list are always accurate
+    db.select("users", { order: { column: "name", ascending: true } })
+      .then((rows) => {
+        if (rows && rows.length > 0) {
+          setStaffList(
+            rows.map((d) => ({
+              id: d.id,
+              name: d.name,
+              designation: d.designation,
+              username: d.username,
+              password: d.password_hash || "",
+              isActive: d.is_active !== false
+            }))
+          );
+        }
+      })
+      .catch((err) => {
+        console.warn("Staff DB load fallback:", err.message);
       });
   }, []);
 
@@ -52,7 +74,7 @@ export function AuthProvider({ children }) {
     if (toast) removeToast(toast.id);
   };
 
-  // Staff Login
+  // Staff Login (Database authentication only)
   const loginStaff = async (username, password) => {
     try {
       const res = await authService.loginStaff(username, password);
@@ -61,32 +83,14 @@ export function AuthProvider({ children }) {
         showToast(`Welcome back, ${res.user.name}!`, "success");
         return { success: true };
       }
+      return { success: false, error: res.error || "Invalid username or password" };
     } catch (err) {
-      console.warn("Supabase staff auth fallback:", err.message);
+      console.error("Staff authentication error:", err.message);
+      return { success: false, error: "Login failed. Please check your network connection." };
     }
-
-    // Fallback to local mock users
-    const foundUser = mockUsers.find(
-      (u) => u.username.toLowerCase() === username.toLowerCase() && u.password === password
-    );
-
-    if (foundUser) {
-      const sessionUser = {
-        id: foundUser.id,
-        name: foundUser.name,
-        username: foundUser.username,
-        role: foundUser.role,
-        designation: foundUser.designation
-      };
-      setUser(sessionUser);
-      showToast(`Welcome back, ${foundUser.name}!`, "success");
-      return { success: true };
-    }
-
-    return { success: false, error: "Invalid username or password" };
   };
 
-  // Parent Login
+  // Parent Login (Database authentication only)
   const loginParent = async (phone, password) => {
     try {
       const res = await authService.loginParent(phone, password);
@@ -95,29 +99,11 @@ export function AuthProvider({ children }) {
         showToast(`Welcome to ${res.user.childName || "your child"}'s therapy portal!`, "success");
         return { success: true };
       }
+      return { success: false, error: res.error || "Invalid phone number or password" };
     } catch (err) {
-      console.warn("Supabase parent auth fallback:", err.message);
+      console.error("Parent authentication error:", err.message);
+      return { success: false, error: "Login failed. Please check your network connection." };
     }
-
-    // Fallback to local mock parent users
-    const foundParent = mockParentUsers.find(
-      (p) => p.phone === phone && p.password === password
-    );
-
-    if (foundParent) {
-      const sessionUser = {
-        id: foundParent.id,
-        name: foundParent.name,
-        phone: foundParent.phone,
-        role: "parent",
-        childId: foundParent.childId
-      };
-      setUser(sessionUser);
-      showToast(`Welcome, ${foundParent.name}!`, "success");
-      return { success: true };
-    }
-
-    return { success: false, error: "Invalid phone number or password" };
   };
 
   // Logout

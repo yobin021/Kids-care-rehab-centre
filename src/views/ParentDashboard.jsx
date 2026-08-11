@@ -1,18 +1,80 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Phone, Mail, MapPin } from "lucide-react";
+import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
+import { SkeletonCard } from "../components/ui/Skeleton";
+import { reportService } from "../services/reportService";
+import { parentService } from "../services/parentService";
+import { exerciseService } from "../services/exerciseService";
 
 export default function ParentDashboard() {
   const { user, childrenList } = useAuth();
   const navigate = useNavigate();
 
-  const child = childrenList.find((c) => c.id === user?.childId) || childrenList[1] || childrenList[0];
+  const child = childrenList.find((c) => c.id === user?.childId) || childrenList[0];
+
+  const [loading, setLoading] = useState(true);
+  const [reportInfo, setReportInfo] = useState(null);
+  const [exerciseStats, setExerciseStats] = useState({ completed: 0, total: 3 });
+
+  const fetchDashboardData = async () => {
+    if (!child?.id) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Fetch published report or draft report
+      let rep = await reportService.getPublishedByChildId(child.id);
+      if (!rep) {
+        const reps = await reportService.getByChildId(child.id);
+        if (reps && reps.length > 0) rep = reps[0];
+      }
+
+      // Check local storage fallback if available
+      const localRep = localStorage.getItem(`report_therapist_${child.id}`) || localStorage.getItem(`report_published_${child.id}`);
+      if (rep || localRep) {
+        setReportInfo({
+          hasReport: true,
+          status: rep?.status || "published",
+          date: rep?.published_at?.split("T")[0] || rep?.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]
+        });
+      } else {
+        setReportInfo({ hasReport: false });
+      }
+
+      // 2. Fetch today's completed exercise logs
+      const [logs, allExercises] = await Promise.all([
+        parentService.getTodayLogs(child.id),
+        exerciseService.getHomeExercises()
+      ]);
+
+      const assignedHomeExercises = allExercises || [];
+
+      const completedCount = logs ? logs.filter((l) => l.is_done).length : 0;
+
+      setExerciseStats({
+        completed: completedCount,
+        total: assignedHomeExercises.length
+      });
+    } catch (err) {
+      console.warn("Parent dashboard fetch notice:", err.message);
+      setReportInfo({ hasReport: false });
+      setExerciseStats({ completed: 0, total: 0 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [child?.id]);
 
   const todayStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -33,68 +95,71 @@ export default function ParentDashboard() {
         <p className="text-xs text-blue-100 font-medium">{todayStr}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
-          <div className="space-y-2">
-            <div className="text-3xl">📄</div>
-            <h3 className="text-base font-bold text-[#2C2C2A]">Latest Report</h3>
+      {loading ? (
+        <SkeletonCard count={3} />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Latest Report */}
+          <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
+            <div className="space-y-2">
+              <div className="text-3xl">📄</div>
+              <h3 className="text-base font-bold text-[#2C2C2A]">Latest Assessment Report</h3>
 
-            {child?.reportsCount > 0 ? (
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-[#5F5E5A]">Date: {child?.lastReportDate || "20 Nov 2025"}</p>
-                <Badge label="Published" variant="green" size="sm" />
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-[#993C1D]">Report not ready yet.</p>
-                <p className="text-[11px] text-[#9B9A96]">Your therapist will notify you when it is ready.</p>
-              </div>
-            )}
-          </div>
+              {reportInfo?.hasReport ? (
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-[#5F5E5A]">Date: {reportInfo.date}</p>
+                  <Badge label={reportInfo.status === "published" ? "Published" : "Report Ready"} variant="green" size="sm" />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-[#993C1D]">Report in preparation.</p>
+                  <p className="text-[11px] text-[#9B9A96]">Your therapist will notify you when it is ready.</p>
+                </div>
+              )}
+            </div>
 
-          <div className="pt-2">
-            <Button
-              variant={child?.reportsCount > 0 ? "primary" : "outlined"}
-              fullWidth
-              disabled={child?.reportsCount === 0}
-              onClick={() => navigate("/parent/report")}
-            >
-              View Report →
-            </Button>
-          </div>
-        </Card>
+            <div className="pt-2">
+              <Button
+                variant={reportInfo?.hasReport ? "primary" : "outlined"}
+                fullWidth
+                onClick={() => navigate(`/parent/report`)}
+              >
+                View Report →
+              </Button>
+            </div>
+          </Card>
 
-        <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
-          <div className="space-y-2">
-            <div className="text-3xl">🏃</div>
-            <h3 className="text-base font-bold text-[#2C2C2A]">Today&apos;s Exercises</h3>
-            <p className="text-xs font-bold text-[#185FA5]">3 exercises assigned</p>
-            <p className="text-xs text-[#5F5E5A] font-semibold">Progress: 0 of 3 completed today</p>
-          </div>
+          {/* Card 2: Today's Exercises */}
+          <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
+            <div className="space-y-2">
+              <div className="text-3xl">🏃</div>
+              <h3 className="text-base font-bold text-[#2C2C2A]">Today&apos;s Home Exercises</h3>
+              <p className="text-xs font-bold text-[#185FA5]">{exerciseStats.total} exercises assigned</p>
+              <p className="text-xs text-[#5F5E5A] font-semibold">
+                Progress: <strong className="text-[#3B6D11]">{exerciseStats.completed} of {exerciseStats.total}</strong> completed today
+              </p>
+            </div>
 
-          <div className="pt-2">
-            <Button variant="secondary" fullWidth onClick={() => navigate("/parent/exercises")}>
-              Start Exercises →
-            </Button>
-          </div>
-        </Card>
+            <div className="pt-2">
+              <Button variant="secondary" fullWidth onClick={() => navigate("/parent/exercises")}>
+                Start Exercises →
+              </Button>
+            </div>
+          </Card>
 
-        <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
-          <div className="space-y-2">
-            <div className="text-3xl">📅</div>
-            <h3 className="text-base font-bold text-[#2C2C2A]">Next Appointment</h3>
-            <p className="text-xs font-bold text-[#2C2C2A]">Monday, 4 August 2026</p>
-            <p className="text-xs text-[#5F5E5A]">Time: <strong>10:00 AM</strong></p>
-            <p className="text-[11px] text-[#9B9A96]">Location: Kids Care Rehab Centre</p>
-          </div>
-
-          <div className="pt-2">
-            <Button variant="outlined" fullWidth onClick={() => alert("Appointment details: Mon, 4 Aug 2026 at 10:00 AM")}>
-              View Details
-            </Button>
-          </div>
-        </Card>
-      </div>
+          {/* Card 3: Next Appointment Placeholder */}
+          <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
+            <div className="space-y-2">
+              <div className="text-3xl">📅</div>
+              <h3 className="text-base font-bold text-[#2C2C2A]">Next Therapy Appointment</h3>
+              <p className="text-xs text-[#5F5E5A] leading-relaxed">
+                Your therapist will confirm your next appointment directly with you.
+              </p>
+              <p className="text-[11px] text-[#9B9A96]">Need to reschedule? Call us: <strong>044-28353136</strong></p>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <Card title="Need to reach us?">
         <div className="space-y-2 text-xs font-semibold text-[#5F5E5A]">

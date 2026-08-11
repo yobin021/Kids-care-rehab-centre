@@ -1,17 +1,37 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Users, FileText, ClipboardList, Eye } from "lucide-react";
+import { Users, FileText, ClipboardList, Eye, PlusCircle } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
+import EmptyState from "../components/ui/EmptyState";
+import { reportService } from "../services/reportService";
+import { assessmentService } from "../services/assessmentService";
 
 export default function StaffDashboard() {
   const { user, childrenList } = useAuth();
   const navigate = useNavigate();
+
+  const [publishedCount, setPublishedCount] = useState(0);
+  const [assessmentsCount, setAssessmentsCount] = useState(0);
+
+  useEffect(() => {
+    Promise.all([
+      reportService.getAllPublished(),
+      assessmentService.getAllThisMonth()
+    ])
+      .then(([reportsData, assessmentsData]) => {
+        if (reportsData) setPublishedCount(reportsData.length);
+        if (assessmentsData) setAssessmentsCount(assessmentsData.length);
+      })
+      .catch((err) => {
+        console.warn("Staff dashboard fetch metrics notice:", err.message);
+      });
+  }, []);
 
   const todayStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -20,7 +40,8 @@ export default function StaffDashboard() {
     day: "numeric"
   });
 
-  const recentChildren = childrenList.slice(-4).reverse();
+  const recentChildren = (childrenList || []).slice(-4).reverse();
+  const totalChildrenCount = (childrenList || []).length;
 
   const getProfileVariant = (profile) => {
     switch (profile) {
@@ -40,10 +61,11 @@ export default function StaffDashboard() {
         <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">{todayStr}</p>
       </div>
 
+      {/* Dynamic Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title="Total Children" value="9" icon={Users} color="#185FA5" />
-        <StatCard title="Reports Published" value="7" icon={FileText} color="#0F6E56" />
-        <StatCard title="Assessments This Month" value="3" icon={ClipboardList} color="#3C3489" />
+        <StatCard title="Total Children" value={totalChildrenCount} icon={Users} color="#185FA5" />
+        <StatCard title="Reports Published" value={publishedCount} icon={FileText} color="#0F6E56" />
+        <StatCard title="Assessments This Month" value={assessmentsCount} icon={ClipboardList} color="#3C3489" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -90,30 +112,39 @@ export default function StaffDashboard() {
       <div className="space-y-3">
         <h3 className="text-[16px] font-bold text-[#2C2C2A]">Recently Registered</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {recentChildren.map((c) => (
-            <Card key={c.id} padding="p-4" className="space-y-3 flex flex-col justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-[#2C2C2A] truncate">{c.name}</h4>
-                  <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} size="sm" />
+        {recentChildren.length === 0 ? (
+          <Card className="p-8 text-center space-y-3">
+            <p className="text-xs font-semibold text-[#5F5E5A]">No children registered yet.</p>
+            <Button icon={PlusCircle} size="sm" className="mx-auto" onClick={() => navigate("/children/new")}>
+              + Register First Child
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {recentChildren.map((c) => (
+              <Card key={c.id} padding="p-4" className="space-y-3 flex flex-col justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-[#2C2C2A] truncate">{c.name}</h4>
+                    <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} size="sm" />
+                  </div>
+                  <p className="text-[11px] text-[#5F5E5A] font-semibold">{c.age} • {c.diagnosis}</p>
+                  <p className="text-[10px] font-mono text-[#9B9A96]">{c.id}</p>
                 </div>
-                <p className="text-[11px] text-[#5F5E5A] font-semibold">{c.age} • {c.diagnosis}</p>
-                <p className="text-[10px] font-mono text-[#9B9A96]">{c.id}</p>
-              </div>
 
-              <Button
-                variant="outlined"
-                size="sm"
-                fullWidth
-                icon={Eye}
-                onClick={() => navigate(`/children/${c.id}`)}
-              >
-                View
-              </Button>
-            </Card>
-          ))}
-        </div>
+                <Button
+                  variant="outlined"
+                  size="sm"
+                  fullWidth
+                  icon={Eye}
+                  onClick={() => navigate(`/children/${c.id}`)}
+                >
+                  View
+                </Button>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

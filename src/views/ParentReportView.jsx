@@ -2,17 +2,21 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { mockDefaultReport } from "../data/mockData";
 import { CheckCircle2, Target, Printer, Phone } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
+import { useParams } from "react-router-dom";
 import { reportService } from "../services/reportService";
 
 export default function ParentReportView() {
+  const { id } = useParams();
   const { user, childrenList } = useAuth();
-  const child = childrenList.find((c) => c.id === user?.childId) || childrenList[1] || childrenList[0];
+  const targetChildId = id || user?.childId;
+  const child = childrenList.find((c) => c.id === targetChildId) || childrenList[0];
+
+  const activeChildId = id || user?.childId || user?.child_id || child?.id;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,40 +26,65 @@ export default function ParentReportView() {
     try {
       setLoading(true);
       setError(null);
-      const result = await reportService.getPublishedByChildId(child?.id);
-      if (result) {
+
+      let result = null;
+      if (activeChildId) {
+        result = await reportService.getPublishedByChildId(activeChildId);
+        if (!result || (!result.therapist_report && !result.therapistReport)) {
+          const allReps = await reportService.getByChildId(activeChildId);
+          if (Array.isArray(allReps) && allReps.length > 0) {
+            result = allReps.find((r) => r.status === "published" && (r.therapist_report || r.therapistReport)) || allReps[0];
+          }
+        }
+      }
+
+      if (result && (result.therapist_report || result.therapistReport || result.parent_report || result.parentReport)) {
         setData(result);
       } else {
-        fallbackLocal();
+        fallbackLocal(activeChildId);
       }
     } catch (err) {
       console.warn("Published report fetch fallback:", err.message);
-      fallbackLocal();
+      fallbackLocal(activeChildId);
     } finally {
       setLoading(false);
     }
 
-    function fallbackLocal() {
-      const saved = localStorage.getItem(`report_published_${child?.id}`);
-      if (saved) {
+    function fallbackLocal(targetId) {
+      if (!targetId) return setData(null);
+      const savedPub = localStorage.getItem(`report_published_${targetId}`);
+      const savedDraft = localStorage.getItem(`report_draft_${targetId}`);
+
+      if (savedPub) {
         try {
-          setData(JSON.parse(saved));
+          setData(JSON.parse(savedPub));
+          return;
         } catch (e) {
-          setError("Failed to parse published report.");
+          console.error(e);
         }
-      } else if (child?.reportsCount > 0) {
-        setData({ parent_report: mockDefaultReport });
-      } else {
-        setData(null);
       }
+      if (savedDraft) {
+        try {
+          setData(JSON.parse(savedDraft));
+          return;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setData(null);
     }
   };
 
   useEffect(() => {
     fetchReport();
-  }, [child?.id]);
+  }, [activeChildId]);
 
-  const report = data?.parent_report || data?.parentReport || mockDefaultReport;
+  const report =
+    data?.therapist_report ||
+    data?.therapistReport ||
+    data?.formState?.therapistReport ||
+    {};
+  const homeEx = data?.home_exercises || data?.homeEx || data?.formState?.exercises?.homeExercises || [];
 
   if (loading) {
     return (
@@ -69,7 +98,7 @@ export default function ParentReportView() {
     return <ErrorMessage error={error} onRetry={fetchReport} />;
   }
 
-  if (!data && child?.reportsCount === 0) {
+  if (!data) {
     return (
       <div className="space-y-6 text-[#2C2C2A] max-w-xl mx-auto py-8">
         <Card className="text-center p-8 space-y-4">
@@ -85,74 +114,71 @@ export default function ParentReportView() {
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 print:p-0">
       <div className="bg-[#185FA5] text-white p-6 rounded-[12px] shadow-sm space-y-1">
-        <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">Kids Care Rehab Centre</span>
-        <h2 className="text-xl font-black">{child?.name} — Assessment Report</h2>
-        <p className="text-xs text-blue-100">Report Date: {data?.published_at?.split("T")[0] || data?.publishedDate || "20 November 2025"}</p>
+        <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">Kids Care Rehab Centre — Therapist Clinical Report</span>
+        <h2 className="text-xl font-black">{child?.name} — Assessment & Progress Report</h2>
+        <p className="text-xs text-blue-100">Published Date: {data?.published_at?.split("T")[0] || data?.publishedDate || "Recently Published"}</p>
       </div>
 
-      <Card title="About Your Child">
-        <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium">
-          {report.aboutYourChild}
-        </p>
-      </Card>
+      {report.background && (
+        <Card title="📋 Background & Clinical Referral">
+          <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium whitespace-pre-wrap">
+            {report.background}
+          </p>
+        </Card>
+      )}
 
-      <div className="bg-emerald-50/70 p-6 rounded-[12px] border border-emerald-200 space-y-3">
-        <h3 className="text-sm font-bold text-[#3B6D11] uppercase tracking-wider flex items-center gap-2">
-          <span>✨ Your Child&apos;s Strengths</span>
-        </h3>
-        <ul className="space-y-2 text-xs font-semibold text-[#2C2C2A]">
-          {(report.strengths || mockDefaultReport.strengths).map((str, idx) => (
-            <li key={idx} className="flex items-start gap-2 bg-white p-2.5 rounded-[8px] border border-emerald-200/60">
-              <CheckCircle2 className="h-4 w-4 text-[#3B6D11] shrink-0 mt-0.5" />
-              <span>{str}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {report.assessmentFindings && (
+        <Card title="🔍 Assessment Findings">
+          <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium whitespace-pre-wrap">
+            {report.assessmentFindings}
+          </p>
+        </Card>
+      )}
 
-      <div className="bg-blue-50/70 p-6 rounded-[12px] border border-blue-200 space-y-3">
-        <h3 className="text-sm font-bold text-[#185FA5] uppercase tracking-wider flex items-center gap-2">
-          <span>📌 Areas We Are Supporting</span>
-        </h3>
-        <ul className="space-y-2 text-xs font-semibold text-[#2C2C2A]">
-          {(report.supportAreas || report.focusAreas || mockDefaultReport.supportAreas).map((area, idx) => (
-            <li key={idx} className="flex items-start gap-2 bg-white p-2.5 rounded-[8px] border border-blue-200/60">
-              <Target className="h-4 w-4 text-[#185FA5] shrink-0 mt-0.5" />
-              <span>{area}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {report.currentStatus && (
+        <Card title="📌 Current Clinical Status & Observations">
+          <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium whitespace-pre-wrap">
+            {report.currentStatus}
+          </p>
+        </Card>
+      )}
 
-      <Card title="🏥 Therapy Plan">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
-          <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
-            <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Therapy Type</span>
-            <strong className="text-[#185FA5]">{report.therapyType || report.planType || mockDefaultReport.plan.type}</strong>
-          </div>
-          <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
-            <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Sessions / Week</span>
-            <strong className="text-[#2C2C2A]">{report.sessionsPerWeek || report.planFrequency || mockDefaultReport.plan.frequency}</strong>
-          </div>
-          <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
-            <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Duration</span>
-            <strong className="text-[#2C2C2A]">{report.duration || report.planDuration || mockDefaultReport.plan.duration}</strong>
-          </div>
-          <div className="p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
-            <span className="text-[10px] font-bold text-[#5F5E5A] uppercase block">Next Review</span>
-            <strong className="text-[#0F6E56]">{report.nextReviewDate || report.planNextReview || mockDefaultReport.plan.nextReview}</strong>
-          </div>
+      {report.recommendations && (
+        <Card title="💡 Clinical Recommendations & Treatment Plan">
+          <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium whitespace-pre-wrap">
+            {report.recommendations}
+          </p>
+        </Card>
+      )}
+
+      {report.reviewPlan && (
+        <Card title="📅 Review Plan & Follow-up">
+          <p className="text-xs text-[#2C2C2A] leading-relaxed font-medium whitespace-pre-wrap">
+            {report.reviewPlan}
+          </p>
+        </Card>
+      )}
+
+      {homeEx && homeEx.length > 0 && (
+        <div className="bg-emerald-50/70 p-6 rounded-[12px] border border-emerald-200 space-y-3">
+          <h3 className="text-sm font-bold text-[#3B6D11] uppercase tracking-wider flex items-center gap-2">
+            <span>🏋️ Prescribed Home Exercises & Tools</span>
+          </h3>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold text-[#2C2C2A]">
+            {homeEx.map((ex, idx) => (
+              <li key={idx} className="flex items-center gap-2 bg-white p-3 rounded-[8px] border border-emerald-200/60 shadow-2xs">
+                <CheckCircle2 className="h-4 w-4 text-[#3B6D11] shrink-0" />
+                <span>{typeof ex === "string" ? ex : ex.name}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-      </Card>
-
-      <div className="bg-[#0F6E56] text-white p-6 rounded-[12px] text-center italic text-xs font-semibold shadow-sm">
-        &quot;{report.encouragement}&quot;
-      </div>
+      )}
 
       <div className="bg-white p-6 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="text-xs space-y-0.5">
-          <p className="font-bold text-[#2C2C2A]">Prepared by <strong>{mockDefaultReport.therapistName}</strong></p>
-          <p className="text-[#5F5E5A]">Reviewed by <strong>{mockDefaultReport.doctorName}</strong></p>
+          <p className="font-bold text-[#2C2C2A]">Prepared by <strong>{data?.published_by || data?.prepared_by || report?.prepared_by || report?.preparedBy || user?.name || "Senior Therapist"}</strong></p>
+          <p className="text-[#5F5E5A]">Kids Care Rehab Centre Clinical Team</p>
         </div>
 
         <Button icon={Printer} onClick={() => window.print()} className="print:hidden">

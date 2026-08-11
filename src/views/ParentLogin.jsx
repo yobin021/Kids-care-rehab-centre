@@ -10,8 +10,8 @@ export default function ParentLogin() {
   const { loginParent } = useAuth();
   const navigate = useNavigate();
 
-  const [phone, setPhone] = useState("9841000001");
-  const [password, setPassword] = useState("parent123");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
 
@@ -108,10 +108,6 @@ export default function ParentLogin() {
           <Link to="/login" className="text-xs text-[#9B9A96] hover:text-[#2C2C2A] font-bold">
             ← Back to Staff Login
           </Link>
-        </div>
-
-        <div className="pt-1 text-[10px] text-[#9B9A96] text-center">
-          Mock Parent Login: <strong>9841000001 / parent123</strong>
         </div>
 
       </div>

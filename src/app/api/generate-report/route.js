@@ -26,8 +26,8 @@ Diagnosis: ${childData?.diagnosis || "ASD"}
 Primary Concern: ${childData?.primaryConcern || "Developmental delay"}
 
 ISAA Assessment Results:
-Total Score: ${isaaResults?.totalScore || 94} / 200
-Severity: ${isaaResults?.severity || "Mild Autism"}
+Total Score: ${isaaResults?.totalScore ?? "Not Assessed"} / 200
+Severity: ${isaaResults?.severity || "Not Assessed"}
 
 Domain Competency Scores (0-100):
 ${JSON.stringify(domainScores || {}, null, 2)}
@@ -63,20 +63,28 @@ Please generate both therapist and parent reports in valid JSON format.`;
       const data = await res.json();
       reportText = data.content[0].text;
     } else if (groqKey) {
-      // Groq API (Development)
+      // Groq API (Primary LLM)
+      const payload = {
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 2000
+      };
+
+      if (mode !== "singleSection") {
+        payload.response_format = { type: "json_object" };
+      }
+
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${groqKey}`
         },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userPrompt }
-          ]
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
@@ -86,7 +94,7 @@ Please generate both therapist and parent reports in valid JSON format.`;
       }
 
       const data = await res.json();
-      reportText = data.choices[0].message.content;
+      reportText = data.choices?.[0]?.message?.content || "";
     } else {
       // Fallback response when offline or no API key
       if (mode === "singleSection") {
@@ -107,32 +115,41 @@ Please generate both therapist and parent reports in valid JSON format.`;
       let cleanText = reportText.trim().replace(/^["']|["']$/g, "");
       return NextResponse.json({
         success: true,
-        source: anthropicKey ? "claude" : "groq",
+        source: anthropicKey ? "claude" : groqKey ? "groq" : "mock",
         text: cleanText
       });
     }
 
-    // Full report JSON parsing
+    // Robust full report JSON parsing
     let jsonStr = reportText.trim();
-    if (jsonStr.startsWith("```json")) {
-      jsonStr = jsonStr.replace(/^```json/, "").replace(/```$/, "").trim();
-    } else if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.replace(/^```/, "").replace(/```$/, "").trim();
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
     }
 
     const parsedData = JSON.parse(jsonStr);
 
     return NextResponse.json({
       success: true,
-      source: anthropicKey ? "claude" : "groq",
+      source: anthropicKey ? "claude" : groqKey ? "groq" : "mock",
       data: parsedData
     });
   } catch (error) {
     console.error("Report generation route error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    // Fallback response on error so user UI never crashes
+    const body = await req.json().catch(() => ({}));
+    if (body.mode === "singleSection") {
+      return NextResponse.json({
+        success: true,
+        source: "fallback",
+        text: getFallbackSectionText(body.sectionKey, body.childData)
+      });
+    }
+    return NextResponse.json({
+      success: true,
+      source: "fallback",
+      data: getFallbackFullReport(body.childData)
+    });
   }
 }
 

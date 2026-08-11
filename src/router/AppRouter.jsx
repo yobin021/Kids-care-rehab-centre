@@ -151,7 +151,7 @@ export default function AppRouter() {
           path="/reports/:id/review"
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>
-              <ReportGenerationEditor />
+              <TherapistReportView initialEditMode={true} />
             </ProtectedRoute>
           }
         />
@@ -174,6 +174,15 @@ export default function AppRouter() {
           }
         />
 
+        <Route
+          path="/reports/:id/parent"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff", "parent"]}>
+              <ParentReportView />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Parent Portal Routes */}
         <Route
           path="/parent/home"
@@ -186,7 +195,7 @@ export default function AppRouter() {
         <Route
           path="/parent/report"
           element={
-            <ProtectedRoute allowedRoles={["parent"]}>
+            <ProtectedRoute allowedRoles={["admin", "staff", "parent"]}>
               <ParentReportView />
             </ProtectedRoute>
           }

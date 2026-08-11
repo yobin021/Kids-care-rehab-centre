@@ -24,15 +24,25 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
-import { mockDefaultReport, mockExercises } from "../data/mockData";
+import { reportService } from "../services/reportService";
+import { exerciseService } from "../services/exerciseService";
 
 export default function ReportGenerationEditor() {
   const { id, childId: paramChildId, reportId } = useParams();
   const targetId = paramChildId || reportId || id || "KCR-2024-002";
   const navigate = useNavigate();
-  const { childrenList, updateChildDetails, showToast } = useAuth();
+  const { user, childrenList, updateChildDetails, showToast } = useAuth();
 
   const child = childrenList.find((c) => c.id === targetId) || childrenList[1] || childrenList[0];
+
+  // Exercises fetched from Supabase DB
+  const [availableDbExercises, setAvailableDbExercises] = useState([]);
+
+  useEffect(() => {
+    exerciseService.getAll().then((list) => {
+      if (list) setAvailableDbExercises(list);
+    }).catch(console.error);
+  }, []);
 
   // Active Tab: therapist | parent | exercises
   const [activeTab, setActiveTab] = useState("therapist");
@@ -45,6 +55,7 @@ export default function ReportGenerationEditor() {
 
   // Status: draft | published
   const [reportStatus, setReportStatus] = useState(child?.reportsCount > 0 ? "published" : "draft");
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Modals & Banners
   const [showParentPreviewModal, setShowParentPreviewModal] = useState(false);
@@ -64,7 +75,7 @@ export default function ReportGenerationEditor() {
   const [formState, setFormState] = useState({
     therapistReport: {
       background: `${child?.name} is a ${child?.age} ${child?.gender} presenting with ${child?.primaryConcern}. Evaluated using ISAA protocol by therapy team.`,
-      assessmentFindings: "ISAA score of 94 indicates Mild Autism Spectrum Disorder. Primary deficits observed in receptive/expressive communication and social reciprocity.",
+      assessmentFindings: "Clinical assessment evaluated using standard clinical IEP & ISAA protocols. Primary deficits in communication, social interaction, and attention are monitored.",
       currentStatus: `${child?.name} responds to name call consistently and follows 1-step commands. Shows progress in understanding routines, while working on turn-taking.`,
       recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program.",
       reviewPlan: "Progress will be re-evaluated in 12 weeks to assess gains in expressive vocabulary and sitting tolerance.",
@@ -73,19 +84,32 @@ export default function ReportGenerationEditor() {
       date: new Date().toISOString().split("T")[0]
     },
     parentReport: {
-      aboutYourChild: mockDefaultReport.aboutYourChild,
-      whatWeFound: `${child?.name} shows strong visual processing and enthusiasm for learning activities. Speech clarity and social interaction are being actively supported.`,
-      strengths: [...mockDefaultReport.strengths],
+      aboutYourChild: `We are happy to share that ${child?.name || "your child"} has made progress during therapy sessions. They demonstrate good engagement and curiosity during interactive tasks.`,
+      whatWeFound: `${child?.name || "Your child"} shows strong visual processing and enthusiasm for learning activities. Speech clarity and social interaction are being actively supported.`,
+      strengths: [
+        "Responds consistently to name call",
+        "Expresses needs clearly",
+        "Warm and friendly with staff",
+        "Enjoys sensory play activities"
+      ],
       workingOn: "Building two-word phrase communication, sitting tolerance, and turn-taking with peers.",
-      focusAreas: [...mockDefaultReport.supportAreas],
-      therapyPlan: mockDefaultReport.plan.type,
+      focusAreas: [
+        "Expanding vocabulary and sentence length",
+        "Social interaction in group settings",
+        "Sitting tolerance during quiet table tasks"
+      ],
+      therapyPlan: "Speech + Occupational Therapy",
       therapyType: "Speech + Occupational Therapy",
       sessionsPerWeek: 2,
       duration: "6 months",
       nextReviewDate: "2026-10-15",
-      homeAdvice: mockDefaultReport.homeAdvice,
-      homeSuggestions: [...mockDefaultReport.homeSuggestions],
-      encouragement: mockDefaultReport.encouragement
+      homeAdvice: "Practise naming objects during daily routines (bathing, meal time). Encourage 2-word requests before handing items.",
+      homeSuggestions: [
+        "Practise naming objects during daily activities",
+        "Use picture cards during meals and play time",
+        "Encourage 2-word requests before giving items"
+      ],
+      encouragement: `With your support at home and our guidance at the clinic, ${child?.name || "your child"} will continue to grow beautifully.`
     },
     exercises: {
       clinicExercises: [
@@ -354,29 +378,82 @@ export default function ReportGenerationEditor() {
     setShowPublishModal(true);
   };
 
-  // Publish / Republish Action
-  const executePublish = () => {
+  // Publish / Republish Action — saves to DB (insert/update + publish) + localStorage cache
+  const executePublish = async () => {
+    setIsPublishing(true);
     const pubDate = new Date().toISOString().split("T")[0];
-    const fullPublishedData = {
-      childId: child.id,
-      childName: child.name,
-      publishedDate: pubDate,
-      formState,
-      therapistReport: formState.therapistReport,
-      parentReport: formState.parentReport,
-      clinicEx: formState.exercises.clinicExercises,
-      homeEx: formState.exercises.homeExercises
-    };
 
-    localStorage.setItem(`report_published_${child.id}`, JSON.stringify(fullPublishedData));
-    updateChildDetails(child.id, {
-      reportsCount: (child.reportsCount || 0) + 1,
-      lastReportDate: pubDate
-    });
+    try {
+      // Step 1: Build complete report object
+      const reportPayload = {
+        child_id: child?.id,
+        therapist_report: formState.therapistReport,
+        parent_report: formState.therapistReport,
+        clinic_exercises: formState.exercises.clinicExercises,
+        home_exercises: formState.exercises.homeExercises,
+        therapy_details: {
+          therapyType: formState.parentReport.therapyType || "Occupational & Speech Therapy",
+          sessionsPerWeek: formState.parentReport.sessionsPerWeek || "2 sessions/week",
+          duration: formState.parentReport.duration || "6 months",
+          nextReviewDate: formState.parentReport.nextReviewDate || "12 weeks"
+        },
+        prepared_by: formState.therapistReport.preparedBy || user?.name || null,
+        prepared_by_id: user?.id || null,
+        status: "draft"
+      };
 
-    setReportStatus("published");
-    setShowPublishModal(false);
-    showToast(`Report published successfully for ${child.name}!`, "success");
+      // Step 2: Save draft or update existing draft in DB
+      let currentReportId = formState.reportId;
+      if (!currentReportId) {
+        const saved = await reportService.saveDraft(reportPayload);
+        currentReportId = saved?.id || child?.id;
+        if (saved?.id) {
+          setFormState((prev) => ({ ...prev, reportId: saved.id }));
+        }
+      } else {
+        await reportService.update(currentReportId, reportPayload);
+      }
+
+      // Step 3: Mark as published in DB
+      await reportService.publish(
+        currentReportId,
+        formState.therapistReport.preparedBy || user?.name || null,
+        user?.id || null,
+        reportPayload
+      );
+
+      // Step 4: Update localStorage as cache
+      const fullPublishedData = {
+        childId: child?.id,
+        childName: child?.name,
+        publishedDate: pubDate,
+        formState,
+        therapistReport: formState.therapistReport,
+        parentReport: formState.therapistReport,
+        clinicEx: formState.exercises.clinicExercises,
+        homeEx: formState.exercises.homeExercises
+      };
+      if (child?.id) {
+        localStorage.setItem(`report_published_${child.id}`, JSON.stringify(fullPublishedData));
+      }
+
+      // Step 5: Update child details & show success
+      if (child?.id) {
+        updateChildDetails(child.id, {
+          reportsCount: (child.reportsCount || 0) + 1,
+          lastReportDate: pubDate
+        });
+      }
+
+      setReportStatus("published");
+      setShowPublishModal(false);
+      showToast(`Report published successfully for ${child?.name || "child"}!`, "success");
+    } catch (err) {
+      console.error("Publish failed:", err);
+      showToast("Failed to publish report. Please try again.", "error");
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   // Helper for Auto-save Time String
@@ -512,17 +589,7 @@ export default function ReportGenerationEditor() {
             activeTab === "therapist" ? "bg-[#185FA5] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
           }`}
         >
-          Therapist Report (Clinical)
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("parent")}
-          className={`px-4 py-2 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === "parent" ? "bg-[#0F6E56] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
-          }`}
-        >
-          Parent Report (Simple Language)
+          Clinical Report (Editable)
         </button>
 
         <button
@@ -556,7 +623,7 @@ export default function ReportGenerationEditor() {
           {/* FIVE SECTION CARDS */}
           {[
             { key: "background", label: "BACKGROUND", prompt: `Write the background section for a clinical therapy report for ${child?.name}, aged ${child?.age}, who has ${child?.diagnosis}. Primary concern: ${child?.primaryConcern}. Clinical tone.` },
-            { key: "assessmentFindings", label: "ASSESSMENT FINDINGS", prompt: `Write the assessment findings section for ${child?.name}. ISAA total: 94/200, severity: Mild Autism. Clinical language.` },
+            { key: "assessmentFindings", label: "ASSESSMENT FINDINGS", prompt: `Write the assessment findings section for ${child?.name}. ISAA total score: ${assessmentData?.isaa_score ?? "Not Assessed"}/200, severity: ${assessmentData?.isaa_severity || "Not Assessed"}. Clinical language.` },
             { key: "currentStatus", label: "CURRENT STATUS", prompt: `Write the current status section for ${child?.name} with ${child?.diagnosis}. What can the child do now, what is improving, what needs support. 3-4 sentences.` },
             { key: "recommendations", label: "RECOMMENDATIONS", prompt: `Write the recommendations section for ${child?.name}. Recommended therapies: Speech & OT. Include frequency and duration.` },
             { key: "reviewPlan", label: "REVIEW PLAN", prompt: `Write a review plan sentence for ${child?.name} with ${child?.diagnosis}. Mention when to review progress. 1-2 sentences.` }
@@ -624,322 +691,6 @@ export default function ReportGenerationEditor() {
               </div>
             );
           })}
-
-        </div>
-      )}
-
-      {/* TAB 2: PARENT REPORT */}
-      {activeTab === "parent" && (
-        <div className="space-y-6">
-          
-          {/* TOOLBAR */}
-          <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-2 text-xs">
-            <span className="text-[12px] text-[#5F5E5A] font-medium">Simple language — no clinical terms or scores</span>
-            <Button
-              variant="outlined"
-              size="sm"
-              icon={RotateCcw}
-              onClick={() => setShowRegenParentModal(true)}
-            >
-              🔄 Regenerate Parent Report
-            </Button>
-          </div>
-
-          {/* 1. ABOUT YOUR CHILD */}
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
-              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">ABOUT YOUR CHILD</span>
-              <button
-                type="button"
-                onClick={() => handleRewriteSection("aboutYourChild", `Write warm about your child summary for ${child?.name}.`, "parent")}
-                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
-              </button>
-            </div>
-            <textarea
-              rows={3}
-              value={formState.parentReport.aboutYourChild}
-              onChange={(e) => updateParent("aboutYourChild", e.target.value)}
-              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
-            />
-            <span className="text-[11px] text-[#9B9A96]">Mention child&apos;s name, personality, and why they came to the clinic.</span>
-          </div>
-
-          {/* 2. WHAT WE FOUND & STRENGTHS EDITOR */}
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
-              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">WHAT WE FOUND</span>
-              <button
-                type="button"
-                onClick={() => handleRewriteSection("whatWeFound", `Write what we found summary for ${child?.name}.`, "parent")}
-                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
-              </button>
-            </div>
-            <textarea
-              rows={3}
-              value={formState.parentReport.whatWeFound}
-              onChange={(e) => updateParent("whatWeFound", e.target.value)}
-              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
-            />
-
-            {/* STRENGTHS EDITOR */}
-            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
-              <label className="block text-xs font-bold text-[#3B6D11]">Child&apos;s strengths to highlight:</label>
-              {formState.parentReport.strengths.map((str, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={str}
-                    onChange={(e) => {
-                      const next = [...formState.parentReport.strengths];
-                      next[idx] = e.target.value;
-                      updateParent("strengths", next);
-                    }}
-                    className="flex-1 h-9 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = formState.parentReport.strengths.filter((_, i) => i !== idx);
-                      updateParent("strengths", next);
-                    }}
-                    className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              {formState.parentReport.strengths.length < 6 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={Plus}
-                  onClick={() => updateParent("strengths", [...formState.parentReport.strengths, "New Strength"])}
-                >
-                  + Add Strength
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* 3. WHAT WE ARE WORKING ON & FOCUS AREAS */}
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
-              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">WHAT WE ARE WORKING ON</span>
-              <button
-                type="button"
-                onClick={() => handleRewriteSection("workingOn", `Write what we are working on summary for ${child?.name}.`, "parent")}
-                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
-              </button>
-            </div>
-            <textarea
-              rows={3}
-              value={formState.parentReport.workingOn}
-              onChange={(e) => updateParent("workingOn", e.target.value)}
-              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
-            />
-
-            {/* FOCUS AREAS EDITOR */}
-            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
-              <label className="block text-xs font-bold text-[#185FA5]">Specific focus areas:</label>
-              {formState.parentReport.focusAreas.map((area, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={area}
-                    onChange={(e) => {
-                      const next = [...formState.parentReport.focusAreas];
-                      next[idx] = e.target.value;
-                      updateParent("focusAreas", next);
-                    }}
-                    className="flex-1 h-9 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = formState.parentReport.focusAreas.filter((_, i) => i !== idx);
-                      updateParent("focusAreas", next);
-                    }}
-                    className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              {formState.parentReport.focusAreas.length < 6 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={Plus}
-                  onClick={() => updateParent("focusAreas", [...formState.parentReport.focusAreas, "New Focus Area"])}
-                >
-                  + Add Area
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* 4. THERAPY PLAN & STRUCTURED FIELDS */}
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
-              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">THERAPY PLAN</span>
-              <button
-                type="button"
-                onClick={() => handleRewriteSection("therapyPlan", `Write therapy plan paragraph for ${child?.name}.`, "parent")}
-                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
-              </button>
-            </div>
-            <textarea
-              rows={2}
-              value={formState.parentReport.therapyPlan}
-              onChange={(e) => updateParent("therapyPlan", e.target.value)}
-              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
-            />
-
-            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
-              <label className="block text-xs font-bold text-[#2C2C2A]">Therapy plan details (shown on parent portal):</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <Input
-                  label="Therapy Type"
-                  value={formState.parentReport.therapyType}
-                  onChange={(e) => updateParent("therapyType", e.target.value)}
-                />
-                <Input
-                  label="Sessions / Week"
-                  type="number"
-                  min="1"
-                  max="7"
-                  value={formState.parentReport.sessionsPerWeek}
-                  onChange={(e) => updateParent("sessionsPerWeek", e.target.value)}
-                />
-                <Input
-                  label="Duration"
-                  placeholder="e.g. 6 months"
-                  value={formState.parentReport.duration}
-                  onChange={(e) => updateParent("duration", e.target.value)}
-                />
-                <Input
-                  label="Next Review Date"
-                  type="date"
-                  value={formState.parentReport.nextReviewDate}
-                  onChange={(e) => updateParent("nextReviewDate", e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 5. WHAT YOU CAN DO AT HOME & HOME SUGGESTIONS */}
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
-              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">WHAT YOU CAN DO AT HOME</span>
-              <button
-                type="button"
-                onClick={() => handleRewriteSection("homeAdvice", `Write home advice paragraph for parents of ${child?.name}.`, "parent")}
-                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
-              </button>
-            </div>
-            <textarea
-              rows={2}
-              value={formState.parentReport.homeAdvice}
-              onChange={(e) => updateParent("homeAdvice", e.target.value)}
-              className="w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border border-[#D3D1C7] outline-none resize-none focus:border-[#185FA5]"
-            />
-
-            {/* THREE NUMBERED EDITABLE ROWS WITH PER-ROW REWRITE */}
-            <div className="pt-2 border-t border-[#D3D1C7]/40 space-y-2">
-              <label className="block text-xs font-bold text-[#854F0B]">Specific home activities:</label>
-              {formState.parentReport.homeSuggestions.map((sug, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="h-6 w-6 rounded-full bg-[#854F0B] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    {idx + 1}
-                  </span>
-                  <input
-                    type="text"
-                    value={sug}
-                    onChange={(e) => {
-                      const next = [...formState.parentReport.homeSuggestions];
-                      next[idx] = e.target.value;
-                      updateParent("homeSuggestions", next);
-                    }}
-                    className="flex-1 h-9 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setRowLoading((prev) => ({ ...prev, [idx]: true }));
-                      await handleRewriteSection("homeAdvice", `Write one specific home activity for parents of ${child?.name} with ${child?.diagnosis}. 1-2 sentences.`, "parent");
-                      setRowLoading((prev) => ({ ...prev, [idx]: false }));
-                    }}
-                    className="p-1.5 border border-[#D3D1C7] rounded-[6px] hover:bg-slate-100 text-[#185FA5] cursor-pointer"
-                  >
-                    <RotateCcw className={`h-3.5 w-3.5 ${rowLoading[idx] ? "animate-spin" : ""}`} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = formState.parentReport.homeSuggestions.filter((_, i) => i !== idx);
-                      updateParent("homeSuggestions", next);
-                    }}
-                    className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              {formState.parentReport.homeSuggestions.length < 5 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={Plus}
-                  onClick={() => updateParent("homeSuggestions", [...formState.parentReport.homeSuggestions, "New Home Activity"])}
-                >
-                  + Add Suggestion
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* 6. CLOSING MESSAGE CARD */}
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-5 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
-              <span className="text-[11px] font-bold text-[#9B9A96] uppercase">CLOSING MESSAGE</span>
-              <button
-                type="button"
-                onClick={() => handleRewriteSection("encouragement", `Write one warm encouraging sentence for parents of ${child?.name}, a ${child?.age} year old.`, "parent")}
-                className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> ↺ Rewrite
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={formState.parentReport.encouragement}
-                onChange={(e) => updateParent("encouragement", e.target.value)}
-                className="flex-1 h-12 px-4 border border-[#D3D1C7] rounded-[8px] text-[16px] font-bold text-[#0F6E56] outline-none focus:border-[#0F6E56]"
-              />
-            </div>
-          </div>
-
-          {/* PARENT PREVIEW BUTTON */}
-          <Button
-            variant="secondary"
-            fullWidth
-            className="h-12 text-sm font-bold border-2"
-            icon={Eye}
-            onClick={() => setShowParentPreviewModal(true)}
-          >
-            👁 Preview Parent Report
-          </Button>
 
         </div>
       )}
@@ -1266,8 +1017,10 @@ export default function ReportGenerationEditor() {
             Publish this report for <strong>{child?.name}</strong>? It will immediately become visible to {child?.parent?.name} on the Parent Portal.
           </p>
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D3D1C7]">
-            <Button variant="outlined" onClick={() => setShowPublishModal(false)}>Cancel</Button>
-            <Button onClick={executePublish}>Yes, Publish Report</Button>
+            <Button variant="outlined" disabled={isPublishing} onClick={() => setShowPublishModal(false)}>Cancel</Button>
+            <Button disabled={isPublishing} onClick={executePublish}>
+              {isPublishing ? "Publishing..." : "Yes, Publish Report"}
+            </Button>
           </div>
         </div>
       </Modal>
@@ -1282,8 +1035,8 @@ export default function ReportGenerationEditor() {
           />
 
           <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-            {mockExercises
-              .filter((ex) => ex.name.toLowerCase().includes(exSearch.toLowerCase()))
+            {availableDbExercises
+              .filter((ex) => ex.name?.toLowerCase().includes(exSearch.toLowerCase()))
               .map((ex) => {
                 const targetList = addExType === "clinic" ? formState.exercises.clinicExercises : formState.exercises.homeExercises;
                 const isAdded = targetList.includes(ex.name);

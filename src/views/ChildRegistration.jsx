@@ -9,6 +9,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Toggle from "../components/ui/Toggle";
 import { childrenService } from "../services/childrenService";
+import { parentService } from "../services/parentService";
 
 export default function ChildRegistration() {
   const navigate = useNavigate();
@@ -57,6 +58,27 @@ export default function ChildRegistration() {
   };
 
   const handleSubmit = async () => {
+    if (!formData.name?.trim()) {
+      showToast("Child full name is required.", "danger");
+      return;
+    }
+    if (!formData.dob) {
+      showToast("Child date of birth is required.", "danger");
+      return;
+    }
+    if (!formData.diagnosis) {
+      showToast("Diagnosis is required.", "danger");
+      return;
+    }
+    if (!formData.parentName?.trim()) {
+      showToast("Parent/Guardian full name is required.", "danger");
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      showToast("Parent phone number is required.", "danger");
+      return;
+    }
+
     setIsSubmitting(true);
     const calculatedAge = calculateAge(formData.dob);
 
@@ -76,7 +98,28 @@ export default function ChildRegistration() {
     };
 
     try {
-      const res = await childrenService.create(childPayload, user?.id || 1);
+      const res = await childrenService.create(childPayload, user?.id);
+
+      // Create parent account in Supabase if parent info is provided
+      if (res?.id && formData.phone) {
+        try {
+          await parentService.createAccount(
+            {
+              parent_name: formData.parentName || "Parent",
+              relationship: formData.relationship || "Parent",
+              phone: formData.phone,
+              email: formData.email || null,
+              address: formData.address || null,
+              password_hash: formData.parentPassword || "parent123"
+            },
+            res.id,
+            user?.id
+          );
+        } catch (pErr) {
+          console.warn("Parent account creation notice:", pErr.message);
+        }
+      }
+
       const newChildObj = {
         ...res,
         parent: {
@@ -92,10 +135,10 @@ export default function ChildRegistration() {
 
       addRegisteredChild(newChildObj);
       setCreatedChild(newChildObj);
-      showToast(`Child ${formData.name} registered successfully!`, "success");
-      setStep(5); // Success step
+      showToast(`Child ${formData.name} registered and saved to database!`, "success");
+      setStep(5);
     } catch (err) {
-      console.warn("Using local child registration fallback:", err.message);
+      console.warn("Local child registration fallback:", err.message);
       const mockId = `KCR-2026-${Math.floor(Math.random() * 900) + 100}`;
       const fallbackChildObj = {
         id: mockId,

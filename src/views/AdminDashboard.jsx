@@ -58,7 +58,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6 text-[#2C2C2A]">
       <div>
-        <h2 className="text-[20px] font-bold text-[#2C2C2A]">Welcome, Dr. Radha</h2>
+        <h2 className="text-[20px] font-bold text-[#2C2C2A]">Welcome, {user?.name || "Dr. Radha"}</h2>
         <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">{todayStr}</p>
       </div>
 
@@ -135,7 +135,7 @@ export default function AdminDashboard() {
                     size="sm"
                     fullWidth
                     icon={Eye}
-                    onClick={() => navigate(`/reports/${childId}/therapist`)}
+                    onClick={() => navigate(`/reports/${r.id || childId}/therapist`)}
                   >
                     View Therapist Report
                   </Button>

@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate } from "react-router-dom";
-import { mockExercises } from "../data/mockData";
 import { calculateISAAScore, calculateDomainScores, classifyProfile, selectExercises } from "../utils/scoringEngine";
 import { ArrowLeft, CheckCircle2, FileText, Plus } from "lucide-react";
 import Card from "../components/ui/Card";
@@ -62,10 +61,10 @@ export default function AssessmentResults() {
   }, [id, child?.id]);
 
   const isaa = data?.isaa || {
-    totalScore: data?.isaa_score || 94,
-    severity: data?.isaa_severity || "Mild Autism",
-    severityLevel: data?.isaa_level || 1,
-    clinicalBadge: "Needs support"
+    totalScore: data?.isaa_score ?? data?.isaaScore ?? 0,
+    severity: data?.isaa_severity || (data?.isaa_score ? "Mild Autism" : "Not Assessed"),
+    severityLevel: data?.isaa_level || 0,
+    clinicalBadge: data?.isaa_severity || "Assessment pending"
   };
 
   const domainScores = data?.domain_scores || data?.domainScores || {
@@ -192,6 +191,45 @@ export default function AssessmentResults() {
           </div>
         </div>
       </Card>
+
+      {/* Recommended Exercise Program */}
+      {exerciseSelection && (exerciseSelection.clinicExercises?.length > 0 || exerciseSelection.homeExercises?.length > 0) && (
+        <Card title="🏋️ Recommended Exercise Program">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+            {[...(exerciseSelection.clinicExercises || []), ...(exerciseSelection.homeExercises || [])].slice(0, 6).map((ex, idx) => (
+              <div key={ex.id || idx} className="bg-white rounded-[12px] border border-[#D3D1C7] overflow-hidden flex flex-col justify-between shadow-xs">
+                {(ex.image_url || ex.imageUrl) && (
+                  <div className="h-36 bg-gray-100">
+                    <img
+                      src={ex.image_url || ex.imageUrl}
+                      alt={ex.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.parentElement.style.display = "none";
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-[#0F6E56] inline-block">
+                      {ex.category || "Therapy Exercise"}
+                    </span>
+                    <h4 className="font-bold text-sm text-[#2C2C2A]">{ex.name}</h4>
+                    <p className="text-xs text-[#5F5E5A] line-clamp-2 leading-relaxed">
+                      {ex.description || ex.home_description}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-[#D3D1C7]/40 text-xs font-semibold">
+                    <span className="text-[#5F5E5A]">{ex.duration || "15 mins"}</span>
+                    <span className="text-[#0F6E56] font-bold">Assigned</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="flex items-center justify-between pt-4 border-t border-[#D3D1C7]">
         <Button variant="outlined" onClick={() => navigate(`/children/${child?.id}`)}>

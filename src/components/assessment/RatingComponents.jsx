@@ -4,7 +4,7 @@ import React from "react";
 
 /**
  * COMPONENT A — 0 to 3 Rating Row
- * Used in tabs 4, 5, 6, 7 (IEP domains)
+ * Used in IEP domains
  */
 export function RatingRow0to3({
   label,
@@ -62,7 +62,6 @@ export function RatingRow0to3({
 
 /**
  * COMPONENT B — 1 to 5 Rating Row
- * Used in Tab 9 (ISAA only)
  */
 export function RatingRow1to5({ itemNum, label, value, onChange }) {
   const options = [
@@ -183,6 +182,54 @@ export function ChipSelect({
             >
               {selected ? `✓ ${opt}` : opt}
             </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * COMPONENT E — Checkbox Grid
+ * Uses 16px styled HTML checkboxes with labels, wrapped in flex/grid layout
+ */
+export function CheckboxGrid({
+  label,
+  options = [],
+  value = [],
+  onChange,
+  cols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+}) {
+  const isChecked = (opt) => Array.isArray(value) && value.includes(opt);
+
+  const handleToggle = (opt) => {
+    const arr = Array.isArray(value) ? [...value] : [];
+    if (arr.includes(opt)) {
+      onChange(arr.filter((item) => item !== opt));
+    } else {
+      onChange([...arr, opt]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {label && <label className="block text-xs font-bold text-[#2C2C2A]">{label}</label>}
+      <div className={`grid ${cols} gap-2.5 bg-[#F8F8F6] p-3 rounded-[8px] border border-[#D3D1C7]/60`}>
+        {options.map((opt) => {
+          const checked = isChecked(opt);
+          return (
+            <label
+              key={opt}
+              className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#2C2C2A] select-none hover:text-[#185FA5] transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => handleToggle(opt)}
+                className="h-4 w-4 rounded border-[#D3D1C7] text-[#185FA5] focus:ring-[#185FA5]"
+              />
+              <span>{opt}</span>
+            </label>
           );
         })}
       </div>

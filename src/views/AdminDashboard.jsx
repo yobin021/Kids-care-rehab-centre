@@ -1,15 +1,14 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Eye } from "lucide-react";
+import { Eye, CalendarDays } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { reportService } from "../services/reportService";
+import { appointmentService } from "../services/appointmentService";
 
 export default function AdminDashboard() {
   const { user, childrenList, staffList } = useAuth();
@@ -62,7 +61,7 @@ export default function AdminDashboard() {
         <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">{todayStr}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="flex flex-col justify-between p-6 space-y-4 hover:border-[#185FA5] transition-colors">
           <div className="space-y-3">
             <div className="text-4xl">👶</div>
@@ -98,6 +97,22 @@ export default function AdminDashboard() {
             </div>
             <Button variant="secondary" onClick={() => navigate("/admin/staff")} fullWidth className="h-11">
               Manage Staff →
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col justify-between p-6 space-y-4 hover:border-[#3C3489] transition-colors">
+          <div className="space-y-3">
+            <CalendarDays className="h-10 w-10 text-[#3C3489]" />
+            <h3 className="text-[18px] font-bold text-[#2C2C2A]">Appointments</h3>
+            <p className="text-xs text-[#5F5E5A] leading-relaxed">
+              Schedule and manage therapy sessions. Track upcoming, completed, and cancelled appointments.
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-[#D3D1C7]/60 space-y-3">
+            <Button style={{ background: "#3C3489" }} onClick={() => navigate("/appointments")} fullWidth className="h-11">
+              Manage Appointments →
             </Button>
           </div>
         </Card>

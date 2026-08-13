@@ -11,6 +11,8 @@ import { SkeletonCard } from "../components/ui/Skeleton";
 import { reportService } from "../services/reportService";
 import { parentService } from "../services/parentService";
 import { exerciseService } from "../services/exerciseService";
+import { appointmentService } from "../services/appointmentService";
+import { formatAppointmentDate, formatAppointmentTime, getTypeLabel, getTypeStyle } from "../utils/appointmentHelpers";
 
 export default function ParentDashboard() {
   const { user, childrenList } = useAuth();
@@ -21,6 +23,7 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [reportInfo, setReportInfo] = useState(null);
   const [exerciseStats, setExerciseStats] = useState({ completed: 0, total: 3 });
+  const [nextAppointment, setNextAppointment] = useState(null);
 
   const fetchDashboardData = async () => {
     if (!child?.id) {
@@ -63,6 +66,14 @@ export default function ParentDashboard() {
         completed: completedCount,
         total: assignedHomeExercises.length
       });
+
+      // 3. Fetch next upcoming appointment
+      try {
+        const apt = await appointmentService.getNextForChild(child.id);
+        setNextAppointment(apt);
+      } catch (e) {
+        setNextAppointment(null);
+      }
     } catch (err) {
       console.warn("Parent dashboard fetch notice:", err.message);
       setReportInfo({ hasReport: false });
@@ -147,15 +158,33 @@ export default function ParentDashboard() {
             </div>
           </Card>
 
-          {/* Card 3: Next Appointment Placeholder */}
+          {/* Card 3: Next Appointment */}
           <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
             <div className="space-y-2">
               <div className="text-3xl">📅</div>
               <h3 className="text-base font-bold text-[#2C2C2A]">Next Therapy Appointment</h3>
-              <p className="text-xs text-[#5F5E5A] leading-relaxed">
-                Your therapist will confirm your next appointment directly with you.
-              </p>
-              <p className="text-[11px] text-[#9B9A96]">Need to reschedule? Call us: <strong>044-28353136</strong></p>
+              {nextAppointment ? (
+                <div className="space-y-1.5">
+                  {(() => {
+                    const ts = getTypeStyle(nextAppointment.appointment_type);
+                    return (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-block" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>
+                        {getTypeLabel(nextAppointment.appointment_type)}
+                      </span>
+                    );
+                  })()}
+                  <p className="text-xs font-bold text-[#2C2C2A]">{formatAppointmentDate(nextAppointment.appointment_date)}</p>
+                  <p className="text-xs text-[#185FA5] font-semibold">at {formatAppointmentTime(nextAppointment.appointment_time)} • {nextAppointment.duration_minutes || 60} min</p>
+                  {nextAppointment.notes && <p className="text-[11px] text-[#5F5E5A] italic">{nextAppointment.notes}</p>}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-xs text-[#5F5E5A] leading-relaxed">
+                    No upcoming appointment scheduled yet.
+                  </p>
+                  <p className="text-[11px] text-[#9B9A96]">Need to schedule? Call us: <strong>044-28353136</strong></p>
+                </div>
+              )}
             </div>
           </Card>
         </div>

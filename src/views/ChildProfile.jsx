@@ -35,6 +35,9 @@ import { assessmentService } from "../services/assessmentService";
 import { reportService } from "../services/reportService";
 import { exerciseService } from "../services/exerciseService";
 import { authService } from "../services/authService";
+import { appointmentService } from "../services/appointmentService";
+import { BookAppointmentModal, AppointmentDetailModal } from "./AppointmentsPage";
+import { formatAppointmentDate, formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel, getStatusLabel, isToday, isPast } from "../utils/appointmentHelpers";
 
 export default function ChildProfile() {
   const { id } = useParams();
@@ -60,6 +63,13 @@ export default function ChildProfile() {
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Appointments Tab State
+  const [appointments, setAppointments] = useState([]);
+  const [loadingApts, setLoadingApts] = useState(false);
+  const [bookAptOpen, setBookAptOpen] = useState(false);
+  const [selectedApt, setSelectedApt] = useState(null);
+  const [childrenForModal, setChildrenForModal] = useState([]);
 
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -189,6 +199,23 @@ export default function ChildProfile() {
   useEffect(() => {
     if (activeTab === "exercises") {
       fetchExercisesForTab();
+    }
+  }, [activeTab, id]);
+
+  // Fetch Appointments when tab is active
+  useEffect(() => {
+    if (activeTab === "appointments" && id) {
+      setLoadingApts(true);
+      Promise.all([
+        appointmentService.getByChildId(id),
+        import("../services/childrenService").then(m => m.childrenService.getAll())
+      ])
+        .then(([apts, kids]) => {
+          setAppointments(apts || []);
+          setChildrenForModal(kids || []);
+        })
+        .catch(err => console.warn("Appointments fetch notice:", err.message))
+        .finally(() => setLoadingApts(false));
     }
   }, [activeTab, id]);
 
@@ -369,6 +396,7 @@ export default function ChildProfile() {
           { id: "assessments", label: `Assessments (${assessments.length})` },
           { id: "exercises", label: totalAssignedExercises > 0 ? `Exercises (${totalAssignedExercises})` : "Exercises" },
           { id: "reports", label: `Reports (${reports.length})` },
+          { id: "appointments", label: "Appointments" },
           { id: "parent-access", label: "Parent Access" }
         ].map((t) => (
           <button
@@ -844,6 +872,65 @@ export default function ChildProfile() {
         </div>
       )}
 
+      {/* APPOINTMENTS TAB */}
+      {activeTab === "appointments" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[16px] font-bold text-[#2C2C2A]">Appointments for {data?.name}</h3>
+            <button
+              onClick={() => setBookAptOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#185FA5] text-white rounded-[8px] text-xs font-bold hover:bg-[#0e4a80] transition-colors cursor-pointer"
+            >
+              + Book Appointment
+            </button>
+          </div>
+
+          {loadingApts ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <div key={i} className="h-16 bg-[#F0EFEA] rounded-[8px] animate-pulse" />)}
+            </div>
+          ) : appointments.length === 0 ? (
+            <Card className="p-10 text-center space-y-4">
+              <div className="text-4xl">📅</div>
+              <h4 className="font-bold text-[#2C2C2A]">No appointments yet</h4>
+              <p className="text-xs text-[#5F5E5A]">Book the first appointment for {data?.name}</p>
+              <button
+                onClick={() => setBookAptOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#185FA5] text-white rounded-[8px] text-xs font-bold hover:bg-[#0e4a80] transition-colors cursor-pointer"
+              >
+                + Book Appointment
+              </button>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {[...appointments].sort((a, b) => b.appointment_date.localeCompare(a.appointment_date)).map(a => {
+                const ts = getTypeStyle(a.appointment_type);
+                const ss = getStatusStyle(a.status);
+                return (
+                  <div
+                    key={a.id}
+                    className="bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#185FA5] transition-all flex items-center gap-4 p-4 cursor-pointer shadow-xs"
+                    onClick={() => setSelectedApt(a)}
+                  >
+                    <div className="shrink-0 w-24 text-center">
+                      <p className="text-[13px] font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
+                      <p className="text-[11px] text-[#9B9A96] font-semibold">{a.appointment_date}</p>
+                    </div>
+                    <div className="w-px h-10 bg-[#D3D1C7]/60 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-[#2C2C2A]">{getTypeLabel(a.appointment_type)} Session</p>
+                      <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} minutes{a.notes ? ` · ${a.notes.slice(0, 40)}...` : ""}</p>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>{getTypeLabel(a.appointment_type)}</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>{getStatusLabel(a.status)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Setup Access Modal */}
       <Modal isOpen={showSetupModal} onClose={() => setShowSetupModal(false)} title="Set Up Parent Portal Access">
         <form onSubmit={handleSetupSubmit} className="space-y-4 text-xs font-semibold">
@@ -866,6 +953,29 @@ export default function ChildProfile() {
           </div>
         </form>
       </Modal>
+
+      {/* Appointment Modals */}
+      <BookAppointmentModal
+        isOpen={bookAptOpen}
+        onClose={() => setBookAptOpen(false)}
+        onBooked={() => {
+          setBookAptOpen(false);
+          // Refresh appointments list
+          appointmentService.getByChildId(id).then(apts => setAppointments(apts || [])).catch(() => {});
+        }}
+        preselectedChildId={id}
+        childrenList={childrenForModal.length > 0 ? childrenForModal : (data ? [data] : [])}
+      />
+      <AppointmentDetailModal
+        appointment={selectedApt}
+        isOpen={!!selectedApt}
+        onClose={() => setSelectedApt(null)}
+        onUpdated={() => {
+          appointmentService.getByChildId(id).then(apts => setAppointments(apts || [])).catch(() => {});
+          setSelectedApt(null);
+        }}
+        childrenList={childrenForModal.length > 0 ? childrenForModal : (data ? [data] : [])}
+      />
     </div>
   );
 }

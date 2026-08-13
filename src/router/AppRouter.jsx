@@ -25,6 +25,7 @@ import AssessmentForm from "../views/AssessmentForm";
 import AssessmentResults from "../views/AssessmentResults";
 import ReportGenerationEditor from "../views/ReportGenerationEditor";
 import TherapistReportView from "../views/TherapistReportView";
+import AppointmentsPage from "../views/AppointmentsPage";
 
 // Protected Route Wrapper
 function ProtectedRoute({ children, allowedRoles }) {
@@ -160,6 +161,16 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>
               <TherapistReportView />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Appointments */}
+        <Route
+          path="/appointments"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <AppointmentsPage />
             </ProtectedRoute>
           }
         />

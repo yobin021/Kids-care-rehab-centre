@@ -13,7 +13,8 @@ import {
   FileText,
   Activity,
   User,
-  Heart
+  Heart,
+  CalendarDays
 } from "lucide-react";
 import Toast from "../ui/Toast";
 
@@ -31,6 +32,7 @@ export default function AppShell({ children }) {
     if (path.startsWith("/children/")) return "Child Profile";
     if (path === "/children") return "Children & Reports";
     if (path === "/admin/staff") return "Staff Management";
+    if (path === "/appointments") return "Appointments";
     if (path === "/parent/home") return "Parent Dashboard";
     if (path === "/parent/report") return "Child Assessment Report";
     if (path === "/parent/exercises") return "Daily Exercises";
@@ -184,6 +186,19 @@ export default function AppShell({ children }) {
           >
             <Users className="h-4 w-4 shrink-0" />
             <span>Children & Reports</span>
+          </Link>
+
+          <Link
+            to="/appointments"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
+              location.pathname === "/appointments"
+                ? "bg-[#185FA5] text-white"
+                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
+            }`}
+          >
+            <CalendarDays className="h-4 w-4 shrink-0" />
+            <span>Appointments</span>
           </Link>
 
           {/* Admin Only Link */}

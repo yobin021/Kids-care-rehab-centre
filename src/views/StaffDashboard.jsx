@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Users, FileText, ClipboardList, Eye, PlusCircle } from "lucide-react";
+import { Users, FileText, ClipboardList, Eye, PlusCircle, CalendarDays, Clock } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
@@ -11,6 +11,8 @@ import Button from "../components/ui/Button";
 import EmptyState from "../components/ui/EmptyState";
 import { reportService } from "../services/reportService";
 import { assessmentService } from "../services/assessmentService";
+import { appointmentService } from "../services/appointmentService";
+import { formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel } from "../utils/appointmentHelpers";
 
 export default function StaffDashboard() {
   const { user, childrenList } = useAuth();
@@ -18,15 +20,18 @@ export default function StaffDashboard() {
 
   const [publishedCount, setPublishedCount] = useState(0);
   const [assessmentsCount, setAssessmentsCount] = useState(0);
+  const [todayApts, setTodayApts] = useState([]);
 
   useEffect(() => {
     Promise.all([
       reportService.getAllPublished(),
-      assessmentService.getAllThisMonth()
+      assessmentService.getAllThisMonth(),
+      appointmentService.getToday()
     ])
-      .then(([reportsData, assessmentsData]) => {
+      .then(([reportsData, assessmentsData, aptsData]) => {
         if (reportsData) setPublishedCount(reportsData.length);
         if (assessmentsData) setAssessmentsCount(assessmentsData.length);
+        if (aptsData) setTodayApts(aptsData);
       })
       .catch((err) => {
         console.warn("Staff dashboard fetch metrics notice:", err.message);
@@ -143,6 +148,51 @@ export default function StaffDashboard() {
                 </Button>
               </Card>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Today's Schedule */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold text-[#2C2C2A] flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-[#185FA5]" />
+            Today&apos;s Schedule
+          </h3>
+          <button onClick={() => navigate("/appointments")} className="text-xs font-bold text-[#185FA5] hover:underline cursor-pointer">
+            View all →
+          </button>
+        </div>
+        {todayApts.length === 0 ? (
+          <Card className="p-6 text-center">
+            <p className="text-xs font-semibold text-[#5F5E5A]">No appointments scheduled for today.</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {todayApts.map(a => {
+              const child = a.children;
+              const ts = getTypeStyle(a.appointment_type);
+              const ss = getStatusStyle(a.status);
+              return (
+                <div key={a.id} className="bg-white rounded-[12px] border border-[#D3D1C7] flex items-center gap-4 p-4 shadow-xs">
+                  <div className="shrink-0 text-center w-16">
+                    <Clock className="h-4 w-4 text-[#185FA5] mx-auto mb-0.5" />
+                    <p className="text-xs font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
+                  </div>
+                  <div className="w-px h-8 bg-[#D3D1C7]/60 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-xs text-[#2C2C2A] truncate">{child?.name || "Child"}</p>
+                    <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} min</p>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>
+                    {getTypeLabel(a.appointment_type)}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>
+                    {a.status}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

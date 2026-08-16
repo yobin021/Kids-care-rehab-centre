@@ -36,12 +36,14 @@ export default function ParentExercises() {
   const [weekDays, setWeekDays] = useState([]);
   const [weekStatus, setWeekStatus] = useState({});
 
+  const isIep = child?.program_type === "iep";
+
   const loadExercises = async () => {
     setLoading(true);
     setError(null);
     try {
       const childId = child?.id || user?.childId;
-      if (!childId) {
+      if (!childId || isIep) {
         setExercises([]);
         setLoading(false);
         return;
@@ -233,6 +235,23 @@ export default function ParentExercises() {
         <SkeletonCard count={3} />
       ) : error ? (
         <ErrorMessage error={error} onRetry={loadExercises} />
+      ) : isIep ? (
+        <Card padding="p-8">
+          <div className="text-center space-y-3 max-w-md mx-auto">
+            <div className="h-12 w-12 rounded-full bg-[#185FA5]/10 text-[#185FA5] flex items-center justify-center mx-auto">
+              <Dumbbell className="h-6 w-6 text-[#185FA5]" />
+            </div>
+            <h3 className="text-[16px] font-bold text-[#2C2C2A]">IEP Special School Student</h3>
+            <p className="text-[13px] text-[#5F5E5A] leading-relaxed">
+              {child?.name} is enrolled under the <strong>Individualized Education Program (Special School)</strong>. Home exercise prescriptions are reserved strictly for children in the Clinical Therapy program.
+            </p>
+            <div className="pt-2">
+              <Button onClick={() => window.location.href = "/parent/home"}>
+                Go to Parent Dashboard →
+              </Button>
+            </div>
+          </div>
+        </Card>
       ) : exercises.length === 0 ? (
         /* NO EXERCISES STATE */
         <Card padding="p-8">

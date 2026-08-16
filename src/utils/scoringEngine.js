@@ -84,17 +84,17 @@ function sumRatings(mapObj = {}, keys = [], maxPerItem = 3) {
  * 2. Calculate Domain Scores (0-100)
  */
 export function calculateDomainScores(formData = {}) {
-  const commMap = formData.tab4_communication || {};
-  const socialMap = formData.tab4_social || {};
-  const taskMap = formData.tab5_task || {};
-  const emotionMap = formData.tab5_emotional || {};
-  const fineMap = formData.tab6_fine || {};
-  const grossMap = formData.tab6_gross || {};
-  const adlMap = formData.tab7_adl || {};
-  const sensoryConcerns = formData.tab7_sensoryConcerns || [];
+  const commMap = formData.s5_communication || formData.tab4_communication || {};
+  const socialMap = formData.s8_social || formData.tab4_social || formData.tab6_social || {};
+  const taskMap = formData.s6_attention || formData.tab5_task || formData.tab5_attention || {};
+  const emotionMap = formData.s14_emotional || formData.tab5_emotional || formData.tab8_emotional || {};
+  const fineMap = formData.s10_fineMotor || formData.tab6_fine || formData.tab7_fineMotor || {};
+  const grossMap = formData.s11_grossMotor || formData.tab6_gross || formData.tab7_grossMotor || {};
+  const adlMap = formData.s13_adl || formData.tab7_adl || formData.tab8_adl || {};
+  const sensoryConcerns = formData.sensoryConcerns || formData.tab8_sensoryConcerns || formData.tab7_sensoryConcerns || [];
 
   const commKeys = [
-    "respondsName", "eyeContact", "simpleInstruct", "oneStep", "twoStep",
+    "respondsName", "eyeContact", "simpleInstructions", "simpleInstruct", "oneStep", "twoStep",
     "gestures", "requestsNeeds", "usesWords", "usesPhrases", "namesObjects",
     "answersQuestions", "communicatesPain"
   ];
@@ -102,19 +102,19 @@ export function calculateDomainScores(formData = {}) {
 
   const socialKeys = [
     "respondsAdults", "respondsPeers", "greetsOthers", "sharesToys",
-    "takesTurns", "imitates", "functionalPlay", "pretendPlay", "groupActivity", "classroomRules"
+    "takesTurns", "imitatesActions", "imitates", "functionalPlay", "pretendPlay", "groupActivity", "classroomRules"
   ];
   const socialSkills = sumRatings(socialMap, socialKeys, 3);
 
   const taskKeys = [
-    "sitsForActivity", "attendsTeacher", "completesTask", "waitsTurn",
-    "redirection", "transitions", "worksPrompts", "worksIndep"
+    "sitsForActivity", "attendsTeacher", "completesSimpleTask", "completesTask", "waitsTurn",
+    "respondsRedirection", "redirection", "transitionsActivities", "transitions", "worksPrompts", "worksIndependently", "worksIndep"
   ];
   const attention = sumRatings(taskMap, taskKeys, 3);
 
   const emotionKeys = [
-    "expressesNeeds", "waitsDistress", "acceptsNo", "handlesCorrection",
-    "calmsUpset", "acceptsChange", "emotionalResponse"
+    "expressesCalmly", "expressesNeeds", "waitsWithoutDistress", "waitsDistress", "acceptsNo", "handlesCorrection",
+    "calmsAfterUpset", "calmsUpset", "acceptsChangeRoutine", "acceptsChange", "ageAppropriateResponse", "emotionalResponse"
   ];
   const emotionScore = sumRatings(emotionMap, emotionKeys, 3);
   const behaviour = Math.round((attention * 0.5) + (emotionScore * 0.5));
@@ -122,19 +122,19 @@ export function calculateDomainScores(formData = {}) {
   const fineKeys = [
     "reachesGrasps", "transfersHand", "stacksBlocks", "pegboard", "beading",
     "tearsPaper", "pastesPaper", "usesCrayons", "pencilGrip", "scribbling",
-    "tracing", "scissors", "buttoning"
+    "tracing", "usesScissors", "scissors", "buttoning"
   ];
   const fineMotor = sumRatings(fineMap, fineKeys, 3);
 
   const grossKeys = [
     "sittingBalance", "standingBalance", "walking", "running", "jumping",
-    "stairs", "kickingBall", "throwingBall", "catchingBall", "bodyCoord", "postureControl"
+    "climbingStairs", "stairs", "kickingBall", "throwingBall", "catchingBall", "bodyCoordination", "bodyCoord", "postureControl", "muscleTone"
   ];
   const grossMotor = sumRatings(grossMap, grossKeys, 3);
 
   const adlKeys = [
-    "eating", "drinking", "handWashing", "brushing", "dressing", "undressing",
-    "toileting", "indicatesToilet", "footwear", "schoolBag", "cleansUp", "dailyRoutine"
+    "eatingIndependently", "eating", "drinkingCup", "drinking", "handWashing", "brushing", "dressing", "undressing",
+    "toileting", "indicatesToilet", "wearsFootwear", "footwear", "arrangesBag", "schoolBag", "cleansUp", "followsRoutine", "dailyRoutine"
   ];
   const adl = sumRatings(adlMap, adlKeys, 3);
 

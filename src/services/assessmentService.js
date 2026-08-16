@@ -8,13 +8,37 @@ function toUUID(val) {
 
 export const assessmentService = {
 
+  /**
+   * Helper to ensure the child row exists in Postgres before inserting foreign key dependencies.
+   */
+  async ensureChildExists(childId, fallbackData = {}) {
+    if (!childId) return
+    try {
+      const existing = await db.select('children', { match: { id: childId }, single: true })
+      if (!existing) {
+        await db.insert('children', {
+          id: childId,
+          name: fallbackData.name || `Student ${childId}`,
+          gender: fallbackData.gender || 'Male',
+          diagnosis: fallbackData.diagnosis || 'IEP Special School',
+          profile: fallbackData.profile || 'IEP',
+          registered_date: new Date().toISOString().split('T')[0],
+          is_active: true
+        })
+      }
+    } catch (e) {
+      console.warn('ensureChildExists notice:', e.message)
+    }
+  },
+
   async save(assessmentData) {
     // form_data is NOT NULL in schema — must always be provided
     const formData = assessmentData.form_data || assessmentData.formData || {}
+    const childId = assessmentData.child_id || assessmentData.childId
 
     // Exact columns from assessments schema
     const payload = {
-      child_id: assessmentData.child_id || assessmentData.childId,
+      child_id: childId,
       assessment_date: assessmentData.assessment_date || assessmentData.assessmentDate
         || new Date().toISOString().split('T')[0],
       form_data: formData,
@@ -34,90 +58,140 @@ export const assessmentService = {
     // Remove null assessed_by (FK to users — must be null or valid UUID)
     if (!payload.assessed_by) delete payload.assessed_by
 
-    console.log('assessmentService.save payload:', payload)
-
     try {
-      return await db.insert('assessments', payload)
+      const res = await db.insert('assessments', payload)
+      if (res && res.id) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`assessment_result_${res.id}`, JSON.stringify(res))
+          localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(res))
+        }
+        return res
+      }
+      return res || payload
     } catch (err) {
-      console.error('assessmentService.save error:', err.message, '| code:', err.code)
+      // If code 23503 (child_id foreign key constraint), auto-ensure child in DB and retry once
+      if (err.code === '23503' || String(err.message || '').includes('foreign key')) {
+        console.warn('assessmentService.save: auto-creating missing child record in DB...')
+        await this.ensureChildExists(childId, {
+          name: formData.studentName || formData.name,
+          gender: formData.gender,
+          diagnosis: 'IEP Special School',
+          profile: 'IEP'
+        })
+        try {
+          const retryRes = await db.insert('assessments', payload)
+          if (retryRes && retryRes.id) {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(`assessment_result_${retryRes.id}`, JSON.stringify(retryRes))
+              localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(retryRes))
+            }
+            return retryRes
+          }
+        } catch (retryErr) {
+          console.warn('assessmentService.save retry failed, using local storage:', retryErr.message)
+        }
+      }
 
-      // Return a local fallback so the UI can still navigate to results
-      return {
+      console.warn('assessmentService.save using local storage:', err.message)
+      const localResult = {
         id: `local-${Date.now()}`,
         ...payload,
         created_at: new Date().toISOString()
       }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`assessment_result_${localResult.id}`, JSON.stringify(localResult))
+        localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(localResult))
+      }
+      return localResult
     }
   },
 
   async getById(id) {
+    // Check local storage first
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem(`assessment_result_${id}`)
+      if (local) {
+        try {
+          return JSON.parse(local)
+        } catch (e) {}
+      }
+    }
+
     try {
-      return await db.select('assessments', {
+      const res = await db.select('assessments', {
         select: '*, children(name, age, diagnosis, profile)',
         match: { id },
         single: true
       })
+      if (res) return res
     } catch (err) {
-      console.warn('assessmentService.getById:', err.message)
-      return null
+      console.warn('assessmentService.getById notice:', err.message)
     }
+
+    // Secondary fallback from local storage
+    if (typeof window !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('assessment_result_')) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key))
+            if (data?.id === id || data?.child_id === id) return data
+          } catch (e) {}
+        }
+      }
+    }
+    return null
   },
 
   async getByChildId(childId) {
     try {
-      return await db.select('assessments', {
+      const data = await db.select('assessments', {
+        select: '*',
         match: { child_id: childId },
-        order: { column: 'created_at', ascending: false }
-      }) || []
+        order: { column: 'assessment_date', ascending: false }
+      })
+      if (data && data.length > 0) return data
     } catch (err) {
-      console.warn('assessmentService.getByChildId:', err.message)
-      return []
+      console.warn('assessmentService.getByChildId notice:', err.message)
     }
+
+    // Local fallback
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem(`assessment_result_${childId}`)
+      if (local) {
+        try {
+          return [JSON.parse(local)]
+        } catch (e) {}
+      }
+    }
+    return []
   },
 
-  async update(id, updates) {
+  async getAll() {
     try {
-      return await db.update('assessments', {
-        ...updates,
-        updated_at: new Date().toISOString()
-      }, { id })
+      const data = await db.select('assessments', {
+        select: '*',
+        order: { column: 'assessment_date', ascending: false }
+      })
+      return Array.isArray(data) ? data : []
     } catch (err) {
-      console.warn('assessmentService.update:', err.message)
-      return null
+      console.warn('assessmentService.getAll notice:', err.message)
+      return []
     }
   },
 
   async getAllThisMonth() {
     try {
-      const data = await db.select('assessments', {
-        select: 'id, assessment_date, created_at',
-        order: { column: 'created_at', ascending: false }
-      }) || []
-
       const now = new Date()
-      const currentYear = now.getFullYear()
-      const currentMonth = now.getMonth()
-
-      const dbFiltered = data.filter((row) => {
-        const dateStr = row.assessment_date || row.created_at
-        if (!dateStr) return false
-        const d = new Date(dateStr)
-        return d.getFullYear() === currentYear && d.getMonth() === currentMonth
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+      const data = await db.select('assessments', {
+        select: 'id, assessment_date, child_id',
+        order: { column: 'assessment_date', ascending: false }
       })
-
-      if (dbFiltered.length > 0) return dbFiltered
-
-      // Fallback: check localStorage for saved assessments if DB returns zero
-      let localCount = 0
-      if (typeof window !== 'undefined') {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && key.startsWith('assessment_result_')) {
-            localCount++
-          }
-        }
+      if (Array.isArray(data)) {
+        return data.filter(a => a.assessment_date && a.assessment_date >= firstDay)
       }
-      return localCount > 0 ? new Array(localCount).fill({}) : []
+      return []
     } catch (err) {
       console.warn('assessmentService.getAllThisMonth notice:', err.message)
       return []

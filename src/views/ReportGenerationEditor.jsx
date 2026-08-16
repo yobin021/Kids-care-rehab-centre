@@ -880,10 +880,18 @@ export default function ReportGenerationEditor() {
           <div className="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full space-y-6">
             
             {/* Header Card */}
-            <div className="bg-[#185FA5] text-white p-6 rounded-[12px] shadow-sm space-y-1">
-              <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">Kids Care Rehab Centre</span>
-              <h2 className="text-xl font-black">{child?.name} — Assessment Report</h2>
-              <p className="text-xs text-blue-100">Report Date: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+            <div className="bg-[#185FA5] text-white p-6 rounded-[12px] shadow-sm flex items-center gap-4">
+              <img
+                src="/kids_care_rehab_center_logo.jpg"
+                alt="Kids Care Logo"
+                className="h-14 w-14 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">Kids Care Rehab Centre</span>
+                <h2 className="text-xl font-black">{child?.name} — Assessment Report</h2>
+                <p className="text-xs text-blue-100">Report Date: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+              </div>
             </div>
 
             {/* About Your Child */}

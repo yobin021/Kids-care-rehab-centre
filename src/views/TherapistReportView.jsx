@@ -564,9 +564,12 @@ export default function TherapistReportView({ initialEditMode = false }) {
           <div className="flex items-center justify-between gap-4">
             {/* Logo Area */}
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-[#185FA5] text-white flex items-center justify-center font-black text-xl shrink-0">
-                K
-              </div>
+              <img
+                src="/kids_care_rehab_center_logo.jpg"
+                alt="Kids Care Logo"
+                className="h-14 w-14 rounded-[10px] object-cover border border-[#185FA5]/20 shrink-0"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
               <div>
                 <h1 className="text-[20px] font-bold text-[#185FA5] leading-tight">KIDS CARE REHAB CENTRE</h1>
                 <p className="text-[13px] font-bold text-[#5F5E5A]">PHYSIO CARE</p>

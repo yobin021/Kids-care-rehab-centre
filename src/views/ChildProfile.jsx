@@ -117,36 +117,34 @@ export default function ChildProfile() {
     if (!id) return;
     setLoadingRecords(true);
     try {
-      const [assList, repList] = await Promise.all([
+      const [assList, repList, iepReps] = await Promise.all([
         assessmentService.getByChildId(id),
-        reportService.getByChildId(id)
+        reportService.getByChildId(id),
+        import("../services/iepService").then((m) => m.iepService.getReportsByChildId(id)).catch(() => [])
       ]);
 
-      if (assList && assList.length > 0) setAssessments(assList);
-      if (repList && repList.length > 0) {
-        setReports(repList);
+      if (assList && assList.length > 0) {
+        setAssessments(assList);
       } else {
-        setReports([
-          {
-            id: id,
-            child_id: id,
-            status: "draft",
-            prepared_by: "Clinical Team",
-            created_at: new Date().toISOString()
-          }
-        ]);
+        setAssessments([]);
       }
+
+      const reportMap = new Map();
+      [...(repList || []), ...(iepReps || [])].forEach((r) => {
+        if (r && r.id && !reportMap.has(r.id)) {
+          reportMap.set(r.id, r);
+        }
+      });
+      const uniqueReps = Array.from(reportMap.values());
+      // Only published reports should appear in the child profile reports tab
+      const publishedOnly = uniqueReps.filter(
+        (r) => r.status === "published" || r.review_status === "published"
+      );
+      setReports(publishedOnly);
     } catch (err) {
       console.warn("Fetch related records notice:", err.message);
-      setReports([
-        {
-          id: id,
-          child_id: id,
-          status: "draft",
-          prepared_by: "Clinical Team",
-          created_at: new Date().toISOString()
-        }
-      ]);
+      setAssessments([]);
+      setReports([]);
     } finally {
       setLoadingRecords(false);
     }
@@ -373,8 +371,17 @@ export default function ChildProfile() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge label={`Profile ${data?.profile || 'B'}`} variant={getProfileVariant(data?.profile)} />
-              <Badge label={data?.diagnosis || 'Developmental Delay'} variant="gray" />
+              {data?.program_type === "iep" ? (
+                <>
+                  <Badge label="IEP Special School" variant="blue" />
+                  <Badge label="Special Education" variant="gray" />
+                </>
+              ) : (
+                <>
+                  <Badge label={data?.therapy_category || data?.diagnosis || "Therapy"} variant="blue" />
+                  <Badge label="Therapy Program" variant="green" />
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -383,18 +390,31 @@ export default function ChildProfile() {
           <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/children/${data?.id}/edit`)}>
             Edit Child
           </Button>
-          <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
-            + New Assessment
-          </Button>
+          {data?.program_type === "iep" ? (
+            <>
+              <Button variant="outlined" size="sm" icon={ClipboardList} onClick={() => navigate(`/iep/${data?.id}`)}>
+                IEP History
+              </Button>
+              <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
+                + New Assessment
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
+              + New Report
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Tabs Row: Overview | Assessments | Exercises | Reports | Parent Access */}
+      {/* Tabs Row */}
       <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center gap-1 overflow-x-auto">
         {[
           { id: "overview", label: "Overview" },
           { id: "assessments", label: `Assessments (${assessments.length})` },
-          { id: "exercises", label: totalAssignedExercises > 0 ? `Exercises (${totalAssignedExercises})` : "Exercises" },
+          ...(data?.program_type !== "iep"
+            ? [{ id: "exercises", label: totalAssignedExercises > 0 ? `Exercises (${totalAssignedExercises})` : "Exercises" }]
+            : []),
           { id: "reports", label: `Reports (${reports.length})` },
           { id: "appointments", label: "Appointments" },
           { id: "parent-access", label: "Parent Access" }
@@ -480,22 +500,8 @@ export default function ChildProfile() {
                       <Badge label={ass.status || "completed"} variant={ass.status === "draft" ? "amber" : "green"} size="sm" />
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[#5F5E5A]">
-                      <span>ISAA Score: <strong className="text-[#185FA5]">{ass.isaa_score ?? "Not Assessed"} / 200</strong></span>
-                      <span>Severity: <strong>{ass.isaa_severity || (ass.isaa_score ? "Assessed" : "Pending")}</strong></span>
-                      <Badge label={`Profile ${ass.profile || data?.profile || 'B'}`} variant={getProfileVariant(ass.profile || data?.profile)} size="sm" />
+                      <span className="font-semibold text-[#185FA5]">IEP Assessment Record</span>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outlined" size="sm" icon={Eye} onClick={() => navigate(`/assessment/${ass.id || data?.id}/results`)}>
-                      View Results
-                    </Button>
-                    <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/assessment/${ass.id || data?.id}/edit`)}>
-                      Edit Sheet
-                    </Button>
-                    <Button variant="secondary" size="sm" icon={FileText} onClick={() => navigate(`/reports/new/${data?.id}`)}>
-                      Generate Report
-                    </Button>
                   </div>
                 </div>
               ))}
@@ -780,50 +786,46 @@ export default function ChildProfile() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical & Parent Reports</h3>
-              <p className="text-xs text-[#5F5E5A]">Evaluations, therapist notes, and published parent reports</p>
+              <h3 className="text-sm font-bold text-[#2C2C2A]">Published Reports</h3>
+              <p className="text-xs text-[#5F5E5A]">Official assessment &amp; IEP progress reports published by Admin</p>
             </div>
-            <Button size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
-              + Generate Report
-            </Button>
           </div>
 
           {reports.length === 0 ? (
             <Card padding="p-8">
-              <div className="text-center space-y-3">
+              <div className="text-center space-y-3 max-w-md mx-auto">
                 <FileText className="h-10 w-10 text-[#9B9A96] mx-auto" />
-                <h4 className="text-sm font-bold text-[#2C2C2A]">No Clinical Reports Created</h4>
-                <p className="text-xs text-[#5F5E5A] max-w-sm mx-auto">
-                  Generate clinical therapist reports and parent home activity guidance.
+                <h4 className="text-sm font-bold text-[#2C2C2A]">No Published Reports Yet</h4>
+                <p className="text-xs text-[#5F5E5A] leading-relaxed">
+                  Reports will appear here once the draft assessment review is completed and published by the Admin.
                 </p>
-                <Button size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
-                  + Create Report
-                </Button>
               </div>
             </Card>
           ) : (
             <div className="space-y-3">
               {reports.map((rep, idx) => (
-                <div key={rep.id || idx} className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div key={rep.id ? `published-rep-${rep.id}` : `published-rep-idx-${idx}`} className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-[#185FA5]" />
+                      <FileText className="h-4 w-4 text-[#0F6E56]" />
                       <span className="text-xs font-bold text-[#2C2C2A]">
-                        Report #{rep.id?.slice(0, 8) || (idx + 1)}
+                        {rep.iep_report ? `IEP Progress Report — Cycle ${rep.iep_cycle || 1}` : `Clinical Assessment Report`}
                       </span>
-                      <Badge label={rep.status || "published"} variant={rep.status === "published" ? "green" : "amber"} size="sm" />
+                      <Badge label="Published" variant="green" size="sm" />
                     </div>
                     <p className="text-xs text-[#5F5E5A]">
-                      Prepared: {rep.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]} {rep.prepared_by ? `by ${rep.prepared_by}` : ""}
+                      Published: {rep.published_at?.split("T")[0] || rep.created_at?.split("T")[0]} {rep.published_by ? `by ${rep.published_by}` : ""}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/reports/${rep.id || data?.id}/review`)}>
-                      Edit / Review
-                    </Button>
-                    <Button variant="outlined" size="sm" icon={Eye} onClick={() => navigate(`/reports/${rep.id || data?.id}/therapist`)}>
-                      Therapist View
+                    <Button
+                      variant="outlined"
+                      size="sm"
+                      icon={Eye}
+                      onClick={() => navigate(rep.iep_report ? `/iep/report/${rep.id}` : `/reports/${rep.id}/therapist`)}
+                    >
+                      View Published Report
                     </Button>
                   </div>
                 </div>

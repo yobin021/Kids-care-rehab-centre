@@ -32,13 +32,24 @@ export default function ParentLogin() {
       <div className="w-[400px] max-w-full bg-white p-6 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] space-y-4">
         
         {/* Logo & Tagline */}
-        <div className="text-center">
-          <h1 className="text-[20px] font-bold text-[#185FA5] tracking-tight">
-            Kids Care Rehab Centre
-          </h1>
-          <p className="text-[#9B9A96] italic text-[13px] font-medium mt-0.5">
-            &quot;Your child&apos;s progress, in your hands.&quot;
-          </p>
+        <div className="text-center space-y-2">
+          <img
+            src="/kids_care_rehab_center_logo.jpg"
+            alt="KIDS CARE 360 Logo"
+            className="h-16 w-16 mx-auto rounded-[12px] object-cover border border-[#185FA5]/20 shadow-xs"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <div>
+            <h1 className="text-[22px] font-black text-[#185FA5] tracking-tight">
+              KIDS CARE 360
+            </h1>
+            <p className="text-[#2C2C2A] text-[13px] font-bold mt-0.5">
+              Neurodiversity Clinical & Therapy Management System
+            </p>
+            <p className="text-[#5F5E5A] text-[11px] font-semibold tracking-wide uppercase mt-1">
+              Assess • Plan • Intervene • Track • Progress
+            </p>
+          </div>
         </div>
 
         <hr className="border-[#D3D1C7]/60" />

@@ -14,7 +14,8 @@ import {
   Activity,
   User,
   Heart,
-  CalendarDays
+  CalendarDays,
+  BookOpen
 } from "lucide-react";
 import Toast from "../ui/Toast";
 
@@ -23,6 +24,15 @@ export default function AppShell({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [iepPendingCount, setIepPendingCount] = useState(0);
+
+  // Load pending IEP count for admin badge
+  React.useEffect(() => {
+    if (!isAdmin) return;
+    import("../../services/iepService").then(({ iepService }) => {
+      iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
+    }).catch(() => {});
+  }, [isAdmin]);
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -36,12 +46,13 @@ export default function AppShell({ children }) {
     if (path === "/parent/home") return "Parent Dashboard";
     if (path === "/parent/report") return "Child Assessment Report";
     if (path === "/parent/exercises") return "Daily Exercises";
-    return "Kids Care Rehab Centre";
+    return "KIDS CARE 360";
   };
 
   // If Parent Role -> Render Parent Shell
   if (isParent) {
-    const activeChild = childrenList.find((c) => c.id === user?.childId) || childrenList[1];
+    const activeChild = childrenList.find((c) => c.id === user?.childId) || childrenList[1] || childrenList[0];
+    const isIep = activeChild?.program_type === "iep";
 
     return (
       <div className="min-h-screen bg-[#F8F8F6] text-[#2C2C2A] font-sans">
@@ -57,9 +68,17 @@ export default function AppShell({ children }) {
           <div className="max-w-[720px] mx-auto flex items-center justify-between gap-2">
             
             {/* Left Logo */}
-            <div className="flex items-center gap-1.5">
-              <Heart className="h-5 w-5 text-[#185FA5] fill-[#185FA5]/20" />
-              <span className="text-sm font-extrabold text-[#185FA5] tracking-tight">Kids Care</span>
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/kids_care_rehab_center_logo.jpg"
+                alt="KIDS CARE 360 Logo"
+                className="h-9 w-9 rounded-[8px] object-cover border border-[#185FA5]/20 shadow-2xs"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              <div>
+                <span className="text-sm font-black text-[#185FA5] tracking-tight block leading-tight">KIDS CARE 360</span>
+                <span className="text-[9px] font-semibold text-[#5F5E5A] block leading-tight">Neurodiversity Clinical System</span>
+              </div>
             </div>
 
             {/* Center Links */}
@@ -75,19 +94,21 @@ export default function AppShell({ children }) {
               <Link
                 to="/parent/report"
                 className={`transition-colors py-1 ${
-                  location.pathname === "/parent/report" ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
+                  location.pathname.startsWith("/parent/report") || location.pathname.startsWith("/iep/report") ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
                 }`}
               >
                 Report
               </Link>
-              <Link
-                to="/parent/exercises"
-                className={`transition-colors py-1 ${
-                  location.pathname === "/parent/exercises" ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
-                }`}
-              >
-                Exercises
-              </Link>
+              {!isIep && (
+                <Link
+                  to="/parent/exercises"
+                  className={`transition-colors py-1 ${
+                    location.pathname === "/parent/exercises" ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
+                  }`}
+                >
+                  Exercises
+                </Link>
+              )}
             </nav>
 
             {/* Right Child Name + Logout */}
@@ -145,19 +166,32 @@ export default function AppShell({ children }) {
         }`}
       >
         {/* Top Logo */}
-        <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-4 mb-4">
-          <div>
-            <h1 className="text-[18px] font-extrabold text-[#185FA5] tracking-tight leading-tight">
-              Kids Care Rehab Centre
-            </h1>
-            <span className="text-[11px] font-bold text-[#9B9A96] block mt-0.5">
-              Physio Care
-            </span>
-          </div>
+        <div className="border-b border-[#D3D1C7]/60 pb-3 mb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <img
+                src="/kids_care_rehab_center_logo.jpg"
+                alt="KIDS CARE 360 Logo"
+                className="h-10 w-10 rounded-[10px] object-cover border border-[#185FA5]/20 shadow-2xs shrink-0"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              <div className="min-w-0">
+                <h1 className="text-[15px] font-black text-[#185FA5] tracking-tight leading-tight truncate">
+                  KIDS CARE 360
+                </h1>
+                <span className="text-[9px] font-bold text-[#2C2C2A] block leading-tight truncate">
+                  Neurodiversity Clinical System
+                </span>
+              </div>
+            </div>
 
-          <button onClick={() => setMobileOpen(false)} className="md:hidden text-[#5F5E5A]">
-            <X className="h-5 w-5" />
-          </button>
+            <button onClick={() => setMobileOpen(false)} className="md:hidden text-[#5F5E5A]">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <p className="text-[8px] font-bold text-[#5F5E5A] tracking-wider uppercase mt-2 pt-1 border-t border-[#D3D1C7]/40 text-center">
+            Assess • Plan • Intervene • Track • Progress
+          </p>
         </div>
 
         {/* Navigation Links */}
@@ -199,6 +233,37 @@ export default function AppShell({ children }) {
           >
             <CalendarDays className="h-4 w-4 shrink-0" />
             <span>Appointments</span>
+          </Link>
+
+          <Link
+            to="/iep"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
+              location.pathname.startsWith("/iep")
+                ? "bg-[#185FA5] text-white"
+                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
+            }`}
+          >
+            <BookOpen className="h-4 w-4 shrink-0" />
+            <span className="flex-1">IEP</span>
+            {isAdmin && iepPendingCount > 0 && (
+              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${location.pathname.startsWith("/iep") ? "bg-white/30 text-white" : "bg-[#F59E0B] text-white"}`}>
+                {iepPendingCount}
+              </span>
+            )}
+          </Link>
+
+          <Link
+            to="/therapy"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
+              location.pathname.startsWith("/therapy")
+                ? "bg-[#0F6E56] text-white"
+                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#0F6E56]"
+            }`}
+          >
+            <Activity className="h-4 w-4 shrink-0" />
+            <span>Therapy</span>
           </Link>
 
           {/* Admin Only Link */}

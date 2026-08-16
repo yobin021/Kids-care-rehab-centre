@@ -136,13 +136,21 @@ export const reportService = {
   async getById(id) {
     try {
       const match = toUUID(id) ? { id } : { child_id: id }
-      return await db.select('reports', {
-        select: `*,
-          children(id, name, age, diagnosis, profile, date_of_birth),
-          assessments(isaa_score, isaa_severity, isaa_level, isaa_section_scores, domain_scores, profile, clinic_exercises, home_exercises)`,
+      const rep = await db.select('reports', {
         match,
         single: true
       })
+      if (!rep) return null
+      if (rep.child_id && !rep.children) {
+        try {
+          const childData = await db.select('children', {
+            match: { id: rep.child_id },
+            single: true
+          })
+          if (childData) rep.children = childData
+        } catch (_) {}
+      }
+      return rep
     } catch (err) {
       console.warn('reportService.getById:', err.message)
       return null

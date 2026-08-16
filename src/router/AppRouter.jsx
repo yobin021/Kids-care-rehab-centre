@@ -26,6 +26,12 @@ import AssessmentResults from "../views/AssessmentResults";
 import ReportGenerationEditor from "../views/ReportGenerationEditor";
 import TherapistReportView from "../views/TherapistReportView";
 import AppointmentsPage from "../views/AppointmentsPage";
+import IepPage from "../views/IepPage";
+import IepChildHistory from "../views/IepChildHistory";
+import IepReportGenerator from "../views/IepReportGenerator";
+import IepReportEditor from "../views/IepReportEditor";
+import IepReportView from "../views/IepReportView";
+import TherapyPage from "../views/TherapyPage";
 
 // Protected Route Wrapper
 function ProtectedRoute({ children, allowedRoles }) {
@@ -134,7 +140,7 @@ export default function AppRouter() {
           path="/assessment/:id/results"
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>
-              <AssessmentResults />
+              <IepReportGenerator />
             </ProtectedRoute>
           }
         />
@@ -171,6 +177,58 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>
               <AppointmentsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* IEP Routes */}
+        <Route
+          path="/iep"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <IepPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Therapy Hub Route */}
+        <Route
+          path="/therapy"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <TherapyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/iep/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <IepChildHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/iep/:childId/generate/:assessmentId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <IepReportGenerator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/iep/report/:reportId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff", "parent"]}>
+              <IepReportView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/iep/report/:reportId/review"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]}>
+              <IepReportEditor />
             </ProtectedRoute>
           }
         />

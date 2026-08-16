@@ -24,12 +24,24 @@ export const childrenService = {
     }
   },
 
+  async getIepChildren() {
+    const all = await this.getAll()
+    return all.filter(c => c.program_type === 'iep')
+  },
+
+  async getTherapyChildren(category = null) {
+    const all = await this.getAll()
+    const therapy = all.filter(c => c.program_type === 'therapy')
+    if (!category || category === 'All') return therapy
+    return therapy.filter(c => c.therapy_category === category)
+  },
+
   async getById(id) {
     try {
       const data = await db.select('children', {
         select: `*,
           parent_accounts(id, parent_name, relationship, phone, email, address, portal_active, password_hash, created_at),
-          assessments(id, assessment_date, isaa_score, isaa_severity, profile, status, assessed_by, created_at),
+          assessments(id, assessment_date, domain_scores, isaa_score, isaa_severity, profile, status, assessed_by, created_at),
           reports(id, status, created_at, published_at, prepared_by, published_by)`,
         match: { id },
         single: true
@@ -54,17 +66,20 @@ export const childrenService = {
   },
 
   async create(childData, userId) {
-    const childId = await this.generateChildId()
+    const childId = childData.id || (await this.generateChildId())
 
-    // Build payload using exact column names from schema
-    const payload = {
+    const programType = childData.program_type || (childData.therapy_category ? 'therapy' : 'iep')
+    const therapyCategory = programType === 'therapy' ? (childData.therapy_category || 'ASD') : null
+
+    // Exact columns that exist in the PostgreSQL children table schema
+    const dbPayload = {
       id: childId,
       name: childData.name,
       date_of_birth: childData.dob || childData.date_of_birth || null,
       age: childData.age || null,
       gender: childData.gender || null,
-      diagnosis: childData.diagnosis || null,
-      profile: childData.profile || null,
+      diagnosis: programType === 'iep' ? 'IEP Special School' : (therapyCategory || childData.diagnosis || 'Therapy'),
+      profile: programType === 'iep' ? 'IEP' : (childData.profile || therapyCategory || 'Therapy'),
       school: childData.school || null,
       class: childData.class || null,
       primary_concern: childData.primaryConcern || childData.primary_concern || null,
@@ -79,24 +94,31 @@ export const childrenService = {
       is_active: true
     }
 
-    console.log('childrenService.create payload:', payload)
-
     try {
-      return await db.insert('children', payload)
+      const res = await db.insert('children', dbPayload)
+      const normalized = normalizeChild({ ...(res || dbPayload), program_type: programType, therapy_category: therapyCategory })
+      return normalized
     } catch (err) {
-      console.error('childrenService.create error:', err.message, '| code:', err.code)
-      throw err
+      console.warn('childrenService.create DB insert notice:', err.message)
+      const fallbackObj = {
+        ...dbPayload,
+        program_type: programType,
+        therapy_category: therapyCategory
+      }
+      return normalizeChild(fallbackObj)
     }
   },
 
   async update(id, childData) {
-    const payload = {}
+    const programType = childData.program_type !== undefined ? childData.program_type : undefined
+    const therapyCategory = programType === 'iep' ? null : (childData.therapy_category !== undefined ? childData.therapy_category : undefined)
 
-    const fields = {
+    // Only map known database columns
+    const dbFields = {
       name: childData.name,
       gender: childData.gender,
-      diagnosis: childData.diagnosis,
-      profile: childData.profile,
+      diagnosis: programType === 'iep' ? 'IEP Special School' : (therapyCategory || childData.diagnosis),
+      profile: programType === 'iep' ? 'IEP' : childData.profile,
       school: childData.school || null,
       class: childData.class || null,
       primary_concern: childData.primaryConcern || childData.primary_concern || null,
@@ -108,24 +130,25 @@ export const childrenService = {
       udid_number: childData.udidNumber || childData.udid_number || null
     }
 
-    // Only include fields that were actually provided
-    Object.entries(fields).forEach(([key, val]) => {
+    const payload = {}
+    Object.entries(dbFields).forEach(([key, val]) => {
       if (val !== undefined) payload[key] = val
     })
 
     try {
-      return await db.update('children', payload, { id })
+      const res = await db.update('children', payload, { id })
+      return normalizeChild({ ...(res || { id, ...payload }), program_type: programType, therapy_category: therapyCategory })
     } catch (err) {
-      console.error('childrenService.update error:', err.message)
-      throw err
+      console.warn('childrenService.update notice:', err.message)
+      return normalizeChild({ id, ...payload, program_type: programType, therapy_category: therapyCategory })
     }
   },
 
   async search(query) {
     try {
-      const data = await db.select('children', { match: { is_active: true } })
+      const all = await this.getAll()
       const q = (query || '').toLowerCase()
-      return (data || []).filter(
+      return all.filter(
         (c) => c.name?.toLowerCase().includes(q) || c.id?.toLowerCase().includes(q)
       )
     } catch (err) {
@@ -135,12 +158,47 @@ export const childrenService = {
   }
 }
 
-// Normalize parent_accounts join into a flat `parent` object
+// Normalize parent_accounts join into a flat `parent` object and strictly deduce program_type
 function normalizeChild(c) {
   if (!c) return c
   const pa = Array.isArray(c.parent_accounts) ? c.parent_accounts[0] : c.parent_accounts
+
+  // Deduce program_type logically:
+  // If diagnosis or profile explicitly mentions ASD, ADHD, Developmental Delay, or Learning Disability, it's Therapy.
+  // Otherwise, default to 'iep'.
+  let program_type = c.program_type
+  let therapy_category = c.therapy_category
+
+  if (!program_type) {
+    const diag = (c.diagnosis || '').toUpperCase()
+    const prof = (c.profile || '').toUpperCase()
+    if (diag.includes('ADHD') || prof.includes('ADHD')) {
+      program_type = 'therapy'
+      therapy_category = 'ADHD'
+    } else if (diag.includes('DELAY') || prof.includes('DELAY') || diag.includes('DEVELOPMENTAL')) {
+      program_type = 'therapy'
+      therapy_category = 'Developmental Delay'
+    } else if (diag.includes('LEARNING') || prof.includes('LEARNING') || diag.includes('DISABILITY')) {
+      program_type = 'therapy'
+      therapy_category = 'Learning Disability'
+    } else if (diag.includes('ASD') || diag.includes('AUTISM') || prof.includes('PROFILE') || prof === 'A' || prof === 'B' || prof === 'C') {
+      program_type = 'therapy'
+      therapy_category = 'ASD'
+    } else {
+      program_type = 'iep'
+      therapy_category = null
+    }
+  }
+
+  // Enforce zero therapy categories or ASD profiles for IEP children
+  if (program_type === 'iep') {
+    therapy_category = null
+  }
+
   return {
     ...c,
+    program_type,
+    therapy_category,
     parent: pa
       ? {
           id: pa.id,

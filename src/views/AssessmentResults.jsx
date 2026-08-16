@@ -140,9 +140,11 @@ export default function AssessmentResults() {
           </div>
         </div>
 
-        <Button icon={FileText} onClick={() => navigate(`/reports/new/${child?.id}`)}>
-          Generate Report →
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button icon={FileText} onClick={() => navigate(`/iep/${child?.id}/generate/${id}`)}>
+            Generate IEP Report →
+          </Button>
+        </div>
       </div>
 
       <div className="p-6 rounded-[12px] text-white shadow-sm bg-[#185FA5] flex items-center justify-between">

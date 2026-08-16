@@ -61,5 +61,15 @@ export const exerciseService = {
       console.warn('exerciseService.getByIds notice:', err.message)
       return []
     }
+  },
+
+  /**
+   * Safety guard: exercises are strictly prohibited for IEP children.
+   */
+  async getForChild(child, ids = []) {
+    if (!child || child.program_type === 'iep') {
+      return []
+    }
+    return await this.getByIds(ids)
   }
 }

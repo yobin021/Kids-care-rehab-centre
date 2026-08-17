@@ -111,21 +111,11 @@ export default function StaffLogin() {
           Forgot your login? Contact administrator.
         </p>
 
-        <div className="flex items-center gap-2 my-2">
-          <hr className="flex-1 border-[#D3D1C7]/60" />
-          <span className="text-xs text-[#9B9A96] font-bold">Parent?</span>
-          <hr className="flex-1 border-[#D3D1C7]/60" />
+        <div className="pt-2 text-center border-t border-[#D3D1C7]/40">
+          <Link to="/" className="text-xs text-[#9B9A96] hover:text-[#185FA5] font-bold transition-colors">
+            ← Back to Home
+          </Link>
         </div>
-
-        <Button
-          variant="ghost"
-          fullWidth
-          onClick={() => navigate("/parent/login")}
-          className="text-xs font-bold text-[#185FA5]"
-        >
-          Go to Parent Portal →
-        </Button>
-
       </div>
     </div>
   );

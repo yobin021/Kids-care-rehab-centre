@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import AppShell from "../components/layout/AppShell";
 
 // Views
+import HomePage from "../views/HomePage";
 import StaffLogin from "../views/StaffLogin";
 import ParentLogin from "../views/ParentLogin";
 import StaffDashboard from "../views/StaffDashboard";
@@ -57,19 +58,8 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Root Route */}
-        <Route
-          path="/"
-          element={
-            !user ? (
-              <Navigate to="/login" replace />
-            ) : isParent ? (
-              <Navigate to="/parent/home" replace />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          }
-        />
+        {/* Landing / Home Page */}
+        <Route path="/" element={<HomePage />} />
 
         {/* Public Login Routes */}
         <Route path="/login" element={<StaffLogin />} />

@@ -116,8 +116,8 @@ export default function ParentLogin() {
         </div>
 
         <div className="pt-2 text-center border-t border-[#D3D1C7]/40">
-          <Link to="/login" className="text-xs text-[#9B9A96] hover:text-[#2C2C2A] font-bold">
-            ← Back to Staff Login
+          <Link to="/" className="text-xs text-[#9B9A96] hover:text-[#0F6E56] font-bold transition-colors">
+            ← Back to Home
           </Link>
         </div>
 

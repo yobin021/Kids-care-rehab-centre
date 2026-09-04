@@ -21,7 +21,8 @@ export const authService = {
         }
 
         if (typeof window !== 'undefined') {
-          localStorage.setItem('kcr_user', JSON.stringify(user))
+          localStorage.removeItem('kcr_user')
+          sessionStorage.removeItem('kcr_user')
         }
 
         return { success: true, user }
@@ -39,9 +40,6 @@ export const authService = {
         role: 'admin',
         designation: 'Clinical Director & Administrator'
       }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('kcr_user', JSON.stringify(adminUser))
-      }
       return { success: true, user: adminUser }
     }
 
@@ -52,9 +50,6 @@ export const authService = {
         username: 'staff',
         role: 'staff',
         designation: 'Occupational Therapist'
-      }
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('kcr_user', JSON.stringify(staffUser))
       }
       return { success: true, user: staffUser }
     }
@@ -85,7 +80,8 @@ export const authService = {
         }
 
         if (typeof window !== 'undefined') {
-          localStorage.setItem('kcr_user', JSON.stringify(user))
+          localStorage.removeItem('kcr_user')
+          sessionStorage.removeItem('kcr_user')
         }
 
         return { success: true, user }
@@ -108,7 +104,8 @@ export const authService = {
             childId: match.id,
             childName: match.name
           }
-          localStorage.setItem('kcr_user', JSON.stringify(user))
+          localStorage.removeItem('kcr_user')
+          sessionStorage.removeItem('kcr_user')
           return { success: true, user }
         }
       } catch (_) {}
@@ -120,19 +117,15 @@ export const authService = {
   logout() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('kcr_user')
+      sessionStorage.removeItem('kcr_user')
     }
   },
 
   getCurrentUser() {
+    // Always returns null to ensure credentials are requested every time the website is opened
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('kcr_user')
-      if (stored) {
-        try {
-          return JSON.parse(stored)
-        } catch (e) {
-          return null
-        }
-      }
+      localStorage.removeItem('kcr_user')
+      sessionStorage.removeItem('kcr_user')
     }
     return null
   }

@@ -15,12 +15,13 @@ export function AuthProvider({ children }) {
   const toastIdRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session + load live data from DB on startup
+  // Require fresh login on application startup / every visit
   useEffect(() => {
-    const savedUser = authService.getCurrentUser();
-    if (savedUser) {
-      setUser(savedUser);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("kcr_user");
+      sessionStorage.removeItem("kcr_user");
     }
+    setUser(null);
 
     // Load children from Supabase or fallback
     childrenService.getAll()

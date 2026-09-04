@@ -256,7 +256,7 @@ export default function ChildProfile() {
         password_hash: portalPass
       };
 
-      const currentUser = authService.getCurrentUser() || user;
+      const currentUser = user;
 
       await parentService.createAccount(
         parentData,

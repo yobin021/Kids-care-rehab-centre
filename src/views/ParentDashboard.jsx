@@ -14,14 +14,17 @@ import { parentService } from "../services/parentService";
 import { exerciseService } from "../services/exerciseService";
 import { appointmentService } from "../services/appointmentService";
 import { formatAppointmentDate, formatAppointmentTime, getTypeLabel, getTypeStyle } from "../utils/appointmentHelpers";
+import { isIepProgram } from "../utils/programHelpers";
 
 export default function ParentDashboard() {
   const { user, childrenList } = useAuth();
   const navigate = useNavigate();
 
   // Selected child or fallback to user's registered child
-  const child = childrenList.find((c) => c.id === user?.childId) || childrenList[0];
-  const isIep = child?.program_type === "iep";
+  const child =
+    childrenList.find((c) => c.id === user?.childId) ||
+    (user?.childId ? { id: user.childId, name: user.childName } : childrenList[0]);
+  const isIep = isIepProgram(child) || isIepProgram(user);
 
   const [loading, setLoading] = useState(true);
   const [reportInfo, setReportInfo] = useState(null);
@@ -131,7 +134,7 @@ export default function ParentDashboard() {
       {loading ? (
         <SkeletonCard count={3} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${isIep ? "md:grid-cols-2" : "md:grid-cols-3"} gap-4`}>
           {/* Card 1: Assessment / IEP Report */}
           <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
             <div className="space-y-2">
@@ -170,80 +173,84 @@ export default function ParentDashboard() {
             </div>
           </Card>
 
-          {/* Card 2: IEP Milestones (for IEP) OR Home Exercises (for Therapy) */}
-          {isIep ? (
+          {/* For Therapy children: Card 2 (Home Exercises) + Card 3 (Next Appointment) */}
+          {!isIep && (
+            <>
+              <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
+                <div className="space-y-2">
+                  <div className="text-3xl">🏃</div>
+                  <h3 className="text-base font-bold text-[#2C2C2A]">Today&apos;s Home Exercises</h3>
+                  <p className="text-xs font-bold text-[#185FA5]">{exerciseStats.total} exercises assigned</p>
+                  <p className="text-xs text-[#5F5E5A] font-semibold">
+                    Progress: <strong className="text-[#3B6D11]">{exerciseStats.completed} of {exerciseStats.total}</strong> completed today
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <Button variant="secondary" fullWidth onClick={() => navigate("/parent/exercises")}>
+                    Start Exercises →
+                  </Button>
+                </div>
+              </Card>
+
+              <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
+                <div className="space-y-2">
+                  <div className="text-3xl">📅</div>
+                  <h3 className="text-base font-bold text-[#2C2C2A]">Next Therapy Appointment</h3>
+                  {nextAppointment ? (
+                    <div className="space-y-1.5">
+                      {(() => {
+                        const ts = getTypeStyle(nextAppointment.appointment_type);
+                        return (
+                          <span
+                            className="px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-block"
+                            style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}
+                          >
+                            {getTypeLabel(nextAppointment.appointment_type)}
+                          </span>
+                        );
+                      })()}
+                      <p className="text-xs font-bold text-[#2C2C2A]">{formatAppointmentDate(nextAppointment.appointment_date)}</p>
+                      <p className="text-xs text-[#185FA5] font-semibold">
+                        at {formatAppointmentTime(nextAppointment.appointment_time)} • {nextAppointment.duration_minutes || 60} min
+                      </p>
+                      {nextAppointment.notes && <p className="text-[11px] text-[#5F5E5A] italic">{nextAppointment.notes}</p>}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-xs text-[#5F5E5A] leading-relaxed">
+                        No upcoming appointment scheduled yet.
+                      </p>
+                      <p className="text-[11px] text-[#9B9A96]">Need to schedule? Call us: <strong>044-28353136</strong></p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </>
+          )}
+
+          {/* For IEP Special School children: Regular Daily Attendance Schedule (no individual appointment needed) */}
+          {isIep && (
             <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
               <div className="space-y-2">
-                <div className="text-3xl">🎯</div>
-                <h3 className="text-base font-bold text-[#2C2C2A]">Special School Milestones</h3>
-                <p className="text-xs font-bold text-[#185FA5]">24-Section Competency Tracking</p>
-                <p className="text-xs text-[#5F5E5A] font-semibold">
-                  Next Cycle Review:{" "}
-                  <strong className="text-[#185FA5]">{reportInfo?.nextReviewDate || "Scheduled every 3 months"}</strong>
-                </p>
+                <div className="text-3xl">🏫</div>
+                <h3 className="text-base font-bold text-[#2C2C2A]">Regular Clinic Attendance</h3>
+                <div className="space-y-1.5">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ECFDF5] text-[#085041] border border-[#86EFAC] inline-block">
+                    Daily Attendance Active
+                  </span>
+                  <p className="text-xs font-bold text-[#2C2C2A] pt-1">Monday – Friday | 9:30 AM – 3:30 PM</p>
+                  <p className="text-xs text-[#5F5E5A] leading-relaxed">
+                    Your child attends regular daily rehabilitation and special school sessions at our centre. Individual appointment booking is not required.
+                  </p>
+                </div>
               </div>
 
-              <div className="pt-2">
-                <Button variant="secondary" fullWidth onClick={() => navigate(`/iep/report/${iepReport?.id || child?.id}`)}>
-                  Review Goals &amp; Radar Graph →
-                </Button>
-              </div>
-            </Card>
-          ) : (
-            <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
-              <div className="space-y-2">
-                <div className="text-3xl">🏃</div>
-                <h3 className="text-base font-bold text-[#2C2C2A]">Today&apos;s Home Exercises</h3>
-                <p className="text-xs font-bold text-[#185FA5]">{exerciseStats.total} exercises assigned</p>
-                <p className="text-xs text-[#5F5E5A] font-semibold">
-                  Progress: <strong className="text-[#3B6D11]">{exerciseStats.completed} of {exerciseStats.total}</strong> completed today
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <Button variant="secondary" fullWidth onClick={() => navigate("/parent/exercises")}>
-                  Start Exercises →
-                </Button>
+              <div className="pt-2 border-t border-[#D3D1C7]/40 text-[11px] text-[#5F5E5A]">
+                Need to notify absence or leave? Call: <strong className="text-[#185FA5]">044-28353136</strong>
               </div>
             </Card>
           )}
-
-          {/* Card 3: Next Appointment */}
-          <Card className="flex flex-col justify-between space-y-4 hover:border-[#185FA5] transition-colors">
-            <div className="space-y-2">
-              <div className="text-3xl">📅</div>
-              <h3 className="text-base font-bold text-[#2C2C2A]">
-                {isIep ? "School Review Schedule" : "Next Therapy Appointment"}
-              </h3>
-              {nextAppointment ? (
-                <div className="space-y-1.5">
-                  {(() => {
-                    const ts = getTypeStyle(nextAppointment.appointment_type);
-                    return (
-                      <span
-                        className="px-2.5 py-0.5 rounded-full text-[11px] font-bold inline-block"
-                        style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}
-                      >
-                        {getTypeLabel(nextAppointment.appointment_type)}
-                      </span>
-                    );
-                  })()}
-                  <p className="text-xs font-bold text-[#2C2C2A]">{formatAppointmentDate(nextAppointment.appointment_date)}</p>
-                  <p className="text-xs text-[#185FA5] font-semibold">
-                    at {formatAppointmentTime(nextAppointment.appointment_time)} • {nextAppointment.duration_minutes || 60} min
-                  </p>
-                  {nextAppointment.notes && <p className="text-[11px] text-[#5F5E5A] italic">{nextAppointment.notes}</p>}
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-xs text-[#5F5E5A] leading-relaxed">
-                    {isIep ? "Periodic evaluation scheduled every 3 months." : "No upcoming appointment scheduled yet."}
-                  </p>
-                  <p className="text-[11px] text-[#9B9A96]">Need to schedule? Call us: <strong>044-28353136</strong></p>
-                </div>
-              )}
-            </div>
-          </Card>
         </div>
       )}
 

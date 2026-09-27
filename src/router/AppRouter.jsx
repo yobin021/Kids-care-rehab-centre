@@ -33,6 +33,10 @@ import IepReportGenerator from "../views/IepReportGenerator";
 import IepReportEditor from "../views/IepReportEditor";
 import IepReportView from "../views/IepReportView";
 import TherapyPage from "../views/TherapyPage";
+import IsaaAssessmentForm from "../views/IsaaAssessmentForm";
+import ConnersAdhdAssessmentForm from "../views/ConnersAdhdAssessmentForm";
+import DevelopmentalDelayAssessmentForm from "../views/DevelopmentalDelayAssessmentForm";
+import LearningDisabilityAssessmentForm from "../views/LearningDisabilityAssessmentForm";
 
 // Protected Route Wrapper
 function ProtectedRoute({ children, allowedRoles }) {
@@ -187,6 +191,102 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>
               <TherapyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/asd/assessment"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <IsaaAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/asd/assessment/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <IsaaAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessment/isaa/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <IsaaAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/adhd/assessment"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <ConnersAdhdAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/adhd/assessment/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <ConnersAdhdAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessment/conners/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <ConnersAdhdAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/delay/assessment"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <DevelopmentalDelayAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/delay/assessment/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <DevelopmentalDelayAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessment/delay/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <DevelopmentalDelayAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/sld/assessment"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <LearningDisabilityAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/therapy/sld/assessment/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <LearningDisabilityAssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assessment/sld/:childId"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <LearningDisabilityAssessmentForm />
             </ProtectedRoute>
           }
         />

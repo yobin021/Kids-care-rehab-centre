@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Users, FileText, ClipboardList, Eye, PlusCircle, CalendarDays, Clock } from "lucide-react";
+import { Users, FileText, ClipboardList, Eye, PlusCircle, CalendarDays, Clock, MessageSquare } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
@@ -12,6 +12,7 @@ import EmptyState from "../components/ui/EmptyState";
 import { reportService } from "../services/reportService";
 import { assessmentService } from "../services/assessmentService";
 import { appointmentService } from "../services/appointmentService";
+import { parentService } from "../services/parentService";
 import { formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel } from "../utils/appointmentHelpers";
 
 export default function StaffDashboard() {
@@ -21,17 +22,20 @@ export default function StaffDashboard() {
   const [publishedCount, setPublishedCount] = useState(0);
   const [assessmentsCount, setAssessmentsCount] = useState(0);
   const [todayApts, setTodayApts] = useState([]);
+  const [parentMessages, setParentMessages] = useState([]);
 
   useEffect(() => {
     Promise.all([
       reportService.getAllPublished(),
       assessmentService.getAllThisMonth(),
-      appointmentService.getToday()
+      appointmentService.getToday(),
+      parentService.getAllMessages()
     ])
-      .then(([reportsData, assessmentsData, aptsData]) => {
+      .then(([reportsData, assessmentsData, aptsData, msgsData]) => {
         if (reportsData) setPublishedCount(reportsData.length);
         if (assessmentsData) setAssessmentsCount(assessmentsData.length);
         if (aptsData) setTodayApts(aptsData);
+        if (msgsData) setParentMessages(msgsData);
       })
       .catch((err) => {
         console.warn("Staff dashboard fetch metrics notice:", err.message);
@@ -201,6 +205,66 @@ export default function StaffDashboard() {
           </div>
         )}
       </div>
+
+      {/* ═══ PARENT MESSAGES & CLINICAL FEEDBACK ═══ */}
+      {parentMessages && parentMessages.length > 0 && (
+        <Card
+          title={
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-[#185FA5]" />
+                <span className="font-bold text-sm text-[#2C2C2A]">Parent Messages &amp; Care Feedback</span>
+              </div>
+              <Badge label={`${parentMessages.length} message${parentMessages.length > 1 ? "s" : ""}`} variant="blue" size="sm" />
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            {parentMessages.slice(0, 5).map((m) => {
+              const childObj = m.children || childrenList.find((c) => c.id === m.child_id);
+              const childName = childObj?.name || m.child_id;
+              const parentName = m.parent_accounts?.parent_name || "Parent";
+              const parentPhone = m.parent_accounts?.phone || "";
+              const dateStr = m.created_at ? new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : m.message_date;
+
+              return (
+                <div
+                  key={m.id}
+                  className="p-3.5 bg-[#F8F8F6] border border-[#D3D1C7]/70 rounded-[10px] hover:border-[#185FA5] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className="text-xs font-bold text-[#185FA5] cursor-pointer hover:underline"
+                        onClick={() => navigate(`/children/${m.child_id}`)}
+                      >
+                        {childName}
+                      </span>
+                      <span className="text-[11px] text-[#5F5E5A] font-semibold">
+                        from {parentName} {parentPhone ? `(${parentPhone})` : ""}
+                      </span>
+                      <span className="text-[10px] text-[#9B9A96]">
+                        • {dateStr}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-[#2C2C2A] bg-white p-2.5 rounded-[6px] border border-[#D3D1C7]/50 shadow-2xs leading-relaxed">
+                      &ldquo;{m.message}&rdquo;
+                    </p>
+                  </div>
+                  <Button
+                    variant="outlined"
+                    size="sm"
+                    className="shrink-0 text-xs"
+                    onClick={() => navigate(`/children/${m.child_id}`)}
+                  >
+                    View Child Profile →
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Today's Schedule */}
       <div className="space-y-3">

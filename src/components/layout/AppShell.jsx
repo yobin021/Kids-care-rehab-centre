@@ -18,6 +18,7 @@ import {
   BookOpen
 } from "lucide-react";
 import Toast from "../ui/Toast";
+import { isIepProgram } from "../../utils/programHelpers";
 
 export default function AppShell({ children }) {
   const { user, role, isAdmin, isParent, logout, toasts, removeToast, childrenList } = useAuth();
@@ -42,6 +43,11 @@ export default function AppShell({ children }) {
     if (path.startsWith("/children/")) return "Child Profile";
     if (path === "/children") return "Children & Reports";
     if (path === "/admin/staff") return "Staff Management";
+    if (path.startsWith("/therapy/asd/assessment") || path.startsWith("/assessment/isaa")) return "Indian Scale for Assessment of Autism (ISAA)";
+    if (path.startsWith("/therapy/adhd/assessment") || path.startsWith("/assessment/conners")) return "Conners' Parent Rating Scale (ADHD)";
+    if (path.startsWith("/therapy/delay/assessment") || path.startsWith("/assessment/delay")) return "Developmental Checklists (Birth to Five)";
+    if (path.startsWith("/therapy/sld/assessment") || path.startsWith("/assessment/sld")) return "Learning Disability Screening Test (LDST)";
+    if (path === "/therapy") return "Therapy Pathways & Programs";
     if (path === "/appointments") return "Appointments";
     if (path === "/parent/home") return "Parent Dashboard";
     if (path === "/parent/report") return "Child Assessment Report";
@@ -51,8 +57,10 @@ export default function AppShell({ children }) {
 
   // If Parent Role -> Render Parent Shell
   if (isParent) {
-    const activeChild = childrenList.find((c) => c.id === user?.childId) || childrenList[1] || childrenList[0];
-    const isIep = activeChild?.program_type === "iep";
+    const activeChild =
+      childrenList.find((c) => c.id === user?.childId) ||
+      (user?.childId ? { id: user.childId, name: user.childName } : childrenList[0]);
+    const isIep = isIepProgram(activeChild) || isIepProgram(user);
 
     return (
       <div className="min-h-screen bg-[#F8F8F6] text-[#2C2C2A] font-sans">

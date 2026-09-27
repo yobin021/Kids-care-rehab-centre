@@ -3,8 +3,8 @@ import { childrenService } from './childrenService'
 export const THERAPY_CATEGORIES = [
   {
     id: "ASD",
-    name: "ASD",
-    fullName: "Autism Spectrum Disorder",
+    name: "Autism Spectrum (ASD)",
+    fullName: "Autism Spectrum Disorder (ASD)",
     description: "Social communication, sensory integration & behavioural support therapy",
     color: "#185FA5",
     bg: "bg-[#EEF4FB]",
@@ -13,8 +13,8 @@ export const THERAPY_CATEGORIES = [
   },
   {
     id: "ADHD",
-    name: "ADHD",
-    fullName: "Attention Deficit Hyperactivity Disorder",
+    name: "ADHD Presentation",
+    fullName: "Attention Deficit Hyperactivity Disorder (ADHD)",
     description: "Focus enhancement, impulse control, executive function & motor regulation",
     color: "#0F6E56",
     bg: "bg-[#E1F5EE]",

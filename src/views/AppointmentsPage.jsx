@@ -69,9 +69,11 @@ export function BookAppointmentModal({ isOpen, onClose, onBooked, preselectedChi
   const today = new Date().toISOString().split("T")[0];
 
   const filteredChildren = (childrenList || []).filter(c =>
-    childSearch === "" ||
-    c.name?.toLowerCase().includes(childSearch.toLowerCase()) ||
-    c.id?.toLowerCase().includes(childSearch.toLowerCase())
+    c.program_type !== "iep" && (
+      childSearch === "" ||
+      c.name?.toLowerCase().includes(childSearch.toLowerCase()) ||
+      c.id?.toLowerCase().includes(childSearch.toLowerCase())
+    )
   );
 
   const selectedChild = childrenList.find(c => c.id === form.child_id);

@@ -14,7 +14,7 @@ export const iepService = {
   async getIepHistory(childId) {
     try {
       const [assessments, reports] = await Promise.all([
-        db.select('assessments', {
+        db.select('assessment_special_school', {
           match: { child_id: childId },
           order: { column: 'created_at', ascending: false }
         }),
@@ -56,7 +56,7 @@ export const iepService = {
    */
   async getPreviousAssessment(childId, excludeAssessmentId = null) {
     try {
-      const all = await db.select('assessments', {
+      const all = await db.select('assessment_special_school', {
         match: { child_id: childId },
         order: { column: 'created_at', ascending: false }
       }) || []

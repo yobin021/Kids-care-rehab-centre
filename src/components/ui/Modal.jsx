@@ -3,20 +3,22 @@
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
 
-export default function Modal({ isOpen, onClose, title, children }) {
+export default function Modal({ isOpen, open, onClose, title, children }) {
+  const active = isOpen !== undefined ? isOpen : (open !== undefined ? open : false);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         onClose();
       }
     };
-    if (isOpen) {
+    if (active) {
       window.addEventListener("keydown", handleKeyDown);
     }
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [active, onClose]);
 
-  if (!isOpen) return null;
+  if (!active) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">

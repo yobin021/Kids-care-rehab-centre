@@ -14,7 +14,7 @@ import {
   SensoryTable,
   CheckboxGrid
 } from "../components/assessment/RatingComponents";
-import { assessmentService } from "../services/assessmentService";
+import { therapyAssessmentService } from "../services/therapyAssessmentService";
 import { calculateDomainScores, classifyProfile, selectExercises } from "../utils/scoringEngine";
 
 export default function AssessmentForm() {
@@ -347,7 +347,7 @@ export default function AssessmentForm() {
     };
 
     try {
-      const res = await assessmentService.save(assessmentPayload);
+      const res = await therapyAssessmentService.saveSpecialSchool(assessmentPayload);
       localStorage.removeItem(`iep_assessment_draft_${activeChildId}`);
       localStorage.setItem(`assessment_result_${res?.id || activeChildId}`, JSON.stringify(res));
       showToast("IEP Assessment successfully submitted and saved!", "success");

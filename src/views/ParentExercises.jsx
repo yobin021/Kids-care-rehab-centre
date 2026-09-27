@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, Send, Dumbbell, Calendar, RefreshCw } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -12,6 +13,7 @@ import { parentService } from "../services/parentService";
 import { reportService } from "../services/reportService";
 import { exerciseService } from "../services/exerciseService";
 import { authService } from "../services/authService";
+import { isIepProgram } from "../utils/programHelpers";
 
 const FEEDBACK_OPTIONS = [
   { label: "😊 Great", value: "great" },
@@ -21,22 +23,18 @@ const FEEDBACK_OPTIONS = [
 
 export default function ParentExercises() {
   const { user, childrenList, showToast } = useAuth();
-  const child = childrenList.find((c) => c.id === user?.childId) || childrenList[0];
+  const navigate = useNavigate();
+  const child =
+    childrenList.find((c) => c.id === user?.childId) ||
+    (user?.childId ? { id: user.childId, name: user.childName } : childrenList[0]);
 
-  const [exercises, setExercises] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const isIep = isIepProgram(child) || isIepProgram(user);
 
-  const [expandedId, setExpandedId] = useState(null);
-  const [doneLogs, setDoneLogs] = useState({});
-  const [message, setMessage] = useState("");
-  const [sentMessage, setSentMessage] = useState(null);
-
-  // Weekly Progress State
-  const [weekDays, setWeekDays] = useState([]);
-  const [weekStatus, setWeekStatus] = useState({});
-
-  const isIep = child?.program_type === "iep";
+  useEffect(() => {
+    if (isIep) {
+      navigate("/parent/home", { replace: true });
+    }
+  }, [isIep, navigate]);
 
   const loadExercises = async () => {
     setLoading(true);
@@ -209,6 +207,10 @@ export default function ParentExercises() {
   const completedCount = Object.keys(doneLogs).length;
   const totalCount = exercises.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  if (isIep) {
+    return null;
+  }
 
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 max-w-3xl mx-auto">

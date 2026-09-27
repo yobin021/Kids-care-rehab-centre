@@ -1,4 +1,5 @@
 import { db } from '../lib/db'
+import { hashPassword, isHashed } from './passwordService'
 
 function toUUID(val) {
   return typeof val === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val)
@@ -18,6 +19,9 @@ export const parentService = {
     if (!parentData.phone) throw new Error('Phone number is required')
     if (!parentData.password_hash && !parentData.password) throw new Error('Password is required')
 
+    const rawPass = parentData.password_hash || parentData.password || 'parent123'
+    const password_hash = isHashed(rawPass) ? rawPass : await hashPassword(rawPass)
+
     // Exact columns from parent_accounts schema
     const row = {
       child_id: childId,
@@ -26,7 +30,7 @@ export const parentService = {
       phone: parentData.phone,
       email: parentData.email || null,
       address: parentData.address || null,
-      password_hash: parentData.password_hash || parentData.password,
+      password_hash,
       portal_active: true,
       created_by: toUUID(createdBy)
     }
@@ -34,16 +38,24 @@ export const parentService = {
     if (!row.created_by) delete row.created_by
 
     try {
-      return await db.upsert('parent_accounts', row, 'phone')
+      // First check if an account exists for this child_id or phone
+      const existing = await db.select('parent_accounts', {
+        match: { phone: parentData.phone },
+        single: true
+      }).catch(() => null) || await db.select('parent_accounts', {
+        match: { child_id: childId },
+        single: true
+      }).catch(() => null)
+
+      if (existing && existing.id) {
+        return await db.update('parent_accounts', row, { id: existing.id })
+      }
+
+      return await db.insert('parent_accounts', row)
     } catch (err) {
-      console.warn('parentService.createAccount notice (trying update/insert fallback):', err.message)
+      console.warn('parentService.createAccount notice (trying direct upsert fallback):', err.message)
       try {
-        const existing = await db.select('parent_accounts', { match: { phone: parentData.phone }, single: true })
-        if (existing) {
-          return await db.update('parent_accounts', row, { id: existing.id })
-        } else {
-          return await db.insert('parent_accounts', row)
-        }
+        return await db.upsert('parent_accounts', row, 'phone')
       } catch (fallbackErr) {
         console.warn('parentService.createAccount local fallback:', fallbackErr.message)
         return { ...row, id: 'PA-' + Date.now() }
@@ -51,18 +63,34 @@ export const parentService = {
     }
   },
 
-  async updatePassword(parentId, newPassword) {
+  async updatePassword(parentIdOrPhone, newPassword) {
     try {
-      return await db.update('parent_accounts', { password_hash: newPassword }, { id: parentId })
+      const password_hash = isHashed(newPassword) ? newPassword : await hashPassword(newPassword)
+      if (typeof parentIdOrPhone === 'string' && /^[0-9a-fA-F-]{36}$/.test(parentIdOrPhone)) {
+        return await db.update('parent_accounts', { password_hash }, { id: parentIdOrPhone })
+      } else {
+        return await db.update('parent_accounts', { password_hash }, { match: { phone: String(parentIdOrPhone) } })
+      }
     } catch (err) {
       console.error('parentService.updatePassword error:', err.message)
       throw err
     }
   },
 
+  async updatePasswordByPhone(phone, newPassword) {
+    try {
+      const password_hash = isHashed(newPassword) ? newPassword : await hashPassword(newPassword)
+      return await db.update('parent_accounts', { password_hash }, { match: { phone: String(phone) } })
+    } catch (err) {
+      console.error('parentService.updatePasswordByPhone error:', err.message)
+      throw err
+    }
+  },
+
   async updatePasswordByChildId(childId, newPassword) {
     try {
-      return await db.update('parent_accounts', { password_hash: newPassword }, { match: { child_id: childId } })
+      const password_hash = isHashed(newPassword) ? newPassword : await hashPassword(newPassword)
+      return await db.update('parent_accounts', { password_hash }, { match: { child_id: childId } })
     } catch (err) {
       console.error('parentService.updatePasswordByChildId error:', err.message)
       throw err
@@ -177,6 +205,50 @@ export const parentService = {
       return data || null
     } catch {
       return null
+    }
+  },
+
+  async getAllMessages(limit = 50) {
+    try {
+      const data = await db.select('parent_messages', {
+        select: '*, children(id, name, diagnosis), parent_accounts(id, parent_name, phone)',
+        order: { column: 'created_at', ascending: false },
+        limit
+      })
+      return Array.isArray(data) ? data : (data ? [data] : [])
+    } catch (err) {
+      console.warn('parentService.getAllMessages error (trying basic select):', err.message)
+      try {
+        const fallback = await db.select('parent_messages', {
+          order: { column: 'created_at', ascending: false },
+          limit
+        })
+        return Array.isArray(fallback) ? fallback : (fallback ? [fallback] : [])
+      } catch (_) {
+        return []
+      }
+    }
+  },
+
+  async getMessagesByChildId(childId) {
+    try {
+      const data = await db.select('parent_messages', {
+        select: '*, children(id, name, diagnosis), parent_accounts(id, parent_name, phone)',
+        match: { child_id: childId },
+        order: { column: 'created_at', ascending: false }
+      })
+      return Array.isArray(data) ? data : (data ? [data] : [])
+    } catch (err) {
+      console.warn('parentService.getMessagesByChildId error:', err.message)
+      try {
+        const fallback = await db.select('parent_messages', {
+          match: { child_id: childId },
+          order: { column: 'created_at', ascending: false }
+        })
+        return Array.isArray(fallback) ? fallback : (fallback ? [fallback] : [])
+      } catch (_) {
+        return []
+      }
     }
   }
 }

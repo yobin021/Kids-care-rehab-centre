@@ -11,6 +11,7 @@ import Badge from "../components/ui/Badge";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { db } from "../lib/db";
+import { hashPassword } from "../services/passwordService";
 
 export default function StaffManagement() {
   const { user, addStaffMember, resetStaffPassword, showToast } = useAuth();
@@ -45,7 +46,9 @@ export default function StaffManagement() {
         id: d.id,
         name: d.name,
         designation: d.designation,
-        username: d.username
+        username: d.username,
+        role: d.role,
+        is_active: d.is_active !== false
       }));
       setData(mapped);
     } catch (err) {
@@ -63,11 +66,12 @@ export default function StaffManagement() {
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
+      const hashedPassword = await hashPassword(newStaff.password);
       const inserted = await db.insert("users", {
         name: newStaff.name,
         designation: newStaff.designation,
         username: newStaff.username,
-        password_hash: newStaff.password,
+        password_hash: hashedPassword,
         role: "staff",
         is_active: true
       });
@@ -76,9 +80,11 @@ export default function StaffManagement() {
       fetchStaff();
     } catch (err) {
       console.warn("Local add staff fallback:", err.message);
+      const hashedPassword = await hashPassword(newStaff.password);
       addStaffMember({
         id: Date.now(),
         ...newStaff,
+        password: hashedPassword,
         isActive: true,
         childrenHandled: 0,
         sessionsThisMonth: 0
@@ -91,6 +97,17 @@ export default function StaffManagement() {
   };
 
   const confirmDeleteStaff = (staffMember) => {
+    if (staffMember.role === "admin") {
+      showToast("The Primary Administrator account cannot be deleted.", "error");
+      return;
+    }
+    if (
+      (user?.id && user.id === staffMember.id) ||
+      (user?.username && staffMember.username && user.username.toLowerCase() === staffMember.username.toLowerCase())
+    ) {
+      showToast("You cannot delete your own logged-in account.", "error");
+      return;
+    }
     setStaffToDelete(staffMember);
     setShowDeleteModal(true);
   };
@@ -98,8 +115,12 @@ export default function StaffManagement() {
   const handleDeleteSubmit = async () => {
     if (!staffToDelete) return;
     try {
-      await db.remove("users", { id: staffToDelete.id });
-      showToast(`Staff member ${staffToDelete.name} deleted.`, "info");
+      const res = await db.remove("users", { id: staffToDelete.id });
+      if (res?.softDeleted) {
+        showToast(`Staff member ${staffToDelete.name} deactivated (records preserved).`, "info");
+      } else {
+        showToast(`Staff member ${staffToDelete.name} deleted successfully.`, "success");
+      }
       fetchStaff();
     } catch (err) {
       console.warn("Delete staff error:", err.message);
@@ -114,12 +135,29 @@ export default function StaffManagement() {
     if (!selectedStaff || !newPassword.trim()) return;
 
     try {
-      await db.update("users", { password_hash: newPassword }, { id: selectedStaff.id });
+      const hashedPassword = await hashPassword(newPassword);
+      let updated = false;
+
+      if (selectedStaff.id && /^[0-9a-fA-F-]{36}$/.test(selectedStaff.id)) {
+        try {
+          await db.update("users", { password_hash: hashedPassword }, { id: selectedStaff.id });
+          updated = true;
+        } catch (_) {}
+      }
+
+      if (!updated && selectedStaff.username) {
+        try {
+          await db.update("users", { password_hash: hashedPassword }, { match: { username: selectedStaff.username } });
+          updated = true;
+        } catch (_) {}
+      }
+
       showToast(`Password reset for ${selectedStaff.name}!`, "success");
       fetchStaff();
     } catch (err) {
       console.warn("Local reset password fallback:", err.message);
-      resetStaffPassword(selectedStaff.id, newPassword);
+      const hashedPassword = await hashPassword(newPassword);
+      resetStaffPassword(selectedStaff.id, hashedPassword);
       showToast(`Password reset for ${selectedStaff.name}!`, "success");
     }
 
@@ -192,6 +230,14 @@ export default function StaffManagement() {
                     variant="danger"
                     size="sm"
                     icon={Trash2}
+                    disabled={isOnline || s.role === "admin"}
+                    title={
+                      s.role === "admin"
+                        ? "Primary Administrator cannot be deleted"
+                        : isOnline
+                        ? "Cannot delete currently logged-in account"
+                        : "Delete account"
+                    }
                     onClick={() => confirmDeleteStaff(s)}
                   >
                     Delete

@@ -1,19 +1,28 @@
 import { db } from '../lib/db'
+import { MASTER_EXERCISES } from '../data/exercisesData'
 
 export const exerciseService = {
 
   async getAll() {
-    // exercises: id, name, category, category_color, description, home_description,
-    //            benefits (jsonb), instructions (jsonb), duration, frequency,
-    //            for_profiles (jsonb), is_home_exercise, is_clinic_exercise, is_active
     try {
-      return await db.select('exercises', {
+      const data = await db.select('exercises', {
         match: { is_active: true },
         order: { column: 'name', ascending: true }
-      }) || []
+      })
+
+      if (data && data.length > 0) {
+        // Merge remote DB rows with master exercises so image_url and rich descriptions are always present
+        return MASTER_EXERCISES.map((master) => {
+          const remote = data.find((d) => d.id === master.id || d.name?.toLowerCase() === master.name?.toLowerCase());
+          return remote
+            ? { ...master, ...remote, image_url: remote.image_url || master.image_url }
+            : master;
+        });
+      }
+      return MASTER_EXERCISES
     } catch (err) {
-      console.error('exerciseService.getAll error:', err.message)
-      return []
+      console.warn('exerciseService.getAll fallback notice:', err.message)
+      return MASTER_EXERCISES
     }
   },
 

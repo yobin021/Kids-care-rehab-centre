@@ -117,6 +117,26 @@ export const assessmentService = {
       }
     }
 
+    const ASSESSMENT_TABLES = [
+      'assessment_special_school',
+      'assessment_asd',
+      'assessment_adhd',
+      'assessment_developmental_delay',
+      'assessment_learning_disability'
+    ]
+
+    for (const table of ASSESSMENT_TABLES) {
+      try {
+        const res = await db.select(table, {
+          select: '*, children(name, age, diagnosis, profile)',
+          match: { id },
+          single: true
+        })
+        if (res) return { ...res, source_table: table }
+      } catch (_) {}
+    }
+
+    // Legacy table fallback
     try {
       const res = await db.select('assessments', {
         select: '*, children(name, age, diagnosis, profile)',
@@ -144,15 +164,47 @@ export const assessmentService = {
   },
 
   async getByChildId(childId) {
-    try {
-      const data = await db.select('assessments', {
-        select: '*',
-        match: { child_id: childId },
-        order: { column: 'assessment_date', ascending: false }
-      })
-      if (data && data.length > 0) return data
-    } catch (err) {
-      console.warn('assessmentService.getByChildId notice:', err.message)
+    const ASSESSMENT_TABLES = [
+      'assessment_special_school',
+      'assessment_asd',
+      'assessment_adhd',
+      'assessment_developmental_delay',
+      'assessment_learning_disability'
+    ]
+
+    let allAssessments = []
+
+    for (const table of ASSESSMENT_TABLES) {
+      try {
+        const data = await db.select(table, {
+          select: '*',
+          match: { child_id: childId },
+          order: { column: 'assessment_date', ascending: false }
+        })
+        if (Array.isArray(data) && data.length > 0) {
+          allAssessments.push(...data.map(d => ({ ...d, source_table: table })))
+        }
+      } catch (_) {}
+    }
+
+    // Also check legacy assessments table if nothing found
+    if (allAssessments.length === 0) {
+      try {
+        const data = await db.select('assessments', {
+          select: '*',
+          match: { child_id: childId },
+          order: { column: 'assessment_date', ascending: false }
+        })
+        if (data && data.length > 0) {
+          allAssessments.push(...data)
+        }
+      } catch (err) {
+        console.warn('assessmentService.getByChildId legacy notice:', err.message)
+      }
+    }
+
+    if (allAssessments.length > 0) {
+      return allAssessments.sort((a, b) => new Date(b.assessment_date || b.created_at || 0) - new Date(a.assessment_date || a.created_at || 0))
     }
 
     // Local fallback
@@ -168,33 +220,53 @@ export const assessmentService = {
   },
 
   async getAll() {
-    try {
-      const data = await db.select('assessments', {
-        select: '*',
-        order: { column: 'assessment_date', ascending: false }
-      })
-      return Array.isArray(data) ? data : []
-    } catch (err) {
-      console.warn('assessmentService.getAll notice:', err.message)
-      return []
+    const ASSESSMENT_TABLES = [
+      'assessment_special_school',
+      'assessment_asd',
+      'assessment_adhd',
+      'assessment_developmental_delay',
+      'assessment_learning_disability'
+    ]
+
+    let all = []
+    for (const table of ASSESSMENT_TABLES) {
+      try {
+        const data = await db.select(table, {
+          select: '*',
+          order: { column: 'assessment_date', ascending: false }
+        })
+        if (Array.isArray(data)) all.push(...data)
+      } catch (_) {}
     }
+    return all.sort((a, b) => new Date(b.assessment_date || b.created_at || 0) - new Date(a.assessment_date || a.created_at || 0))
   },
 
   async getAllThisMonth() {
-    try {
-      const now = new Date()
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-      const data = await db.select('assessments', {
-        select: 'id, assessment_date, child_id',
-        order: { column: 'assessment_date', ascending: false }
-      })
-      if (Array.isArray(data)) {
-        return data.filter(a => a.assessment_date && a.assessment_date >= firstDay)
-      }
-      return []
-    } catch (err) {
-      console.warn('assessmentService.getAllThisMonth notice:', err.message)
-      return []
+    const ASSESSMENT_TABLES = [
+      'assessment_special_school',
+      'assessment_asd',
+      'assessment_adhd',
+      'assessment_developmental_delay',
+      'assessment_learning_disability'
+    ]
+
+    const now = new Date()
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    let all = []
+
+    for (const table of ASSESSMENT_TABLES) {
+      try {
+        const data = await db.select(table, {
+          select: 'id, assessment_date, child_id',
+          order: { column: 'assessment_date', ascending: false }
+        })
+        if (Array.isArray(data)) {
+          const thisMonth = data.filter(a => a.assessment_date && a.assessment_date >= firstDay)
+          all.push(...thisMonth)
+        }
+      } catch (_) {}
     }
+
+    return all
   }
 }

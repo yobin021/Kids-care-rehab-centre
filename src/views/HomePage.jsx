@@ -290,34 +290,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── Bottom CTA Banner ─── */}
-      <section className="py-20 relative z-10">
-        <div className="absolute inset-0 bg-slate-900 -skew-y-2 origin-bottom-right" />
-        <div className="max-w-4xl mx-auto px-4 text-center space-y-8 relative z-10 py-12">
-          <div className="space-y-3">
-            <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Ready to access your portal?</h3>
-            <p className="text-[15px] text-slate-400 font-medium">Select your role to view diagnostic records, therapy paths, and reports.</p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-5 pt-4">
-            <button
-              onClick={() => navigate("/login")}
-              className="px-8 py-4 rounded-xl bg-gradient-blue hover:brightness-110 text-white font-bold text-[14px] transition-all shadow-[0_8px_24px_rgba(37,99,235,0.4)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer border-0"
-            >
-              <ShieldCheck className="h-5 w-5" />
-              <span>Staff &amp; Admin Sign In</span>
-            </button>
-            <button
-              onClick={() => navigate("/parent/login")}
-              className="px-8 py-4 rounded-xl bg-gradient-emerald hover:brightness-110 text-white font-bold text-[14px] transition-all shadow-[0_8px_24px_rgba(5,150,105,0.4)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer border-0"
-            >
-              <HeartHandshake className="h-5 w-5" />
-              <span>Parent Portal Sign In</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
       {/* ─── Footer ─── */}
       <footer className="mt-auto bg-[#0F172A] text-slate-400 py-10 relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-[13px]">

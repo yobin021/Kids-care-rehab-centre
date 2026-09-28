@@ -8,7 +8,6 @@ import AppShell from "../components/layout/AppShell";
 // Views
 import HomePage from "../views/HomePage";
 import StaffLogin from "../views/StaffLogin";
-import StaffRegister from "../views/StaffRegister";
 import ParentLogin from "../views/ParentLogin";
 import StaffDashboard from "../views/StaffDashboard";
 import AdminDashboard from "../views/AdminDashboard";
@@ -68,7 +67,7 @@ export default function AppRouter() {
 
         {/* Public Login Routes */}
         <Route path="/login" element={<StaffLogin />} />
-        <Route path="/register" element={<StaffRegister />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/parent/login" element={<ParentLogin />} />
 
         {/* Protected Dashboard */}

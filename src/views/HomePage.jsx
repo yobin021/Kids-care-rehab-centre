@@ -55,26 +55,21 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <a
-              href="tel:+18001234567"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border border-white/60 bg-white/70 hover:bg-white text-slate-600 text-[13px] font-bold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 backdrop-blur-sm"
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => navigate("/parent/login")}
+              className="px-3 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 text-xs sm:text-[13px] font-bold transition-all shadow-xs hover:shadow-sm hover:-translate-y-0.5 flex items-center gap-1.5 cursor-pointer"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.61 4.44 2 2 0 0 1 3.6 2.26h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.1 6.1l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-              </svg>
-              <span>+1 (800) 123-4567</span>
-            </a>
-            <a
-              href="mailto:info@kidscare360.com"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-blue text-white text-[13px] font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 border-0"
+              <HeartHandshake className="h-4 w-4 text-emerald-600" />
+              <span>Parent Login</span>
+            </button>
+            <button
+              onClick={() => navigate("/login")}
+              className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-blue hover:brightness-110 text-white text-xs sm:text-[13px] font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 flex items-center gap-1.5 cursor-pointer border-0"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="20" height="16" x="2" y="4" rx="2"/>
-                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-              </svg>
-              <span>Contact Us</span>
-            </a>
+              <ShieldCheck className="h-4 w-4 text-blue-200" />
+              <span>Staff Login</span>
+            </button>
           </div>
         </div>
       </header>
@@ -291,34 +286,6 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Bottom CTA Banner ─── */}
-      <section className="py-20 relative z-10">
-        <div className="absolute inset-0 bg-slate-900 -skew-y-2 origin-bottom-right" />
-        <div className="max-w-4xl mx-auto px-4 text-center space-y-8 relative z-10 py-12">
-          <div className="space-y-3">
-            <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Ready to access your portal?</h3>
-            <p className="text-[15px] text-slate-400 font-medium">Select your role to view diagnostic records, therapy paths, and reports.</p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-5 pt-4">
-            <button
-              onClick={() => navigate("/login")}
-              className="px-8 py-4 rounded-xl bg-gradient-blue hover:brightness-110 text-white font-bold text-[14px] transition-all shadow-[0_8px_24px_rgba(37,99,235,0.4)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer border-0"
-            >
-              <ShieldCheck className="h-5 w-5" />
-              <span>Staff &amp; Admin Sign In</span>
-            </button>
-            <button
-              onClick={() => navigate("/parent/login")}
-              className="px-8 py-4 rounded-xl bg-gradient-emerald hover:brightness-110 text-white font-bold text-[14px] transition-all shadow-[0_8px_24px_rgba(5,150,105,0.4)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer border-0"
-            >
-              <HeartHandshake className="h-5 w-5" />
-              <span>Parent Portal Sign In</span>
-            </button>
           </div>
         </div>
       </section>

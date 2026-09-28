@@ -43,8 +43,8 @@ export default function Input({
       ) : (
         <div className="relative">
           {Icon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-              <Icon className="h-4 w-4" />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center justify-center">
+              {React.isValidElement(Icon) ? Icon : <Icon className="h-4 w-4" />}
             </div>
           )}
           <input

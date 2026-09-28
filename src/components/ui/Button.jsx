@@ -62,7 +62,7 @@ export default function Button({
         </span>
       ) : (
         <span className="flex items-center gap-1.5">
-          {Icon && <Icon className="h-4 w-4 shrink-0" />}
+          {Icon && (React.isValidElement(Icon) ? Icon : <Icon className="h-4 w-4 shrink-0" />)}
           <span>{children}</span>
         </span>
       )}

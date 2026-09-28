@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity, School, Calendar, ChevronRight, BookOpen } from "lucide-react";
+import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity, School, Calendar, ChevronRight, BookOpen, Clock } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -114,24 +114,24 @@ export default function ParentDashboard() {
     <div className="space-y-6 text-slate-800 pb-10">
       
       {/* Greeting Banner */}
-      <div className={`relative rounded-3xl overflow-hidden p-8 flex flex-col justify-between gap-6 shadow-[0_12px_40px_rgba(0,0,0,0.12)] ${isIep ? "bg-gradient-violet" : "bg-gradient-emerald"}`}>
+      <div className={`relative rounded-3xl overflow-hidden p-5 sm:p-8 flex flex-col justify-between gap-6 shadow-[0_12px_40px_rgba(0,0,0,0.12)] ${isIep ? "bg-gradient-violet" : "bg-gradient-emerald"}`}>
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay pointer-events-none" />
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         
         <div className="relative z-10 flex items-center justify-between gap-2">
-          <span className="text-[13px] font-bold text-white/90 uppercase tracking-widest block">
+          <span className="text-xs sm:text-[13px] font-bold text-white/90 uppercase tracking-widest block">
             Hello, {user?.name || "Family"}! 👋
           </span>
-          <span className="text-[10px] font-black px-3 py-1 rounded-full bg-white text-slate-900 shadow-sm uppercase tracking-wider">
+          <span className="text-[10px] font-black px-2.5 sm:px-3 py-1 rounded-full bg-white text-slate-900 shadow-sm uppercase tracking-wider">
             {isIep ? "IEP Program" : `Therapy: ${child?.therapy_category || 'ASD'}`}
           </span>
         </div>
         
-        <div className="relative z-10 space-y-2 mt-4">
-          <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+        <div className="relative z-10 space-y-2 mt-2 sm:mt-4">
+          <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
             Here is <span className="underline decoration-white/40">{child?.name}</span>'s <br className="hidden sm:block"/>update today.
           </h2>
-          <p className="text-[15px] text-white/80 font-medium">{todayStr}</p>
+          <p className="text-xs sm:text-[15px] text-white/80 font-medium">{todayStr}</p>
         </div>
       </div>
 
@@ -307,24 +307,24 @@ export default function ParentDashboard() {
       )}
 
       {/* Support Card */}
-      <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="bg-white rounded-3xl p-5 sm:p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
-          <h3 className="text-[18px] font-bold text-slate-900">Need to reach the clinic?</h3>
-          <p className="text-[13px] text-slate-500 font-medium mt-1">We're here to support you and your child.</p>
+          <h3 className="text-base sm:text-[18px] font-bold text-slate-900">Need to reach the clinic?</h3>
+          <p className="text-xs sm:text-[13px] text-slate-500 font-medium mt-1">We're here to support you and your child.</p>
         </div>
         
-        <div className="flex flex-wrap gap-4 text-[13px] font-semibold">
-          <div className="flex items-center gap-2.5 bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl">
-            <Phone className="h-4 w-4" />
+        <div className="flex flex-wrap gap-2.5 sm:gap-4 text-xs sm:text-[13px] font-semibold w-full md:w-auto">
+          <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl">
+            <Phone className="h-4 w-4 shrink-0" />
             <span>044-28353136</span>
           </div>
-          <div className="flex items-center gap-2.5 bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-xl">
-            <Mail className="h-4 w-4" />
-            <span>kidscarerehabcenter@gmail.com</span>
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl">
+            <Mail className="h-4 w-4 shrink-0" />
+            <span className="truncate max-w-[200px] sm:max-w-none">kidscarerehabcenter@gmail.com</span>
           </div>
-          <div className="flex items-center gap-2.5 bg-slate-100 text-slate-700 px-4 py-2.5 rounded-xl md:w-full lg:w-auto">
-            <MapPin className="h-4 w-4" />
-            <span className="truncate max-w-[300px]">New no 52/2 old no 97 Gowdia mutt road, Chennai-14</span>
+          <div className="flex items-center gap-2 bg-slate-100 text-slate-700 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl w-full sm:w-auto">
+            <MapPin className="h-4 w-4 shrink-0" />
+            <span className="truncate max-w-[240px] sm:max-w-[300px]">New no 52/2 old no 97 Gowdia mutt road, Chennai-14</span>
           </div>
         </div>
       </div>

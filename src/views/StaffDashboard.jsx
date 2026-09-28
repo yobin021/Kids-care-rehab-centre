@@ -62,20 +62,20 @@ export default function StaffDashboard() {
     <div className="space-y-8 text-slate-800 pb-10">
       
       {/* ─── Gradient Welcome Banner ─── */}
-      <div className="relative bg-white rounded-3xl border border-white shadow-[0_8px_32px_rgba(37,99,235,0.06)] overflow-hidden p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="relative bg-white rounded-3xl border border-white shadow-[0_8px_32px_rgba(37,99,235,0.06)] overflow-hidden p-5 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-50/80 to-transparent pointer-events-none" />
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         
         <div className="relative z-10 space-y-2">
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Good morning, <span className="gradient-text-blue">{user?.name || "Clinician"}</span>
           </h2>
-          <p className="text-[14px] font-semibold text-slate-500">{todayStr}</p>
+          <p className="text-xs sm:text-[14px] font-semibold text-slate-500">{todayStr}</p>
         </div>
       </div>
 
       {/* ─── Dynamic Metric Cards ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
         <StatCard title="Total Children" value={totalChildrenCount} icon={Users} color="#2563EB" />
         <StatCard title="Reports Published" value={publishedCount} icon={FileText} color="#059669" />
         <StatCard title="Assessments (Month)" value={assessmentsCount} icon={ClipboardList} color="#7C3AED" />
@@ -87,7 +87,7 @@ export default function StaffDashboard() {
         {/* IEP Module Card */}
         <div
           onClick={() => navigate("/iep")}
-          className="group relative bg-white rounded-3xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(124,58,237,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden p-8 flex flex-col"
+          className="group relative bg-white rounded-3xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(124,58,237,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden p-6 sm:p-8 flex flex-col"
         >
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-violet" />
           <div className="absolute -bottom-8 -right-8 text-violet-500/5 group-hover:text-violet-500/10 transition-colors pointer-events-none">
@@ -95,22 +95,22 @@ export default function StaffDashboard() {
           </div>
 
           <div className="relative z-10 space-y-6 flex-1">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-violet text-white flex items-center justify-center shadow-lg shadow-violet-500/30">
-              <BookOpen className="h-7 w-7" />
+            <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-violet text-white flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0">
+              <BookOpen className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
 
             <div>
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">IEP Program</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">IEP Program</h3>
               <p className="text-[11px] font-bold text-violet-600 uppercase tracking-widest mt-1">Assessment &amp; Milestones</p>
             </div>
 
-            <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+            <p className="text-[13px] sm:text-[14px] text-slate-600 font-medium leading-relaxed">
               Conduct IEP assessments, generate structured 3-month progress reports, and track competency growth over time.
             </p>
           </div>
 
-          <div className="relative z-10 pt-6 mt-6 border-t border-slate-100 flex items-center justify-between text-violet-600 font-bold">
-            <span>Open IEP Dashboard</span>
+          <div className="relative z-10 pt-5 sm:pt-6 mt-6 border-t border-slate-100 flex items-center justify-between text-violet-600 font-bold">
+            <span className="text-sm sm:text-base">Open IEP Dashboard</span>
             <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
@@ -118,7 +118,7 @@ export default function StaffDashboard() {
         {/* Therapy Module Card */}
         <div
           onClick={() => navigate("/therapy")}
-          className="group relative bg-white rounded-3xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(5,150,105,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden p-8 flex flex-col"
+          className="group relative bg-white rounded-3xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(5,150,105,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden p-6 sm:p-8 flex flex-col"
         >
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-emerald" />
           <div className="absolute -bottom-8 -right-8 text-emerald-500/5 group-hover:text-emerald-500/10 transition-colors pointer-events-none">
@@ -126,29 +126,29 @@ export default function StaffDashboard() {
           </div>
 
           <div className="relative z-10 space-y-6 flex-1">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-emerald text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <Activity className="h-7 w-7" />
+            <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-emerald text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
+              <Activity className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
 
             <div>
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Therapy Pathways</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Therapy Pathways</h3>
               <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Intervention &amp; Exercises</p>
             </div>
 
-            <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+            <p className="text-[13px] sm:text-[14px] text-slate-600 font-medium leading-relaxed">
               Manage clinical tracks, assign daily home exercise regimens, and review parent progress logs.
             </p>
           </div>
 
-          <div className="relative z-10 pt-6 mt-6 border-t border-slate-100 flex items-center justify-between text-emerald-600 font-bold">
-            <span>Open Therapy Dashboard</span>
+          <div className="relative z-10 pt-5 sm:pt-6 mt-6 border-t border-slate-100 flex items-center justify-between text-emerald-600 font-bold">
+            <span className="text-sm sm:text-base">Open Therapy Dashboard</span>
             <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
       </div>
 
       {/* ─── QUICK ACTIONS ─── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
         <Card className="flex flex-col justify-between p-6 space-y-5 hover:border-blue-400 group cursor-pointer" padding="p-0">
           <div className="space-y-3">
             <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">

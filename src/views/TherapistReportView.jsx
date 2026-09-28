@@ -552,28 +552,29 @@ export default function TherapistReportView({ initialEditMode = false }) {
       `}</style>
 
       {/* ────────────────────────────────────────────────────────── */}
-      {/* STICKY TOP ACTION BAR (56px height, no-print)              */}
+      {/* STICKY TOP ACTION BAR (no-print)                          */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 h-[56px] w-full bg-white border-b border-[#D3D1C7] px-4 flex items-center justify-between shadow-xs no-print">
+      <div className="sticky top-0 z-40 min-h-[56px] w-full bg-white border-b border-[#D3D1C7] px-3 sm:px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs no-print">
         {/* Left Side */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={() => navigate(`/children/${child?.id}`)}
-            className="p-1.5 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer"
+            className="p-1.5 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer shrink-0"
+            aria-label="Back to child profile"
           >
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
           </button>
-          <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-bold text-[#2C2C2A]">Therapist Report</h2>
-            <span className="text-xs text-[#5F5E5A] font-semibold">• {child?.name}</span>
-            <span className="font-mono text-[12px] font-bold text-[#9B9A96] bg-[#F0EFEA] px-2 py-0.5 rounded border border-[#D3D1C7]">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <h2 className="text-sm sm:text-[15px] font-bold text-[#2C2C2A] truncate">Therapist Report</h2>
+            <span className="text-xs text-[#5F5E5A] font-semibold truncate hidden sm:inline">• {child?.name}</span>
+            <span className="font-mono text-[11px] sm:text-[12px] font-bold text-[#9B9A96] bg-[#F0EFEA] px-1.5 sm:px-2 py-0.5 rounded border border-[#D3D1C7] shrink-0">
               {child?.id}
             </span>
           </div>
         </div>
 
         {/* Right Side Controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap shrink-0">
           {/* Edit Mode Auto-save Indicator */}
           {isEditing && (
             <div className="flex items-center gap-1.5 text-xs font-semibold mr-2">

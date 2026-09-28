@@ -311,9 +311,9 @@ export default function ParentExercises() {
                     </span>
                   </div>
                 )}
-                <div className="p-4 flex items-center justify-between gap-3">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2">
+                <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-bold text-[#2C2C2A]">{ex.name}</h3>
                       {isDone && (
                         <span className="px-2 py-0.5 bg-[#3B6D11] text-white text-[10px] font-bold rounded-full flex items-center gap-1">
@@ -321,19 +321,19 @@ export default function ParentExercises() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[#5F5E5A] font-medium">{ex.homeDescription || ex.description}</p>
+                    <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed">{ex.homeDescription || ex.description}</p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#D3D1C7]/40">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {FEEDBACK_OPTIONS.map((option) => (
                         <button
                           key={option.value}
                           type="button"
                           onClick={() => handleMarkDone(ex.id, option.value)}
-                          className={`px-2 py-1 rounded-[6px] text-xs font-bold border transition-colors cursor-pointer ${
+                          className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-[8px] text-xs font-bold border transition-all cursor-pointer ${
                             doneLogs[ex.id] === option.value
-                              ? "bg-[#0F6E56] text-white border-[#0F6E56]"
+                              ? "bg-[#0F6E56] text-white border-[#0F6E56] shadow-xs"
                               : "bg-white text-[#2C2C2A] border-[#D3D1C7] hover:bg-slate-50"
                           }`}
                         >
@@ -343,7 +343,8 @@ export default function ParentExercises() {
                     </div>
                     <button
                       onClick={() => toggleExpand(ex.id)}
-                      className="p-1.5 rounded-[8px] hover:bg-slate-100 text-[#5F5E5A] cursor-pointer"
+                      className="min-h-[36px] min-w-[36px] flex items-center justify-center p-1.5 rounded-[8px] hover:bg-slate-100 text-[#5F5E5A] cursor-pointer shrink-0"
+                      aria-label="Expand exercise details"
                     >
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>

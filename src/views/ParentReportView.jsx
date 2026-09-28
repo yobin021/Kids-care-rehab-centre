@@ -267,19 +267,19 @@ export default function ParentReportView() {
     return (
       <div className="space-y-6 text-[#2C2C2A] py-2 print:p-0 max-w-3xl mx-auto">
         {/* Header Banner */}
-        <div className="bg-[#185FA5] text-white p-6 rounded-[12px] shadow-sm flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="bg-[#185FA5] text-white p-4 sm:p-6 rounded-[12px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <img
               src="/kids_care_rehab_center_logo.jpg"
               alt="KIDS CARE 360 Logo"
-              className="h-12 w-12 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
+              className="h-10 w-10 sm:h-12 sm:w-12 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest block">
+            <div className="space-y-0.5 min-w-0">
+              <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest block truncate">
                 KIDS CARE 360 — IEP Progress Report
               </span>
-              <h2 className="text-xl font-black">
+              <h2 className="text-base sm:text-xl font-black truncate">
                 {iep.studentInfo?.name || child?.name} — Cycle {iep.cycle || 1} ({iep.period || "Month 0–3"})
               </h2>
               <p className="text-xs text-blue-100">
@@ -297,10 +297,10 @@ export default function ParentReportView() {
                 fallbackCycle: iep.cycle || data?.iep_cycle || data?.cycle
               })
             }
-            className="no-print p-2 rounded-[8px] bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="no-print p-2 rounded-[8px] bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
           >
             <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">Print</span>
+            <span>Print Report</span>
           </button>
         </div>
 
@@ -402,26 +402,26 @@ export default function ParentReportView() {
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 print:p-0 max-w-4xl mx-auto">
       {/* Header Banner */}
-      <div className="bg-[#185FA5] text-white p-6 rounded-[14px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+      <div className="bg-[#185FA5] text-white p-4 sm:p-6 rounded-[14px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
           <img
             src="/kids_care_rehab_center_logo.jpg"
             alt="KIDS CARE 360 Logo"
-            className="h-12 w-12 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
+            className="h-10 w-10 sm:h-12 sm:w-12 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
             onError={(e) => {
               e.target.style.display = "none";
             }}
           />
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest block">
+          <div className="space-y-0.5 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest block truncate">
                 KIDS CARE REHAB CENTRE — Progress Report
               </span>
               <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                 {therapyCategory}
               </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black">
+            <h2 className="text-lg sm:text-2xl font-black truncate">
               {child?.name || data?.childName || "Child"}
             </h2>
             <p className="text-xs text-blue-100">
@@ -429,7 +429,7 @@ export default function ParentReportView() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
           <button
             onClick={() =>
               printReportWithFilename({
@@ -440,7 +440,7 @@ export default function ParentReportView() {
                 fallbackCycle: data?.cycle
               })
             }
-            className="no-print p-2 rounded-[8px] bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            className="no-print p-2 rounded-[8px] bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Printer className="h-4 w-4" />
             <span>Print Report</span>

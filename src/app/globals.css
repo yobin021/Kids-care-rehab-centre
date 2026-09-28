@@ -427,3 +427,39 @@ body {
   border-color: #CBD5E1;
   background: #FFFFFF;
 }
+
+/* ─────────────────────────────────────────────
+   Responsive & Mobile Optimization Helpers
+───────────────────────────────────────────── */
+.pb-safe {
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.touch-pan-x {
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+.touch-pan-y {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure minimum touch target height on touch devices */
+@media (pointer: coarse) {
+  button:not(.btn-compact), 
+  [role="button"],
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 38px;
+  }
+}

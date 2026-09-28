@@ -635,10 +635,10 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Filters + View toggle */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:items-center gap-2 flex-1 min-w-0">
           <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
-            className="border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5]">
+            className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All dates</option>
             <option value="today">Today</option>
             <option value="week">This week</option>
@@ -646,21 +646,21 @@ export default function AppointmentsPage() {
             <option value="upcoming">Upcoming only</option>
           </select>
           <select value={filterType} onChange={e => setFilterType(e.target.value)}
-            className="border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5]">
+            className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All types</option>
             <option value="assessment">Assessment</option>
             <option value="review">Review</option>
             <option value="therapy">Therapy</option>
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5]">
+            className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All status</option>
             <option value="upcoming">Upcoming</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-        <div className="flex items-center gap-1 border border-[#D3D1C7] rounded-[8px] p-0.5 bg-white">
+        <div className="flex items-center justify-center sm:justify-start gap-1 border border-[#D3D1C7] rounded-[8px] p-0.5 bg-white shrink-0 self-start sm:self-auto">
           <button onClick={() => setView("list")}
             className={`px-3 py-1.5 rounded-[6px] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${view === "list" ? "bg-[#185FA5] text-white" : "text-[#5F5E5A] hover:bg-[#F8F8F6]"}`}>
             <List className="h-3.5 w-3.5" /> List

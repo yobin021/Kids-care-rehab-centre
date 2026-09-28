@@ -69,9 +69,11 @@ export function BookAppointmentModal({ isOpen, onClose, onBooked, preselectedChi
   const today = new Date().toISOString().split("T")[0];
 
   const filteredChildren = (childrenList || []).filter(c =>
-    childSearch === "" ||
-    c.name?.toLowerCase().includes(childSearch.toLowerCase()) ||
-    c.id?.toLowerCase().includes(childSearch.toLowerCase())
+    c.program_type !== "iep" && (
+      childSearch === "" ||
+      c.name?.toLowerCase().includes(childSearch.toLowerCase()) ||
+      c.id?.toLowerCase().includes(childSearch.toLowerCase())
+    )
   );
 
   const selectedChild = childrenList.find(c => c.id === form.child_id);
@@ -624,19 +626,19 @@ export default function AppointmentsPage() {
   return (
     <div className="space-y-6 text-[#2C2C2A]">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-bold text-[#2C2C2A]">Appointments</h2>
+          <h2 className="text-lg sm:text-[20px] font-bold text-[#2C2C2A]">Appointments</h2>
           <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">Schedule, manage and track all therapy appointments</p>
         </div>
         <Button icon={Plus} onClick={() => setBookOpen(true)}>+ Book Appointment</Button>
       </div>
 
       {/* Filters + View toggle */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:items-center gap-2 flex-1 min-w-0">
           <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
-            className="border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5]">
+            className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All dates</option>
             <option value="today">Today</option>
             <option value="week">This week</option>
@@ -644,21 +646,21 @@ export default function AppointmentsPage() {
             <option value="upcoming">Upcoming only</option>
           </select>
           <select value={filterType} onChange={e => setFilterType(e.target.value)}
-            className="border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5]">
+            className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All types</option>
             <option value="assessment">Assessment</option>
             <option value="review">Review</option>
             <option value="therapy">Therapy</option>
           </select>
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5]">
+            className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All status</option>
             <option value="upcoming">Upcoming</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-        <div className="flex items-center gap-1 border border-[#D3D1C7] rounded-[8px] p-0.5 bg-white">
+        <div className="flex items-center justify-center sm:justify-start gap-1 border border-[#D3D1C7] rounded-[8px] p-0.5 bg-white shrink-0 self-start sm:self-auto">
           <button onClick={() => setView("list")}
             className={`px-3 py-1.5 rounded-[6px] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${view === "list" ? "bg-[#185FA5] text-white" : "text-[#5F5E5A] hover:bg-[#F8F8F6]"}`}>
             <List className="h-3.5 w-3.5" /> List
@@ -675,7 +677,7 @@ export default function AppointmentsPage() {
         <SkeletonCard count={4} />
       ) : view === "list" ? (
         groupedDates.length === 0 ? (
-          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-12 text-center space-y-4">
+          <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-8 sm:p-12 text-center space-y-4">
             <div className="text-5xl">📅</div>
             <h3 className="text-[16px] font-bold text-[#2C2C2A]">No appointments found</h3>
             <p className="text-xs text-[#5F5E5A]">Adjust filters or book a new appointment</p>
@@ -700,50 +702,59 @@ export default function AppointmentsPage() {
                     const canDone = a.status === "upcoming" && (isToday(date) || isPast(date));
                     return (
                       <div key={a.id}
-                        className="bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#185FA5] transition-all flex items-center gap-4 p-4 shadow-xs">
-                        {/* Time */}
-                        <div className="shrink-0 w-20 text-center">
-                          <p className="text-[16px] font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
-                          <p className="text-[11px] text-[#9B9A96] font-semibold">{a.duration_minutes || 60} min</p>
+                        className="bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#185FA5] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 shadow-xs">
+                        
+                        {/* Left Info: Time + Child */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="shrink-0 w-18 sm:w-20 text-center">
+                            <p className="text-sm sm:text-[16px] font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
+                            <p className="text-[10px] sm:text-[11px] text-[#9B9A96] font-semibold">{a.duration_minutes || 60} min</p>
+                          </div>
+                          <div className="w-px h-8 sm:h-10 bg-[#D3D1C7]/60 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm text-[#2C2C2A] truncate">{child?.name || "Child"}</p>
+                            <p className="font-mono text-[10px] sm:text-[11px] text-[#9B9A96]">{a.child_id?.slice(0, 8)}</p>
+                          </div>
                         </div>
-                        <div className="w-px h-10 bg-[#D3D1C7]/60 shrink-0" />
-                        {/* Child */}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm text-[#2C2C2A] truncate">{child?.name || "Child"}</p>
-                          <p className="font-mono text-[11px] text-[#9B9A96]">{a.child_id?.slice(0, 8)}</p>
-                        </div>
-                        {child?.profile && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0" style={{ backgroundColor: ps.bg, color: ps.text }}>
-                            Profile {child.profile}
-                          </span>
-                        )}
-                        <TypeBadge type={a.appointment_type} />
-                        <StatusBadge status={a.status} />
-                        {/* Actions */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => setSelectedApt(a)}
-                            className="px-2.5 py-1.5 border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#5F5E5A] hover:bg-[#F8F8F6] cursor-pointer flex items-center gap-1">
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </button>
-                          {canDone && (
-                            <button onClick={async () => {
-                              try {
-                                await appointmentService.updateStatus(a.id, "completed");
-                                showToast("Appointment marked as completed", "success");
-                                load();
-                              } catch { showToast("Failed to update", "error"); }
-                            }}
-                              className="px-2.5 py-1.5 border border-[#3B6D11] rounded-[6px] text-xs font-bold text-[#3B6D11] hover:bg-[#EAF3DE] cursor-pointer flex items-center gap-1">
-                              <Check className="h-3.5 w-3.5" /> Done
+
+                        {/* Badges and Actions */}
+                        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 border-[#D3D1C7]/40">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {child?.profile && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0" style={{ backgroundColor: ps.bg, color: ps.text }}>
+                                Profile {child.profile}
+                              </span>
+                            )}
+                            <TypeBadge type={a.appointment_type} />
+                            <StatusBadge status={a.status} />
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button onClick={() => setSelectedApt(a)}
+                              className="px-2.5 py-1.5 border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#5F5E5A] hover:bg-[#F8F8F6] cursor-pointer flex items-center gap-1">
+                              <Eye className="h-3.5 w-3.5" /> View
                             </button>
-                          )}
-                          {a.status === "upcoming" && (
-                            <button onClick={() => { setSelectedApt(a); }}
-                              className="px-2.5 py-1.5 border border-[#993C1D] rounded-[6px] text-xs font-bold text-[#993C1D] hover:bg-[#FAECE7] cursor-pointer flex items-center gap-1">
-                              <X className="h-3.5 w-3.5" /> Cancel
-                            </button>
-                          )}
+                            {canDone && (
+                              <button onClick={async () => {
+                                try {
+                                  await appointmentService.updateStatus(a.id, "completed");
+                                  showToast("Appointment marked as completed", "success");
+                                  load();
+                                } catch { showToast("Failed to update", "error"); }
+                              }}
+                                className="px-2.5 py-1.5 border border-[#3B6D11] rounded-[6px] text-xs font-bold text-[#3B6D11] hover:bg-[#EAF3DE] cursor-pointer flex items-center gap-1">
+                                <Check className="h-3.5 w-3.5" /> Done
+                              </button>
+                            )}
+                            {a.status === "upcoming" && (
+                              <button onClick={() => { setSelectedApt(a); }}
+                                className="px-2.5 py-1.5 border border-[#993C1D] rounded-[6px] text-xs font-bold text-[#993C1D] hover:bg-[#FAECE7] cursor-pointer flex items-center gap-1">
+                                <X className="h-3.5 w-3.5" /> Cancel
+                              </button>
+                            )}
+                          </div>
                         </div>
+
                       </div>
                     );
                   })}
@@ -754,21 +765,21 @@ export default function AppointmentsPage() {
         )
       ) : (
         /* CALENDAR VIEW */
-        <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-6 space-y-4">
+        <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-3.5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <button onClick={prevMonth} className="p-2 rounded-[8px] border border-[#D3D1C7] hover:bg-[#F8F8F6] cursor-pointer">
+            <button onClick={prevMonth} className="p-2 rounded-[8px] border border-[#D3D1C7] hover:bg-[#F8F8F6] cursor-pointer" aria-label="Previous month">
               <ChevronLeft className="h-4 w-4 text-[#5F5E5A]" />
             </button>
             <h3 className="text-sm font-bold text-[#2C2C2A]">
               {calMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
             </h3>
-            <button onClick={nextMonth} className="p-2 rounded-[8px] border border-[#D3D1C7] hover:bg-[#F8F8F6] cursor-pointer">
+            <button onClick={nextMonth} className="p-2 rounded-[8px] border border-[#D3D1C7] hover:bg-[#F8F8F6] cursor-pointer" aria-label="Next month">
               <ChevronRight className="h-4 w-4 text-[#5F5E5A]" />
             </button>
           </div>
           <div className="grid grid-cols-7 gap-1">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
-              <div key={d} className="text-center text-[11px] font-bold text-[#9B9A96] py-2">{d}</div>
+              <div key={d} className="text-center text-[10px] sm:text-[11px] font-bold text-[#9B9A96] py-1 sm:py-2">{d}</div>
             ))}
             {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${i}`} />)}
             {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -779,7 +790,7 @@ export default function AppointmentsPage() {
               const isTodayDay = dateStr === today;
               return (
                 <button key={dayNum} onClick={() => setCalSelectedDay(isSelected ? null : dateStr)}
-                  className={`relative min-h-[48px] p-1.5 rounded-[8px] border text-xs font-bold cursor-pointer transition-all text-left ${isSelected ? "border-[#185FA5] bg-[#E6F1FB]" : isTodayDay ? "border-[#185FA5] bg-white" : "border-transparent hover:border-[#D3D1C7] hover:bg-[#F8F8F6]"}`}>
+                  className={`relative min-h-[38px] sm:min-h-[48px] p-1 sm:p-1.5 rounded-[8px] border text-[11px] sm:text-xs font-bold cursor-pointer transition-all text-left ${isSelected ? "border-[#185FA5] bg-[#E6F1FB]" : isTodayDay ? "border-[#185FA5] bg-white" : "border-transparent hover:border-[#D3D1C7] hover:bg-[#F8F8F6]"}`}>
                   <span className={`block text-center mb-1 ${isTodayDay ? "text-[#185FA5]" : "text-[#2C2C2A]"}`}>{dayNum}</span>
                   <div className="flex flex-wrap gap-0.5 justify-center">
                     {dayApts.slice(0, 3).map((a, idx) => {

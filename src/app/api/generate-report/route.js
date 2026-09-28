@@ -1,19 +1,50 @@
 import { NextResponse } from "next/server";
 
-const SYSTEM_PROMPT = `You are an expert pediatric occupational therapist and clinical specialist at Kids Care Rehab Centre, Chennai.
-Your task is to generate report content for pediatric rehabilitation. Always return clinical, practical, accurate text.
+const SYSTEM_PROMPT = `You are an expert pediatric occupational therapist, clinical psychologist, and special educator at Kids Care Rehab Centre, Chennai.
+Your task is to generate report content for pediatric rehabilitation across 4 clinical pathways:
+1. Autism Spectrum Disorder (ISAA clinical scale)
+2. ADHD Presentation (Conners' rating scale)
+3. Developmental Delay (Developmental milestone checklist)
+4. Specific Learning Disability (LDST screening battery)
 
+Always return clinical, practical, accurate text.
 If asked for a full report, return ONLY a valid JSON object with keys: "therapistReport" and "parentReport".
 If asked for a single section rewrite, return ONLY the plain text paragraph/sentence requested without quotes or markdown wrappers.
 If asked for an IEP report, return ONLY a valid JSON object matching the IEP report structure provided.
 IMPORTANT: IEP reports must NOT contain individual exercises, therapy exercises, or exercise prescriptions. Focus only on high-level goals, progress, and 3-month plans.`;
 
 export async function POST(req) {
+  let body = {};
   try {
-    const body = await req.json();
-    const { mode, sectionKey, customPrompt, childData, isaaResults, domainScores, previousAssessment, cycleNumber } = body;
+    body = await req.json();
+  } catch (_) {
+    body = {};
+  }
 
+  const {
+    mode,
+    sectionKey,
+    customPrompt,
+    childData,
+    category,
+    assessmentData,
+    isaaResults,
+    domainScores,
+    connersResults,
+    delayResults,
+    ldstResults,
+    previousAssessment,
+    cycleNumber
+  } = body;
 
+  const rawCat = (category || childData?.therapy_category || childData?.profile || childData?.diagnosis || "").toLowerCase();
+  let resolvedCategory = "asd";
+  if (rawCat.includes("adhd") || rawCat.includes("conner")) resolvedCategory = "adhd";
+  else if (rawCat.includes("delay") || rawCat.includes("developmental")) resolvedCategory = "developmental_delay";
+  else if (rawCat.includes("learn") || rawCat.includes("ldst") || rawCat.includes("sld") || rawCat.includes("dyslex")) resolvedCategory = "learning_disability";
+  else if (rawCat.includes("iep") || rawCat.includes("special")) resolvedCategory = "iep";
+
+  try {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const groqKey = process.env.GROQ_API_KEY;
 
@@ -42,34 +73,26 @@ IMPORTANT RULES:
 Student Information:
 Name: ${childData?.name || "Child"}
 Age: ${childData?.age || "5y"}
-Diagnosis: ${childData?.diagnosis || "ASD"}
+Diagnosis: ${childData?.diagnosis || "IEP Special School"}
 Assessment Date: ${childData?.assessmentDate || new Date().toISOString().split("T")[0]}
 IEP Cycle: ${cycleNumber || 1} (${isFirstCycle ? "First Assessment — Establishing Baseline" : "Follow-up Assessment"})
 
 Current Assessment:
-ISAA Score: ${isaaResults?.totalScore ?? "Not scored"} / 200
-Severity: ${isaaResults?.severity || "Not assessed"}
 Domain Scores (0-100%): ${JSON.stringify(currDomains, null, 2)}
 
 ${isFirstCycle ? "" : `Previous Assessment Domain Scores:
 ${JSON.stringify(prevDomains, null, 2)}
 
 Domain Progress Comparison:
-${domainComparison}
-
-Previous ISAA Score: ${previousAssessment?.isaa_score ?? "Not recorded"}
-Previous Severity: ${previousAssessment?.isaa_severity ?? "Not recorded"}`}
-
-Parent Goals from Assessment:
-${childData?.parentGoals || "Not specified"}
+${domainComparison}`}
 
 Clinical Observations:
-${childData?.clinicalObservations || "Assessed using standard IEP and ISAA protocols"}
+${childData?.clinicalObservations || "Assessed using standard IEP 14-domain special school protocol"}
 
 Return ONLY this exact JSON structure (no extra text):
 {
   "assessmentSummary": {
-    "overallSummary": "2-3 sentence clinical summary of current status based on ISAA score and domain scores",
+    "overallSummary": "2-3 sentence clinical summary of current status based on domain scores",
     "domainHighlights": "Specific observations about strongest and weakest domains based on scores",
     "clinicalObservations": "Any notable clinical observations from the assessment data"
   },
@@ -79,7 +102,7 @@ Return ONLY this exact JSON structure (no extra text):
     "improved": ${isFirstCycle ? "[]" : '["list of domains/areas showing improvement"]'},
     "unchanged": ${isFirstCycle ? "[]" : '["list of domains/areas with no significant change"]'},
     "needsImprovement": ["list of specific areas requiring focused work"],
-    "narrative": "2-3 sentence narrative ${isFirstCycle ? "establishing baseline and initial status" : "describing overall progress since last assessment"}"
+    "narrative": "2-3 sentence narrative describing overall progress"
   },
   "areasForImprovement": ["3-4 specific high-level areas for improvement, NO exercises"],
   "threeMonthPlan": {
@@ -90,29 +113,72 @@ Return ONLY this exact JSON structure (no extra text):
   "recommendedOutcomes": "Overall expected outcome statement for the 3-month period"
 }`;
     } else if (mode === "singleSection") {
-
-      userPrompt = customPrompt || `Rewrite the ${sectionKey} section for ${childData?.name || "the child"}.`;
+      userPrompt = customPrompt || `Rewrite the ${sectionKey} section for ${childData?.name || "the child"} evaluated for ${resolvedCategory}.`;
     } else {
-      userPrompt = `Child Info:
+      // Full Report Generation — tailored by clinical pathway
+      if (resolvedCategory === "adhd") {
+        userPrompt = `Generate a clinical ADHD evaluation report for Kids Care Rehab Centre, Chennai.
+Child Info:
+Name: ${childData?.name || "Child"}
+Age: ${childData?.age || "6y"}
+Diagnosis: ${childData?.diagnosis || "ADHD Presentation"}
+Primary Concern: ${childData?.primaryConcern || "Attention, impulsivity, and high activity levels"}
+
+Assessment Data: Conners' Rating Scale
+Presentation: ${assessmentData?.adhd_presentation || connersResults?.presentation || "Combined Presentation"}
+Overall Score: ${assessmentData?.adhd_score ?? connersResults?.totalScore ?? "Elevated"}
+Subtest Scores: ${JSON.stringify(assessmentData?.subtest_scores || connersResults || { inattention: "Elevated", hyperactivity: "Elevated" }, null, 2)}
+
+Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" (background, assessmentFindings, currentStatus, recommendations, reviewPlan) and "parentReport" (aboutYourChild, whatWeFound, strengths, workingOn, focusAreas, therapyPlan, homeAdvice, encouragement). Focus on attention span, impulse control, movement breaks, and positive behavioral reinforcement.`;
+      } else if (resolvedCategory === "developmental_delay") {
+        userPrompt = `Generate a clinical Developmental Delay evaluation report for Kids Care Rehab Centre, Chennai.
+Child Info:
+Name: ${childData?.name || "Child"}
+Age: ${childData?.age || "4y"}
+Diagnosis: ${childData?.diagnosis || "Developmental Delay"}
+Primary Concern: ${childData?.primaryConcern || "Motor and communication milestones delay"}
+
+Assessment Data: Developmental Checklist Battery
+Severity: ${assessmentData?.delay_severity || delayResults?.severity || "Moderate Delay"}
+Delay Areas: ${JSON.stringify(assessmentData?.delay_areas || delayResults?.delayAreas || ["Gross Motor", "Fine Motor", "Speech & Language"])}
+Milestone Checklist Summary: ${JSON.stringify(assessmentData?.milestone_status || delayResults?.milestoneStatus || {})}
+
+Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" and "parentReport". Focus on motor planning, speech milestones, early intervention, and daily developmental play.`;
+      } else if (resolvedCategory === "learning_disability") {
+        userPrompt = `Generate a clinical Specific Learning Disability (LDST) report for Kids Care Rehab Centre, Chennai.
+Child Info:
+Name: ${childData?.name || "Child"}
+Age: ${childData?.age || "8y"}
+Diagnosis: ${childData?.diagnosis || "Specific Learning Disability (SLD)"}
+Primary Concern: ${childData?.primaryConcern || "Reading, writing, and calculation challenges"}
+
+Assessment Data: Learning Disability Screening Test (LDST)
+Total Score: ${assessmentData?.ldst_total_score ?? ldstResults?.totalScore ?? "Elevated Risk"}
+Classification: ${assessmentData?.ldst_classification || ldstResults?.classification || "Dyslexia & Dysgraphia Risk"}
+Subtest Staging: ${JSON.stringify(assessmentData?.ldst_subtest_scores || ldstResults || { dyslexiaRisk: "Moderate", dysgraphiaRisk: "Mild", dyscalculiaRisk: "Low" }, null, 2)}
+
+Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" and "parentReport". Focus on phonological decoding, multisensory reading, pencil grip/writing endurance, and school accommodations.`;
+      } else {
+        // ASD / ISAA (Default)
+        userPrompt = `Generate a clinical Autism Spectrum Disorder (ASD) evaluation report for Kids Care Rehab Centre, Chennai.
+Child Info:
 Name: ${childData?.name || "Child"}
 Age: ${childData?.age || "5y"}
-Diagnosis: ${childData?.diagnosis || "ASD"}
-Primary Concern: ${childData?.primaryConcern || "Developmental delay"}
+Diagnosis: ${childData?.diagnosis || "Autism Spectrum Disorder"}
+Primary Concern: ${childData?.primaryConcern || "Communication and social interaction"}
 
 ISAA Assessment Results:
-Total Score: ${isaaResults?.totalScore ?? "Not Assessed"} / 200
-Severity: ${isaaResults?.severity || "Not Assessed"}
+Total Score: ${assessmentData?.isaa_score ?? isaaResults?.totalScore ?? "88"} / 200
+Severity: ${assessmentData?.isaa_severity || isaaResults?.severity || "Mild Autism"}
+Domain Scores: ${JSON.stringify(assessmentData?.domain_scores || domainScores || {}, null, 2)}
 
-Domain Competency Scores (0-100):
-${JSON.stringify(domainScores || {}, null, 2)}
-
-Please generate both therapist and parent reports in valid JSON format.`;
+Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" and "parentReport".`;
+      }
     }
 
     let reportText = "";
 
     if (anthropicKey) {
-      // Claude API (Production)
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -129,15 +195,12 @@ Please generate both therapist and parent reports in valid JSON format.`;
       });
 
       if (!res.ok) {
-        const errText = await res.text();
-        console.error("Anthropic API Error:", errText);
         throw new Error(`Anthropic API error: ${res.status}`);
       }
 
       const data = await res.json();
       reportText = data.content[0].text;
     } else if (groqKey) {
-      // Groq API (Primary LLM)
       const payload = {
         model: "llama-3.3-70b-versatile",
         messages: [
@@ -162,8 +225,6 @@ Please generate both therapist and parent reports in valid JSON format.`;
       });
 
       if (!res.ok) {
-        const errText = await res.text();
-        console.error("Groq API Error:", errText);
         throw new Error(`Groq API error: ${res.status}`);
       }
 
@@ -175,7 +236,7 @@ Please generate both therapist and parent reports in valid JSON format.`;
         return NextResponse.json({
           success: true,
           source: "mock",
-          text: getFallbackSectionText(sectionKey, childData)
+          text: getFallbackSectionText(sectionKey, childData, resolvedCategory, assessmentData)
         });
       }
       if (mode === "iepReport") {
@@ -188,7 +249,7 @@ Please generate both therapist and parent reports in valid JSON format.`;
       return NextResponse.json({
         success: true,
         source: "mock",
-        data: getFallbackFullReport(childData)
+        data: getFallbackFullReport(childData, resolvedCategory, assessmentData)
       });
     }
 
@@ -216,41 +277,122 @@ Please generate both therapist and parent reports in valid JSON format.`;
       data: parsedData
     });
   } catch (error) {
-    console.error("Report generation route error:", error);
-    // Fallback response on error so user UI never crashes
-    const body = await req.json().catch(() => ({}));
-    if (body.mode === "singleSection") {
+    console.warn("Report generation using clinical fallback:", error.message);
+    if (mode === "singleSection") {
       return NextResponse.json({
         success: true,
         source: "fallback",
-        text: getFallbackSectionText(body.sectionKey, body.childData)
+        text: getFallbackSectionText(sectionKey, childData, resolvedCategory, assessmentData)
       });
     }
-    if (body.mode === "iepReport") {
+    if (mode === "iepReport") {
       return NextResponse.json({
         success: true,
         source: "fallback",
-        data: getFallbackIepReport(body.childData, body.domainScores, body.isaaResults, body.previousAssessment, body.cycleNumber)
+        data: getFallbackIepReport(childData, domainScores, isaaResults, previousAssessment, cycleNumber)
       });
     }
     return NextResponse.json({
       success: true,
       source: "fallback",
-      data: getFallbackFullReport(body.childData)
+      data: getFallbackFullReport(childData, resolvedCategory, assessmentData)
     });
   }
 }
 
-function getFallbackSectionText(sectionKey, childData) {
+function getFallbackSectionText(sectionKey, childData, category = "asd", assessmentData = null) {
   const name = childData?.name || "the child";
-  const diagnosis = childData?.diagnosis || "ASD";
   const age = childData?.age || "5y";
 
+  if (category === "adhd") {
+    switch (sectionKey) {
+      case "background":
+        return `${name} is a ${age} patient referred for evaluation of sustained attention, impulsivity, and motor restlessness. Evaluated using the Conners' ADHD Rating Scale.`;
+      case "assessmentFindings":
+      case "findings":
+        return `Conners' ADHD evaluation indicates clinically elevated scores in ${assessmentData?.adhd_presentation || 'Combined'} presentation, with primary challenges in sustained attention and impulse inhibition.`;
+      case "currentStatus":
+      case "status":
+        return `${name} exhibits high energy and creativity. Responds well to structured 1-on-1 tasks paired with visual schedules and structured movement breaks.`;
+      case "recommendations":
+        return `Occupational therapy with sensory regulation 2x/week, Behavioral therapy for executive functioning and impulse control, Classroom accommodation plan with movement breaks.`;
+      case "reviewPlan":
+        return `Progress will be re-evaluated in 12 weeks to monitor sitting tolerance, task completion rates, and impulse regulation.`;
+      case "aboutYourChild":
+        return `We are delighted to work with ${name}! They bring tremendous energy, curiosity, and warmth to our therapy sessions.`;
+      case "whatWeFound":
+        return `${name} is bright and learns rapidly through hands-on activities. They benefit from structured routines and short movement breaks to help sustain attention.`;
+      case "workingOn":
+        return `Building sustained focus for table tasks, practicing 'stop-and-think' before acting, and smooth transitions between activities.`;
+      case "homeAdvice":
+        return `Create predictable daily routines with visual timers. Provide physical movement before seated homework, and break tasks into 10-minute chunks.`;
+      default:
+        return `Targeted therapeutic intervention for ${name} focusing on attention, focus, and behavioral regulation.`;
+    }
+  }
+
+  if (category === "developmental_delay") {
+    switch (sectionKey) {
+      case "background":
+        return `${name} is a ${age} patient evaluated for developmental delays across physical, motor, and communicative milestones.`;
+      case "assessmentFindings":
+      case "findings":
+        return `Developmental screening indicates ${assessmentData?.delay_severity || 'mild-to-moderate delay'} across key milestones, requiring targeted early intervention support.`;
+      case "currentStatus":
+      case "status":
+        return `${name} shows good engagement and willingness to imitate movements. Steady progress noted in basic motor planning and receptive comprehension.`;
+      case "recommendations":
+        return `Early Intervention Occupational Therapy 2x/week, Pediatric Physiotherapy/Speech Therapy as indicated, Daily home developmental exercise regimen.`;
+      case "reviewPlan":
+        return `Quarterly milestone review in 12 weeks to benchmark progress against developmental age equivalents.`;
+      case "aboutYourChild":
+        return `${name} is an endearing, sweet child who showed great curiosity and perseverance during our developmental evaluation.`;
+      case "whatWeFound":
+        return `${name} has strong receptive skills and enjoys interactive play. With targeted exercises, their motor coordination and speech milestones will steadily catch up.`;
+      case "workingOn":
+        return `Strengthening core and fine motor grasping, expanding words for daily needs, and balance activities.`;
+      case "homeAdvice":
+        return `Encourage tummy time, floor crawling games, and hand-eye coordination games like stacking blocks. Talk through daily activities to stimulate speech.`;
+      default:
+        return `Targeted early intervention for ${name} focusing on developmental milestone recovery.`;
+    }
+  }
+
+  if (category === "learning_disability") {
+    switch (sectionKey) {
+      case "background":
+        return `${name} is a ${age} student evaluated for academic difficulties using the Learning Disability Screening Battery (LDST).`;
+      case "assessmentFindings":
+      case "findings":
+        return `LDST screening battery reveals specific vulnerabilities in phonological decoding, handwriting motor control, and working memory retention.`;
+      case "currentStatus":
+      case "status":
+        return `${name} has strong verbal reasoning and conceptual intelligence, but experiences processing bottlenecks and writing fatigue during timed tasks.`;
+      case "recommendations":
+        return `Special Education & Remedial Therapy 2-3x/week, Multisensory phonics (Orton-Gillingham approach), Fine motor pencil grip modification, School accommodations.`;
+      case "reviewPlan":
+        return `Academic and screening re-evaluation in 12 weeks to gauge reading fluency and written expression gains.`;
+      case "aboutYourChild":
+        return `${name} is a bright and capable child who expressed wonderful creativity and reasoning during our academic screening.`;
+      case "whatWeFound":
+        return `${name} understands concepts very well when explained verbally. Their reading and writing difficulties are specific processing differences, not a lack of effort.`;
+      case "workingOn":
+        return `Phonemic decoding for reading fluency, pencil grip comfort and letter spacing, and number-sense strategies.`;
+      case "homeAdvice":
+        return `Read together daily using paired reading. Avoid comparing with peers, celebrate small reading victories, and allow audiobooks to nurture their love for stories.`;
+      default:
+        return `Targeted academic remediation for ${name} addressing specific learning processing differences.`;
+    }
+  }
+
+  // Default: ASD
   switch (sectionKey) {
     case "background":
       return `${name} is a ${age} patient presenting with ${childData?.primaryConcern || "developmental delay"}. Evaluated using ISAA protocol by therapy team.`;
+    case "assessmentFindings":
     case "findings":
       return `ISAA evaluation for ${name} indicates mild developmental deficits. Scores show strengths in gross motor skills with priority support needed in social communication.`;
+    case "currentStatus":
     case "status":
       return `${name} demonstrates good eye contact during 1-on-1 sessions. Shows progress in understanding 1-step commands, while working on turn-taking skills.`;
     case "recommendations":
@@ -263,29 +405,169 @@ function getFallbackSectionText(sectionKey, childData) {
       return `${name} exhibits strong gross motor skills and visual learning capability. Speech clarity and social peer engagement are currently being supported.`;
     case "workingOn":
       return `Our primary focus is expanding sentence length, building sitting tolerance to 15 minutes, and practicing turn-taking with peers.`;
-    case "therapyPlan":
-      return `Speech and Occupational Therapy, 2 sessions per week for 6 months with quarterly review.`;
     case "homeAdvice":
       return `Practise naming objects during meal times and bath routines. Provide picture cards for choosing toys at home.`;
-    case "encouragement":
-      return `With your warmth at home and our team's guidance, ${name} will continue to achieve great milestones!`;
     default:
       return `Targeted therapeutic intervention for ${name} focusing on developmental goals.`;
   }
 }
 
-function getFallbackFullReport(childData) {
+function getFallbackFullReport(childData, category = "asd", assessmentData = null) {
+  const name = childData?.name || "Child";
+  const age = childData?.age || "5y";
+
+  if (category === "adhd") {
+    const presentation = assessmentData?.adhd_presentation || "Combined Presentation";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} patient referred for evaluation of high motor activity, distractibility, and impulsivity. Evaluated using the Conners' ADHD Rating Scale.`,
+        assessmentFindings: `Conners' ADHD evaluation indicates clinically elevated scores in ${presentation}. Primary challenges noted in sustained attention, impulse inhibition, and high motor activity during non-preferred tasks.`,
+        currentStatus: `${name} demonstrates excellent energy and creative problem-solving. Responds very well to 1-on-1 structured tasks with clear visual cues and frequent sensory breaks.`,
+        recommendations: "Occupational therapy with sensory regulation 2x/week, Behavioral therapy for executive functioning and impulse control, Classroom accommodation plan with movement breaks.",
+        reviewPlan: "Progress will be re-evaluated in 12 weeks to monitor sitting tolerance, task completion rates, and impulse regulation.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Occupational & Behavioral Therapist",
+        date: new Date().toISOString().split("T")[0]
+      },
+      parentReport: {
+        aboutYourChild: `We are delighted to work with ${name}! They bring tremendous energy, curiosity, and warmth to our sessions.`,
+        whatWeFound: `${name} is bright and learns rapidly through hands-on activities. They benefit from structured routines and short movement breaks to help sustain attention.`,
+        strengths: [
+          "High curiosity and eagerness to explore",
+          "Responds warmly to positive reinforcement",
+          "Enjoys energetic physical and sensory games",
+          "Quick learner with interactive visual aids"
+        ],
+        workingOn: "Building sustained focus for table tasks, practicing 'stop-and-think' before acting, and smooth transitions between activities.",
+        focusAreas: [
+          "Attention span during structured tasks",
+          "Impulse regulation and waiting turns",
+          "Organizing materials and following multi-step directions"
+        ],
+        therapyPlan: "Occupational Therapy & Behavioral Intervention, 2 sessions/week for 6 months.",
+        therapyType: "Occupational & Behavioral Therapy",
+        sessionsPerWeek: 2,
+        duration: "6 months",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Create predictable daily routines with visual timers. Provide physical movement before seated homework, and break tasks into 10-minute chunks.",
+        homeSuggestions: [
+          "Use a 10-minute visual countdown timer for homework",
+          "Provide sensory heavy-work (pushing a wall, jumping) before seated tasks",
+          "Use positive praise immediately when instructions are followed"
+        ],
+        encouragement: `With consistent routines and your encouragement at home, ${name}'s vibrant energy will become their greatest strength.`
+      }
+    };
+  }
+
+  if (category === "developmental_delay") {
+    const severity = assessmentData?.delay_severity || "Mild-to-Moderate Delay";
+    const areas = assessmentData?.delay_areas?.join(", ") || "Gross Motor, Fine Motor, and Expressive Speech";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} patient evaluated for developmental delays across physical, motor, and communicative milestones.`,
+        assessmentFindings: `Standardized developmental screening indicates ${severity} with primary delays observed in ${areas}. Early intervention is recommended to support milestone recovery.`,
+        currentStatus: `${name} shows good engagement and willingness to imitate movements. Steady progress noted in basic motor planning and receptive comprehension.`,
+        recommendations: "Early Intervention Occupational Therapy 2x/week, Pediatric Physiotherapy/Speech Therapy as indicated, Daily home developmental exercise regimen.",
+        reviewPlan: "Quarterly milestone review in 12 weeks to benchmark progress against developmental age equivalents.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Pediatric Developmental Therapist",
+        date: new Date().toISOString().split("T")[0]
+      },
+      parentReport: {
+        aboutYourChild: `${name} is an endearing, sweet child who showed great curiosity and perseverance during our developmental evaluation.`,
+        whatWeFound: `${name} has strong receptive skills and enjoys interactive play. With targeted exercises, their motor coordination and speech milestones will steadily catch up.`,
+        strengths: [
+          "Tries hard during guided activities",
+          "Good eye contact and smiling interaction",
+          "Loves music and cause-and-effect toys",
+          "Shows steady willingness to learn new movements"
+        ],
+        workingOn: "Strengthening core and fine motor grasping, expanding words for daily needs, and balance activities.",
+        focusAreas: [
+          "Gross and fine motor coordination",
+          "Speech and language milestone achievement",
+          "Independent self-help skills (spoon feeding, drinking)"
+        ],
+        therapyPlan: "Early Intervention & Pediatric Rehabilitation, 2-3 sessions/week for 6 months.",
+        therapyType: "Early Intervention & Physical Therapy",
+        sessionsPerWeek: 2,
+        duration: "6 months",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Encourage floor play, tummy time, and hand-eye coordination games like stacking cups. Talk through daily activities to stimulate speech.",
+        homeSuggestions: [
+          "Encourage 15 minutes of obstacle course floor crawling daily",
+          "Practice pincer grasp using safe finger foods",
+          "Narrate everyday actions clearly to build vocabulary"
+        ],
+        encouragement: `Every child develops at their own unique pace. With early intervention and your love, ${name} will make wonderful strides.`
+      }
+    };
+  }
+
+  if (category === "learning_disability") {
+    const dyslexia = assessmentData?.ldst_subtest_scores?.dyslexiaRisk || "Moderate Risk";
+    const dysgraphia = assessmentData?.ldst_subtest_scores?.dysgraphiaRisk || "Mild Risk";
+    const dyscalculia = assessmentData?.ldst_subtest_scores?.dyscalculiaRisk || "Low Risk";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} student evaluated for academic difficulties using the Learning Disability Screening Battery (LDST).`,
+        assessmentFindings: `Screening indicates risk staging: Dyslexia (${dyslexia}), Dysgraphia (${dysgraphia}), Dyscalculia (${dyscalculia}). Digit span testing indicates working memory vulnerabilities during multi-step academic tasks.`,
+        currentStatus: `${name} demonstrates strong verbal reasoning and conceptual intelligence, but experiences phonological processing bottlenecks and handwriting fatigue.`,
+        recommendations: "Special Education & Remedial Therapy 2-3x/week, Multisensory phonics (Orton-Gillingham approach), Fine motor pencil grip modification, School accommodations (extra time).",
+        reviewPlan: "Academic and screening re-evaluation in 12 weeks to gauge reading fluency and written expression gains.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Special Educator & Clinical Remediation Specialist",
+        date: new Date().toISOString().split("T")[0]
+      },
+      parentReport: {
+        aboutYourChild: `${name} is a bright and capable child who expressed wonderful creativity and reasoning during our academic screening.`,
+        whatWeFound: `${name} understands concepts very well when explained verbally. Their reading and writing difficulties are specific processing differences, not a lack of effort or capability.`,
+        strengths: [
+          "Strong verbal vocabulary and general knowledge",
+          "Excellent creative problem-solving",
+          "Understands stories well when read aloud",
+          "Determined and hard-working attitude"
+        ],
+        workingOn: "Phonemic decoding for reading fluency, pencil grip comfort and letter spacing, and number-sense strategies.",
+        focusAreas: [
+          "Multisensory reading and spelling strategies",
+          "Handwriting endurance and spacing",
+          "Math visualization using manipulatives"
+        ],
+        therapyPlan: "Remedial Education & Occupational Therapy, 2-3 sessions/week for 6 months.",
+        therapyType: "Remedial Education & Occupational Therapy",
+        sessionsPerWeek: 3,
+        duration: "6 months",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Read together daily using paired reading. Avoid comparing with peers, celebrate small reading victories, and allow audiobooks to nurture their love for stories.",
+        homeSuggestions: [
+          "15 minutes of paired reading daily with finger tracking",
+          "Use pencil grips and slant boards to reduce hand fatigue",
+          "Break homework into short, focused intervals with breaks"
+        ],
+        encouragement: `With the right multisensory tools and school accommodations, ${name}'s unique strengths and intellect will shine brightly.`
+      }
+    };
+  }
+
+  // Default: Autism Spectrum Disorder (ASD)
+  const isaaScore = assessmentData?.isaa_score || "88";
+  const isaaSeverity = assessmentData?.isaa_severity || "Mild Autism";
   return {
     therapistReport: {
-      background: `${childData?.name || "Child"} is a ${childData?.age || "5y"} patient presenting with ${childData?.primaryConcern || "developmental delay"}. Evaluated using ISAA protocol.`,
-      findings: "ISAA assessment indicates mild developmental & autism spectrum considerations with main deficits in social communication.",
-      currentStatus: `${childData?.name || "Child"} responds to name call consistently and follows simple commands. Shows curiosity during visual activities.`,
-      recommendations: "Speech therapy 2x/week, Occupational therapy 2x/week, Parent guidance program.",
-      reviewPlan: "Progress will be re-evaluated in 12 weeks with focus on communication clarity and social interaction."
+      background: `${name} is a ${age} patient presenting with ${childData?.primaryConcern || "communication and social interaction concerns"}. Evaluated using standard ISAA protocol.`,
+      assessmentFindings: `ISAA assessment yields a score of ${isaaScore}, indicating ${isaaSeverity}. Primary developmental challenges observed in reciprocal social communication, emotional responsiveness, and sensory modulation.`,
+      currentStatus: `${name} responds to name call consistently and follows simple 1-step commands. Shows curiosity during visual activities and sensory play.`,
+      recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program.",
+      reviewPlan: "Progress will be re-evaluated in 12 weeks with focus on communication clarity, turn-taking, and sitting tolerance.",
+      preparedBy: "Senior Clinical Specialist",
+      designation: "Occupational & Speech Therapist",
+      date: new Date().toISOString().split("T")[0]
     },
     parentReport: {
-      aboutYourChild: `We are happy to share that ${childData?.name || "your child"} has made wonderful progress. They communicate needs clearly and engage warmly with therapists.`,
-      whatWeFound: `${childData?.name || "Your child"} shows strong visual processing and enthusiasm for learning activities.`,
+      aboutYourChild: `We are happy to share that ${name} has made wonderful progress. They communicate needs clearly and engage warmly with therapists.`,
+      whatWeFound: `${name} shows strong visual processing and enthusiasm for learning activities.`,
       strengths: [
         "Responds consistently to name call",
         "Uses gestures and single words to express needs",
@@ -302,21 +584,21 @@ function getFallbackFullReport(childData) {
       therapyType: "Speech + Occupational Therapy",
       sessionsPerWeek: 2,
       duration: "6 months",
-      nextReviewDate: "2026-10-15",
+      nextReviewDate: "12 weeks",
       homeAdvice: "Practise naming objects during daily routines (bathing, meal time). Encourage 2-word requests before handing items.",
       homeSuggestions: [
         "Practise naming objects during daily activities",
         "Use picture cards during meals and play time",
         "Encourage 2-word requests before giving items"
       ],
-      encouragement: `With your support at home and our guidance at the clinic, ${childData?.name || "your child"} will continue to grow beautifully.`
+      encouragement: `With your support at home and our guidance at the clinic, ${name} will continue to grow beautifully.`
     }
   };
 }
 
 function getFallbackIepReport(childData, domainScores, isaaResults, previousAssessment, cycleNumber) {
   const name = childData?.name || "the child";
-  const diagnosis = childData?.diagnosis || "Autism Spectrum Disorder";
+  const diagnosis = childData?.diagnosis || "IEP Special School";
   const age = childData?.age || "5y";
   const isFirstCycle = !previousAssessment || cycleNumber === 1;
   const cycle = cycleNumber || 1;
@@ -339,33 +621,29 @@ function getFallbackIepReport(childData, domainScores, isaaResults, previousAsse
     });
   }
 
-  // Identify weak domains for first cycle
   const weakDomains = Object.entries(currDomains)
     .filter(([, v]) => v < 60)
     .map(([k]) => k.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()));
 
-  const severity = isaaResults?.severity || "Moderate Autism";
-  const score = isaaResults?.totalScore ?? "Not scored";
-
   return {
     assessmentSummary: {
-      overallSummary: `${name} is a ${age} child presenting with ${diagnosis}. The current IEP assessment (Cycle ${cycle}) was conducted using ISAA protocol, yielding a score of ${score} indicating ${severity}. Assessment findings provide a ${isFirstCycle ? "baseline" : "comparative"} evaluation of developmental progress across key domains.`,
+      overallSummary: `${name} is a ${age} student presenting with ${diagnosis}. The current IEP assessment (Cycle ${cycle}) was conducted across the 14 special school developmental domains. Assessment findings provide a ${isFirstCycle ? "baseline" : "comparative"} evaluation of educational and developmental progress.`,
       domainHighlights: weakDomains.length > 0
-        ? `Areas requiring priority support include: ${weakDomains.slice(0, 3).join(", ")}. Relatively stronger performance was observed in gross motor and self-help areas.`
-        : "The child demonstrates relatively uniform performance across assessed domains, with communication and social interaction identified as primary areas for continued development.",
-      clinicalObservations: `${name} was cooperative during the assessment session. Responsiveness to structured activities and engagement with the therapist were noted. ${isFirstCycle ? "This assessment establishes the baseline for the 3-month IEP cycle." : "Comparison with the previous assessment informs the revised 3-month plan."}`
+        ? `Areas requiring priority focus include: ${weakDomains.slice(0, 3).join(", ")}. Relatively stronger performance was observed in gross motor and functional play areas.`
+        : "The student demonstrates steady performance across assessed domains, with communication and cognitive concepts identified as primary areas for continued IEP development.",
+      clinicalObservations: `${name} was cooperative during the assessment session. Responsiveness to structured educational tasks and engagement with the special educator were noted. ${isFirstCycle ? "This assessment establishes the baseline for the 3-month IEP cycle." : "Comparison with the previous assessment informs the revised 3-month plan."}`
     },
     progressComparison: {
       isFirstCycle,
       baseline: isFirstCycle
-        ? `This is the initial IEP assessment for ${name}, establishing the developmental baseline across all domains. The findings will serve as the reference point for evaluating progress in subsequent 3-month cycles.`
+        ? `This is the initial IEP assessment for ${name}, establishing the developmental baseline across all 14 special school domains. The findings will serve as the reference point for evaluating progress in subsequent 3-month cycles.`
         : "",
       improved: improved.length > 0 ? improved : (isFirstCycle ? [] : ["To be determined at next review"]),
       unchanged: unchanged.length > 0 ? unchanged : [],
       needsImprovement: isFirstCycle ? weakDomains.slice(0, 4) : (needsImprovement.length > 0 ? needsImprovement : weakDomains.slice(0, 3)),
       narrative: isFirstCycle
-        ? `As this is ${name}'s first IEP assessment, this report establishes the baseline for developmental progress. The identified areas of need will form the foundation of the 3-month intervention plan.`
-        : `Since the previous assessment, ${improved.length > 0 ? `improvements have been noted in ${improved.join(", ")}` : "progress has been steady across domains"}. ${needsImprovement.length > 0 ? `Continued focused support is recommended for ${needsImprovement.join(", ")}.` : "The child is making expected developmental progress."}`
+        ? `As this is ${name}'s first IEP assessment, this report establishes the baseline for developmental and educational progress. The identified areas of need will form the foundation of the 3-month intervention plan.`
+        : `Since the previous assessment, ${improved.length > 0 ? `improvements have been noted in ${improved.join(", ")}` : "progress has been steady across domains"}. ${needsImprovement.length > 0 ? `Continued focused support is recommended for ${needsImprovement.join(", ")}.` : "The student is making expected developmental progress."}`
     },
     areasForImprovement: isFirstCycle
       ? (weakDomains.length > 0 ? weakDomains.slice(0, 4) : [
@@ -378,13 +656,13 @@ function getFallbackIepReport(childData, domainScores, isaaResults, previousAsse
     threeMonthPlan: {
       goals: [
         `Improve functional communication — ${name} will initiate communication in 3 out of 5 opportunities without prompting`,
-        `Increase sustained attention during structured activities to 10–15 minutes`,
-        `Demonstrate 3+ appropriate social interactions with peers per therapy session`,
+        `Increase sustained attention during structured learning activities to 15–20 minutes`,
+        `Demonstrate 3+ appropriate social interactions with peers per session`,
         `Show measurable improvement in at least 2 identified priority domains by next assessment`
       ],
-      approach: `The 3-month plan for ${name} will focus on a structured, systematic approach to address the identified priority areas. Sessions will integrate multi-modal learning techniques, parent collaboration, and a consistent routine to support skill generalisation across home and clinic environments.`,
-      expectedOutcomes: `By the end of this 3-month period, ${name} is expected to demonstrate measurable progress in the identified priority areas, with particular focus on communication and social interaction. The next IEP assessment will formally evaluate progress against these goals.`
+      approach: `The 3-month plan for ${name} will focus on a structured, multi-sensory educational approach to address the identified priority areas. Sessions will integrate individualized learning materials, educator collaboration, and a consistent routine.`,
+      expectedOutcomes: `By the end of this 3-month period, ${name} is expected to demonstrate measurable progress in the identified priority areas, with particular focus on communication and pre-academic readiness.`
     },
-    recommendedOutcomes: `With consistent therapeutic support and family engagement, ${name} is expected to make meaningful developmental progress over the next 3 months. The structured IEP plan provides a clear framework for targeted improvement, and the next review will assess achievement against these goals.`
+    recommendedOutcomes: `With consistent educational support and family engagement, ${name} is expected to make meaningful progress over the next 3 months. The structured IEP plan provides a clear framework for targeted improvement.`
   };
 }

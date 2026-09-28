@@ -168,6 +168,153 @@ export default function TherapyPage() {
         </div>
       </div>
 
+      {/* ═══ ASD ISAA CLINICAL HIGHLIGHT BANNER ═══ */}
+      {(selectedCategory === "ASD" || selectedCategory === "All") && (
+        <div className="bg-gradient-to-r from-[#185FA5]/15 via-[#185FA5]/5 to-white p-5 rounded-[12px] border-2 border-[#185FA5]/30 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="h-10 w-10 rounded-[10px] bg-[#185FA5] text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <Brain className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#185FA5] bg-[#185FA5]/10 px-2 py-0.5 rounded-full">
+                  ASD Diagnostic Tool
+                </span>
+                <span className="text-xs font-bold text-[#5F5E5A]">40 Items · 6 Clinical Sections</span>
+              </div>
+              <h3 className="text-base font-black text-[#2C2C2A]">
+                Indian Scale for Assessment of Autism (ISAA)
+              </h3>
+              <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed max-w-2xl">
+                Standardized clinical scale covering Social Relationship &amp; Reciprocity, Emotional Responsiveness, Speech-Language, Behaviour Patterns, Cognitive Component, and Sensory Aspects.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+            <Button
+              size="md"
+              variant="primary"
+              icon={Brain}
+              onClick={() => navigate("/therapy/asd/assessment")}
+            >
+              Open ISAA Form
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADHD CONNERS CLINICAL HIGHLIGHT BANNER ═══ */}
+      {(selectedCategory === "ADHD" || selectedCategory === "All") && (
+        <div className="bg-gradient-to-r from-[#0F6E56]/15 via-[#0F6E56]/5 to-white p-5 rounded-[12px] border-2 border-[#0F6E56]/30 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="h-10 w-10 rounded-[10px] bg-[#0F6E56] text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#0F6E56] bg-[#0F6E56]/10 px-2 py-0.5 rounded-full">
+                  ADHD Diagnostic Evaluation
+                </span>
+                <span className="text-xs font-bold text-[#5F5E5A]">27 Items · 3 Subscales · CPRS-R:S</span>
+              </div>
+              <h3 className="text-base font-black text-[#2C2C2A]">
+                Conners' Parent Rating Scale–Revised (S)
+              </h3>
+              <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed max-w-2xl">
+                Standardized behavioural assessment evaluating Inattention / Cognitive Problems, Hyperactivity / Motor Impulsivity, and Oppositional / Emotional regulation.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+            <Button
+              size="md"
+              variant="primary"
+              icon={Zap}
+              className="bg-[#0F6E56] hover:bg-[#08503E]"
+              onClick={() => navigate("/therapy/adhd/assessment")}
+            >
+              Open Conners' Form
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DEVELOPMENTAL DELAY CLINICAL HIGHLIGHT BANNER ═══ */}
+      {(selectedCategory === "Developmental Delay" || selectedCategory === "All") && (
+        <div className="bg-gradient-to-r from-[#854F0B]/15 via-[#854F0B]/5 to-white p-5 rounded-[12px] border-2 border-[#854F0B]/30 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="h-10 w-10 rounded-[10px] bg-[#854F0B] text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <Clock className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#854F0B] bg-[#854F0B]/10 px-2 py-0.5 rounded-full">
+                  Delay &amp; Milestone Tracking
+                </span>
+                <span className="text-xs font-bold text-[#5F5E5A]">7 Age Brackets · Birth to 5 Years</span>
+              </div>
+              <h3 className="text-base font-black text-[#2C2C2A]">
+                Developmental Checklists (Birth to Five)
+              </h3>
+              <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed max-w-2xl">
+                Comprehensive early childhood milestone checklist &amp; clinical red flags tracking covering Movement, Vision, Hearing/Speech, Cognitive, and Social/Emotional domains.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+            <Button
+              size="md"
+              variant="primary"
+              icon={Clock}
+              className="bg-[#854F0B] hover:bg-[#683C07]"
+              onClick={() => navigate("/therapy/delay/assessment")}
+            >
+              Open Delay Checklist
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ LEARNING DISABILITY (SLD) CLINICAL HIGHLIGHT BANNER ═══ */}
+      {(selectedCategory === "Learning Disability" || selectedCategory === "All") && (
+        <div className="bg-gradient-to-r from-[#2f6f5e]/15 via-[#2f6f5e]/5 to-white p-5 rounded-[12px] border-2 border-[#2f6f5e]/30 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="h-10 w-10 rounded-[10px] bg-[#2f6f5e] text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#2f6f5e] bg-[#2f6f5e]/10 px-2 py-0.5 rounded-full">
+                  SLD Diagnostic Battery
+                </span>
+                <span className="text-xs font-bold text-[#5F5E5A]">Level I (5–7 yrs) · Level II (8–12 yrs) · Memory Battery</span>
+              </div>
+              <h3 className="text-base font-black text-[#2C2C2A]">
+                Learning Disability Screening Test (LDST)
+              </h3>
+              <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed max-w-2xl">
+                Diagnostic assessment battery evaluating Attention, Visual/Auditory Discrimination, Reading Speed &amp; Miscues, Spelling Lists, Arithmetic (Dyscalculia), and Digit Span Memory.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+            <Button
+              size="md"
+              variant="primary"
+              icon={BookOpen}
+              className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
+              onClick={() => navigate("/therapy/sld/assessment")}
+            >
+              Open LDST Form
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Roster Controls */}
       <Card padding="p-4" className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -264,11 +411,68 @@ export default function TherapyPage() {
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-[#D3D1C7]/60 flex items-center justify-between gap-2">
+                  <div className="pt-2 border-t border-[#D3D1C7]/60 flex items-center justify-between gap-1.5 flex-wrap">
+                    {c.therapy_category === "Learning Disability" && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        icon={BookOpen}
+                        className="text-[11px] px-2.5 py-1 bg-[#2f6f5e] hover:bg-[#23584a] text-white"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/therapy/sld/assessment/${c.id}`);
+                        }}
+                      >
+                        LDST Screening
+                      </Button>
+                    )}
+                    {c.therapy_category === "Developmental Delay" && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        icon={Clock}
+                        className="text-[11px] px-2.5 py-1 bg-[#854F0B] hover:bg-[#683C07]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/therapy/delay/assessment/${c.id}`);
+                        }}
+                      >
+                        Delay Checklist
+                      </Button>
+                    )}
+                    {c.therapy_category === "ADHD" && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        icon={Zap}
+                        className="text-[11px] px-2.5 py-1 bg-[#0F6E56] hover:bg-[#08503E]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/therapy/adhd/assessment/${c.id}`);
+                        }}
+                      >
+                        Conners' Scale
+                      </Button>
+                    )}
+                    {(c.therapy_category === "ASD" || (!c.therapy_category && selectedCategory !== "ADHD" && selectedCategory !== "Developmental Delay" && selectedCategory !== "Learning Disability")) && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        icon={Brain}
+                        className="text-[11px] px-2.5 py-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/therapy/asd/assessment/${c.id}`);
+                        }}
+                      >
+                        ISAA Scale
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outlined"
                       icon={Activity}
+                      className="text-[11px] px-2.5 py-1"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/children/${c.id}?tab=exercises`);
@@ -278,7 +482,9 @@ export default function TherapyPage() {
                     </Button>
                     <Button
                       size="sm"
+                      variant="outlined"
                       icon={FileText}
+                      className="text-[11px] px-2.5 py-1"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/reports/new/${c.id}`);

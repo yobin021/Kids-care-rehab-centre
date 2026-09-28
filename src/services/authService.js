@@ -1,30 +1,45 @@
 import { db } from '../lib/db'
+import { verifyPassword, hashPassword, isHashed } from './passwordService'
+import bcrypt from 'bcryptjs'
 
 export const authService = {
 
   async loginStaff(username, password) {
     try {
-      // users table: id (uuid), name, username (UNIQUE), password_hash, designation, role, is_active
+      // Find active user by username
       const users = await db.select('users', {
-        match: { username, password_hash: password, is_active: true }
+        match: { username, is_active: true }
       })
 
-      const data = Array.isArray(users) ? users[0] : users
+      const list = Array.isArray(users) ? users : (users ? [users] : [])
+      const data = list[0]
 
-      if (data) {
-        const user = {
-          id: data.id,            // uuid
-          name: data.name,
-          username: data.username,
-          role: data.role,        // 'admin' | 'staff'
-          designation: data.designation || null
+      if (data && data.password_hash) {
+        const isValid = await verifyPassword(password, data.password_hash)
+
+        if (isValid) {
+          // If legacy plain text password was matched, seamlessly upgrade to bcrypt hash
+          if (!isHashed(data.password_hash)) {
+            hashPassword(password)
+              .then(newHash => db.update('users', { password_hash: newHash }, { id: data.id }))
+              .catch(err => console.warn('Auto-rehash staff password notice:', err.message))
+          }
+
+          const user = {
+            id: data.id,            // uuid
+            name: data.name,
+            username: data.username,
+            role: data.role,        // 'admin' | 'staff'
+            designation: data.designation || null
+          }
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('kcr_user', JSON.stringify(user))
+          }
+
+          return { success: true, user }
+
         }
-
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('kcr_user', JSON.stringify(user))
-        }
-
-        return { success: true, user }
       }
     } catch (err) {
       console.warn('authService.loginStaff network notice:', err.message)
@@ -47,7 +62,7 @@ export const authService = {
 
     if (username === 'staff' && (password === 'staff123' || password === 'staff')) {
       const staffUser = {
-        id: 's0000000-0000-0000-0000-000000000001',
+        id: 'b0000000-0000-0000-0000-000000000001',
         name: 'Senior Clinical Therapist',
         username: 'staff',
         role: 'staff',
@@ -59,16 +74,18 @@ export const authService = {
       return { success: true, user: staffUser }
     }
 
+
     return { success: false, error: 'Invalid username or password' }
   },
 
   async registerStaff(name, username, password, designation) {
     try {
+      const hashed = await hashPassword(password)
       const newUser = {
         id: crypto.randomUUID(),
         name,
         username,
-        password_hash: password,
+        password_hash: hashed,
         role: 'staff',
         designation,
         is_active: true
@@ -77,7 +94,7 @@ export const authService = {
       return { success: true, user: newUser }
     } catch (err) {
       console.warn('authService.registerStaff DB insert notice:', err.message)
-      // Fallback for local development
+      // Resilient fallback for local development
       const newUser = {
         id: crypto.randomUUID(),
         name,
@@ -93,31 +110,49 @@ export const authService = {
 
   async loginParent(phone, password) {
     try {
-      // parent_accounts: phone (UNIQUE), password_hash, portal_active, child_id → children
+      // Find active parent account by phone
       const accounts = await db.select('parent_accounts', {
         select: '*, children(id, name, diagnosis, profile)',
-        match: { phone, password_hash: password, portal_active: true }
+        match: { phone, portal_active: true }
       })
 
-      const data = Array.isArray(accounts) ? accounts[0] : accounts
+      const list = Array.isArray(accounts) ? accounts : (accounts ? [accounts] : [])
+      const data = list[0]
 
-      if (data) {
-        const child = Array.isArray(data.children) ? data.children[0] : data.children
+      if (data && data.password_hash) {
+        const isValid = await verifyPassword(password, data.password_hash)
 
-        const user = {
-          id: data.id,                // uuid
-          name: data.parent_name,
-          phone: data.phone,
-          role: 'parent',
-          childId: data.child_id,
-          childName: child?.name || null
+        if (isValid) {
+          // If legacy plain text password was matched, seamlessly upgrade to bcrypt hash
+          if (!isHashed(data.password_hash)) {
+            hashPassword(password)
+              .then(newHash => db.update('parent_accounts', { password_hash: newHash }, { id: data.id }))
+              .catch(err => console.warn('Auto-rehash parent password notice:', err.message))
+          }
+
+          const child = Array.isArray(data.children) ? data.children[0] : data.children
+          const diag = (child?.diagnosis || "").toUpperCase()
+          const isTherapy = diag.includes("ADHD") || diag.includes("DELAY") || diag.includes("DEVELOPMENTAL") || diag.includes("LEARNING") || diag.includes("DISABILITY") || diag.includes("ASD") || diag.includes("AUTISM")
+          const isIep = !isTherapy && (data.child_id === "KCR-2024-001" || diag.includes("IEP") || diag.includes("INTELLECTUAL") || diag.includes("SPECIAL SCHOOL"))
+
+          const user = {
+            id: data.id,                // uuid
+            name: data.parent_name,
+            phone: data.phone,
+            role: 'parent',
+            childId: data.child_id,
+            childName: child?.name || null,
+            childDiagnosis: child?.diagnosis || null,
+            childProfile: child?.profile || null,
+            programType: isIep ? "iep" : "therapy"
+          }
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('kcr_user', JSON.stringify(user))
+          }
+
+          return { success: true, user }
         }
-
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('kcr_user', JSON.stringify(user))
-        }
-
-        return { success: true, user }
       }
     } catch (err) {
       console.warn('authService.loginParent network notice:', err.message)
@@ -127,7 +162,17 @@ export const authService = {
     if (typeof window !== 'undefined') {
       try {
         const localList = JSON.parse(localStorage.getItem('local_children_list') || '[]')
-        const match = localList.find(c => c.parent?.phone === phone && (!password || c.parent?.portalPassword === password || password === '123456' || password === 'password'))
+        const match = localList.find(c => {
+          if (c.parent?.phone !== phone) return false
+          const pPass = c.parent?.portalPassword
+          if (!password) return true
+          if (password === '123456' || password === 'password') return true
+          if (!pPass) return false
+          if (isHashed(pPass)) {
+            try { return bcrypt.compareSync(password, pPass) } catch (_) { return false }
+          }
+          return pPass === password
+        })
         if (match) {
           const user = {
             id: match.parent.id || `parent-${match.id}`,
@@ -143,25 +188,22 @@ export const authService = {
       } catch (_) {}
     }
 
+
     return { success: false, error: 'Invalid phone or password' }
   },
 
   logout() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('kcr_user')
+      sessionStorage.removeItem('kcr_user')
     }
   },
 
   getCurrentUser() {
+    // Always returns null to ensure credentials are requested every time the website is opened
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('kcr_user')
-      if (stored) {
-        try {
-          return JSON.parse(stored)
-        } catch (e) {
-          return null
-        }
-      }
+      localStorage.removeItem('kcr_user')
+      sessionStorage.removeItem('kcr_user')
     }
     return null
   }

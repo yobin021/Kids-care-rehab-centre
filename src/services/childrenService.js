@@ -7,6 +7,94 @@ function toUUID(val) {
     : null
 }
 
+export const DEFAULT_CHILDREN = [
+  {
+    id: "KCR-2024-001",
+    name: "Aditya Verma",
+    age: 7,
+    gender: "Male",
+    program_type: "iep",
+    therapy_category: null,
+    school: "Kids Care Special School",
+    diagnosis: "Intellectual & Developmental Disability",
+    parent: {
+      id: "p0000000-0000-0000-0000-000000000001",
+      name: "Rajesh Verma",
+      phone: "9876543211",
+      relationship: "Father",
+      portalActive: true
+    }
+  },
+  {
+    id: "KCR-2024-002",
+    name: "Aarav Ramanathan",
+    age: 5,
+    gender: "Male",
+    program_type: "therapy",
+    therapy_category: "ASD",
+    school: "Bloom Early Learning Center",
+    diagnosis: "Autism Spectrum Disorder",
+    parent: {
+      id: "p0000000-0000-0000-0000-000000000002",
+      name: "Mrs. Priya Ramanathan",
+      phone: "9876543210",
+      relationship: "Mother",
+      portalActive: true
+    }
+  },
+  {
+    id: "KCR-2024-003",
+    name: "Diya Sharma",
+    age: 6,
+    gender: "Female",
+    program_type: "therapy",
+    therapy_category: "ADHD",
+    school: "St. Marys Academy",
+    diagnosis: "ADHD - Combined Presentation",
+    parent: {
+      id: "p0000000-0000-0000-0000-000000000003",
+      name: "Vikram Sharma",
+      phone: "9876543212",
+      relationship: "Father",
+      portalActive: true
+    }
+  },
+  {
+    id: "KCR-2024-004",
+    name: "Kabir Patel",
+    age: 4,
+    gender: "Male",
+    program_type: "therapy",
+    therapy_category: "Developmental Delay",
+    school: "Sunshine Preschool",
+    diagnosis: "Global Developmental Delay",
+    parent: {
+      id: "p0000000-0000-0000-0000-000000000004",
+      name: "Ananya Patel",
+      phone: "9876543213",
+      relationship: "Mother",
+      portalActive: true
+    }
+  },
+  {
+    id: "KCR-2024-005",
+    name: "Rohan Nair",
+    age: 8,
+    gender: "Male",
+    program_type: "therapy",
+    therapy_category: "Learning Disability",
+    school: "Vidya Mandir School",
+    diagnosis: "Specific Learning Disability (Dyslexia)",
+    parent: {
+      id: "p0000000-0000-0000-0000-000000000005",
+      name: "Suresh Nair",
+      phone: "9876543214",
+      relationship: "Father",
+      portalActive: true
+    }
+  }
+];
+
 export const childrenService = {
 
   async getAll() {
@@ -17,9 +105,12 @@ export const childrenService = {
         order: { column: 'created_at', ascending: false }
       })
 
-      return (data || []).map(normalizeChild)
+      if (Array.isArray(data)) {
+        return data.map(normalizeChild)
+      }
+      return []
     } catch (err) {
-      console.warn('childrenService.getAll notice (using local data):', err.message)
+      console.warn('childrenService.getAll notice:', err.message)
       return []
     }
   },
@@ -41,16 +132,52 @@ export const childrenService = {
       const data = await db.select('children', {
         select: `*,
           parent_accounts(id, parent_name, relationship, phone, email, address, portal_active, password_hash, created_at),
-          assessments(id, assessment_date, domain_scores, isaa_score, isaa_severity, profile, status, assessed_by, created_at),
           reports(id, status, created_at, published_at, prepared_by, published_by)`,
         match: { id },
         single: true
       })
 
-      return normalizeChild(data)
+      const child = normalizeChild(data)
+
+      // Fetch assessments from the correct form-specific table
+      if (child) {
+        const tableMap = {
+          'ASD': 'assessment_asd',
+          'ADHD': 'assessment_adhd',
+          'Developmental Delay': 'assessment_developmental_delay',
+          'Learning Disability': 'assessment_learning_disability'
+        }
+        const assessTable = child.program_type === 'therapy'
+          ? (tableMap[child.therapy_category] || 'assessment_asd')
+          : 'assessment_special_school'
+
+        try {
+          const assessments = await db.select(assessTable, {
+            select: '*',
+            match: { child_id: id },
+            order: { column: 'created_at', ascending: false }
+          })
+          child.assessments = Array.isArray(assessments) ? assessments : []
+        } catch (assessErr) {
+          console.warn(`childrenService.getById: could not fetch from ${assessTable}:`, assessErr.message)
+          // Fallback: try old assessments table
+          try {
+            const legacyAssess = await db.select('assessments', {
+              select: 'id, assessment_date, domain_scores, isaa_score, isaa_severity, profile, status, assessed_by, created_at',
+              match: { child_id: id },
+              order: { column: 'created_at', ascending: false }
+            })
+            child.assessments = Array.isArray(legacyAssess) ? legacyAssess : []
+          } catch (_) {
+            child.assessments = []
+          }
+        }
+      }
+
+      return child || DEFAULT_CHILDREN.find(c => c.id === id) || null
     } catch (err) {
       console.warn('childrenService.getById notice (using local data):', err.message)
-      return null
+      return DEFAULT_CHILDREN.find(c => c.id === id) || null
     }
   },
 

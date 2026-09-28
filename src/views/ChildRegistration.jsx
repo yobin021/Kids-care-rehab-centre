@@ -11,6 +11,7 @@ import Toggle from "../components/ui/Toggle";
 import Badge from "../components/ui/Badge";
 import { childrenService } from "../services/childrenService";
 import { parentService } from "../services/parentService";
+import { hashPassword } from "../services/passwordService";
 import { THERAPY_CATEGORIES } from "../services/therapyService";
 
 export default function ChildRegistration() {
@@ -127,6 +128,9 @@ export default function ChildRegistration() {
       const res = await childrenService.create(childPayload, user?.id);
 
       // Create parent account in Supabase if parent info is provided
+      const rawParentPass = formData.parentPassword || "parent123";
+      const hashedParentPass = await hashPassword(rawParentPass);
+
       if (res?.id && formData.phone) {
         try {
           await parentService.createAccount(
@@ -136,7 +140,7 @@ export default function ChildRegistration() {
               phone: formData.phone,
               email: formData.email || null,
               address: formData.address || null,
-              password_hash: formData.parentPassword || "parent123"
+              password_hash: hashedParentPass
             },
             res.id,
             user?.id
@@ -155,7 +159,7 @@ export default function ChildRegistration() {
           email: formData.email,
           address: formData.address,
           portalActive: formData.createParentAccess,
-          portalPassword: formData.parentPassword || "parent123"
+          portalPassword: hashedParentPass
         }
       };
 
@@ -165,6 +169,8 @@ export default function ChildRegistration() {
       setStep(5);
     } catch (err) {
       console.warn("Local child registration fallback:", err.message);
+      const rawParentPass = formData.parentPassword || "parent123";
+      const hashedParentPass = await hashPassword(rawParentPass);
       const mockId = `KCR-2026-${Math.floor(Math.random() * 900) + 100}`;
       const fallbackChildObj = {
         id: mockId,
@@ -179,7 +185,7 @@ export default function ChildRegistration() {
           email: formData.email,
           address: formData.address,
           portalActive: formData.createParentAccess,
-          portalPassword: formData.parentPassword || "parent123"
+          portalPassword: hashedParentPass
         }
       };
       addRegisteredChild(fallbackChildObj);

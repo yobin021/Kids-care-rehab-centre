@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   RotateCcw,
@@ -12,6 +12,7 @@ import {
   Eye,
   CheckCircle2,
   AlertTriangle,
+  Printer,
   Plus,
   X,
   Trash2,
@@ -26,14 +27,300 @@ import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
 import { reportService } from "../services/reportService";
 import { exerciseService } from "../services/exerciseService";
+import { childrenService } from "../services/childrenService";
+import { assessmentService } from "../services/assessmentService";
+import { printReportWithFilename } from "../utils/printHelpers";
+
+function getDefaultFormState(child, category = "asd", assessment = null) {
+  const name = child?.name || "Child";
+  const age = child?.age || "5y";
+  const gender = child?.gender || "Male";
+  const concern = child?.primaryConcern || "developmental challenges";
+  const today = new Date().toISOString().split("T")[0];
+
+  if (category === "adhd") {
+    const presentation = assessment?.adhd_presentation || "Combined Presentation";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} ${gender} referred for evaluation of high motor activity, distractibility, and impulsivity. Evaluated using the Conners' ADHD Rating Scale.`,
+        assessmentFindings: `Conners' ADHD evaluation indicates clinically elevated scores in ${presentation}. Primary challenges noted in sustained attention, impulse inhibition, and high motor activity during non-preferred tasks.`,
+        currentStatus: `${name} demonstrates excellent energy, creative problem-solving, and responds well to 1-on-1 structured tasks with clear visual cues and frequent sensory breaks.`,
+        recommendations: "Occupational therapy with sensory regulation 2x/week, Behavioral therapy for executive functioning and impulse control, Classroom accommodation plan with movement breaks.",
+        reviewPlan: "Progress will be re-evaluated in 12 weeks to monitor sitting tolerance, task completion rates, and impulse regulation.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Occupational & Behavioral Therapist",
+        date: today
+      },
+      parentReport: {
+        aboutYourChild: `We are delighted to work with ${name}! They bring tremendous energy, curiosity, and warmth to our sessions.`,
+        whatWeFound: `${name} is bright and learns rapidly through hands-on activities. They benefit from structured routines and short movement breaks to help sustain attention.`,
+        strengths: [
+          "High curiosity and eagerness to explore",
+          "Responds warmly to positive reinforcement",
+          "Enjoys energetic physical and sensory games",
+          "Quick learner with interactive visual aids"
+        ],
+        workingOn: "Building sustained focus for table tasks, practicing 'stop-and-think' before acting, and smooth transitions between activities.",
+        focusAreas: [
+          "Attention span during structured tasks",
+          "Impulse regulation and waiting turns",
+          "Organizing materials and following multi-step directions"
+        ],
+        therapyPlan: "Occupational Therapy & Behavioral Intervention, 2 sessions/week for 6 months.",
+        therapyType: "Occupational & Behavioral Therapy",
+        sessionsPerWeek: 2,
+        duration: "6 months",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Create predictable daily routines with visual timers. Provide physical movement before seated homework, and break tasks into 10-minute chunks.",
+        homeSuggestions: [
+          "Use a 10-minute visual countdown timer for homework",
+          "Provide sensory heavy-work (pushing a wall, jumping) before seated tasks",
+          "Use positive praise immediately when instructions are followed"
+        ],
+        encouragement: `With consistent routines and your encouragement at home, ${name}'s vibrant energy will become their greatest strength.`
+      },
+      exercises: {
+        clinicExercises: [
+          "Sensory Motor Obstacle Course",
+          "Attention & Focus Drills",
+          "Impulse Control Stop-Go Games",
+          "Deep Pressure Proprioceptive Input",
+          "Executive Functioning Organization Tasks"
+        ],
+        homeExercises: [
+          "Heavy Work Animal Walks",
+          "Visual Schedule Following",
+          "Deep Breathing Calm-Down Corner"
+        ],
+        parentNotes: "Practice movement breaks and visual timer routines daily at home.",
+        therapyDays: ["Mon", "Wed", "Fri"],
+        sessionTime: "10:00",
+        sessionDuration: "60",
+        frequencyPerWeek: 2,
+        startDate: today,
+        nextReviewDate: "12 weeks"
+      }
+    };
+  }
+
+  if (category === "developmental_delay") {
+    const severity = assessment?.delay_severity || "Mild-to-Moderate Delay";
+    const areas = assessment?.delay_areas?.join(", ") || "Gross Motor, Fine Motor, and Expressive Speech";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} ${gender} evaluated for developmental delays across physical, motor, and communicative milestones.`,
+        assessmentFindings: `Standardized developmental screening indicates ${severity} with primary delays observed in ${areas}. Early intervention is recommended to support milestone recovery.`,
+        currentStatus: `${name} shows good engagement and willingness to imitate movements. Steady progress noted in basic motor planning and receptive comprehension.`,
+        recommendations: "Early Intervention Occupational Therapy 2x/week, Pediatric Physiotherapy/Speech Therapy as indicated, Daily home developmental exercise regimen.",
+        reviewPlan: "Quarterly milestone review in 12 weeks to benchmark progress against developmental age equivalents.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Pediatric Developmental Therapist",
+        date: today
+      },
+      parentReport: {
+        aboutYourChild: `${name} is an endearing, sweet child who showed great curiosity and perseverance during our developmental evaluation.`,
+        whatWeFound: `${name} has strong receptive skills and enjoys interactive play. With targeted exercises, their motor coordination and speech milestones will steadily catch up.`,
+        strengths: [
+          "Tries hard during guided activities",
+          "Good eye contact and smiling interaction",
+          "Loves music and cause-and-effect toys",
+          "Shows steady willingness to learn new movements"
+        ],
+        workingOn: "Strengthening core and fine motor grasping, expanding words for daily needs, and balance activities.",
+        focusAreas: [
+          "Gross and fine motor coordination",
+          "Speech and language milestone achievement",
+          "Independent self-help skills (spoon feeding, drinking)"
+        ],
+        therapyPlan: "Early Intervention & Pediatric Rehabilitation, 2 sessions/week for 6 months.",
+        therapyType: "Early Intervention & Physical Therapy",
+        sessionsPerWeek: 2,
+        duration: "6 months",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Encourage floor play, tummy time, and hand-eye coordination games like stacking cups. Talk through daily activities to stimulate speech.",
+        homeSuggestions: [
+          "Encourage 15 minutes of obstacle course floor crawling daily",
+          "Practice pincer grasp using safe finger foods",
+          "Narrate everyday actions clearly to build vocabulary"
+        ],
+        encouragement: `Every child develops at their own unique pace. With early intervention and your love, ${name} will make wonderful strides.`
+      },
+      exercises: {
+        clinicExercises: [
+          "Gross Motor Balance & Stepping Drills",
+          "Fine Motor Pincer Grasp Activities",
+          "Speech & Sound Imitation Games",
+          "Core Strengthening Therapy Ball Play",
+          "Sensory Tactile Exploration"
+        ],
+        homeExercises: [
+          "Tummy Time & Floor Crawling Games",
+          "Stacking Cups & Pegboard Play",
+          "Interactive Action Rhymes"
+        ],
+        parentNotes: "Spend 20 minutes daily on floor-based developmental play.",
+        therapyDays: ["Tue", "Thu", "Sat"],
+        sessionTime: "11:00",
+        sessionDuration: "60",
+        frequencyPerWeek: 2,
+        startDate: today,
+        nextReviewDate: "12 weeks"
+      }
+    };
+  }
+
+  if (category === "learning_disability") {
+    const dyslexia = assessment?.ldst_subtest_scores?.dyslexiaRisk || "Moderate Risk";
+    const dysgraphia = assessment?.ldst_subtest_scores?.dysgraphiaRisk || "Mild Risk";
+    const dyscalculia = assessment?.ldst_subtest_scores?.dyscalculiaRisk || "Low Risk";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} student evaluated for academic difficulties using the Learning Disability Screening Battery (LDST).`,
+        assessmentFindings: `Screening indicates risk staging: Dyslexia (${dyslexia}), Dysgraphia (${dysgraphia}), Dyscalculia (${dyscalculia}). Digit span testing indicates working memory vulnerabilities during multi-step academic tasks.`,
+        currentStatus: `${name} demonstrates strong verbal reasoning and conceptual intelligence, but experiences phonological processing bottlenecks and handwriting fatigue.`,
+        recommendations: "Special Education & Remedial Therapy 2-3x/week, Multisensory phonics (Orton-Gillingham approach), Fine motor pencil grip modification, School accommodations (extra time).",
+        reviewPlan: "Academic and screening re-evaluation in 12 weeks to gauge reading fluency and written expression gains.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Special Educator & Clinical Remediation Specialist",
+        date: today
+      },
+      parentReport: {
+        aboutYourChild: `${name} is a bright and capable child who expressed wonderful creativity and reasoning during our academic screening.`,
+        whatWeFound: `${name} understands concepts very well when explained verbally. Their reading and writing difficulties are specific processing differences, not a lack of effort or capability.`,
+        strengths: [
+          "Strong verbal vocabulary and general knowledge",
+          "Excellent creative problem-solving",
+          "Understands stories well when read aloud",
+          "Determined and hard-working attitude"
+        ],
+        workingOn: "Phonemic decoding for reading fluency, pencil grip comfort and letter spacing, and number-sense strategies.",
+        focusAreas: [
+          "Multisensory reading and spelling strategies",
+          "Handwriting endurance and spacing",
+          "Math visualization using manipulatives"
+        ],
+        therapyPlan: "Remedial Education & Occupational Therapy, 2-3 sessions/week for 6 months.",
+        therapyType: "Remedial Education & Occupational Therapy",
+        sessionsPerWeek: 3,
+        duration: "6 months",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Read together daily using paired reading. Avoid comparing with peers, celebrate small reading victories, and allow audiobooks to nurture their love for stories.",
+        homeSuggestions: [
+          "15 minutes of paired reading daily with finger tracking",
+          "Use pencil grips and slant boards to reduce hand fatigue",
+          "Break homework into short, focused intervals with breaks"
+        ],
+        encouragement: `With the right multisensory tools and school accommodations, ${name}'s unique strengths and intellect will shine brightly.`
+      },
+      exercises: {
+        clinicExercises: [
+          "Multisensory Phonics & Sandpaper Letters",
+          "Fine Motor Pencil Grip Modification",
+          "Visual Memory Sequencing Drills",
+          "Number Sense & Math Manipulatives",
+          "Bilateral Coordination & Hand Gym Drills"
+        ],
+        homeExercises: [
+          "Paired Reading with Finger Tracking",
+          "Pencil Grip Hand Gym Exercises",
+          "Audiobook Listening & Story Narration"
+        ],
+        parentNotes: "Practise 15 minutes of paired reading daily in a relaxed environment.",
+        therapyDays: ["Mon", "Wed", "Fri"],
+        sessionTime: "16:00",
+        sessionDuration: "60",
+        frequencyPerWeek: 3,
+        startDate: today,
+        nextReviewDate: "12 weeks"
+      }
+    };
+  }
+
+  // Default: ASD
+  const isaaScore = assessment?.isaa_score || "88";
+  const isaaSeverity = assessment?.isaa_severity || "Mild Autism";
+  return {
+    therapistReport: {
+      background: `${name} is a ${age} ${gender} presenting with ${concern}. Evaluated using standard ISAA protocol by therapy team.`,
+      assessmentFindings: `ISAA assessment yields a score of ${isaaScore}, indicating ${isaaSeverity}. Primary developmental challenges observed in reciprocal social communication, emotional responsiveness, and sensory modulation.`,
+      currentStatus: `${name} responds to name call consistently and follows 1-step commands. Shows progress in understanding routines, while working on turn-taking.`,
+      recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program.",
+      reviewPlan: "Progress will be re-evaluated in 12 weeks to assess gains in expressive vocabulary, turn-taking, and sitting tolerance.",
+      preparedBy: "Senior Clinical Specialist",
+      designation: "Occupational & Speech Therapist",
+      date: today
+    },
+    parentReport: {
+      aboutYourChild: `We are happy to share that ${name} has made progress during therapy sessions. They demonstrate good engagement and curiosity during interactive tasks.`,
+      whatWeFound: `${name} shows strong visual processing and enthusiasm for learning activities. Speech clarity and social interaction are being actively supported.`,
+      strengths: [
+        "Responds consistently to name call",
+        "Expresses needs clearly with gestures and words",
+        "Warm and friendly with staff",
+        "Enjoys sensory play activities"
+      ],
+      workingOn: "Building two-word phrase communication, sitting tolerance, and turn-taking with peers.",
+      focusAreas: [
+        "Expanding vocabulary and sentence length",
+        "Social interaction in group settings",
+        "Sitting tolerance during quiet table tasks"
+      ],
+      therapyPlan: "Speech + Occupational Therapy, 2 sessions/week for 6 months.",
+      therapyType: "Speech + Occupational Therapy",
+      sessionsPerWeek: 2,
+      duration: "6 months",
+      nextReviewDate: "12 weeks",
+      homeAdvice: "Practise naming objects during daily routines (bathing, meal time). Encourage 2-word requests before handing items.",
+      homeSuggestions: [
+        "Practise naming objects during daily activities",
+        "Use picture cards during meals and play time",
+        "Encourage 2-word requests before giving items"
+      ],
+      encouragement: `With your support at home and our guidance at the clinic, ${name} will continue to grow beautifully.`
+    },
+    exercises: {
+      clinicExercises: [
+        "Brain Gym Exercises",
+        "Sensory Integration Activities",
+        "Speech Therapy Exercises",
+        "Communication Cards",
+        "Social Skills Training"
+      ],
+      homeExercises: [
+        "Brain Gym Exercises",
+        "Communication Cards",
+        "Sensory Integration Activities"
+      ],
+      parentNotes: "Practise 15 minutes daily before bedtime.",
+      therapyDays: ["Mon", "Wed", "Fri"],
+      sessionTime: "10:00",
+      sessionDuration: "60",
+      frequencyPerWeek: 2,
+      startDate: today,
+      nextReviewDate: "12 weeks"
+    }
+  };
+}
 
 export default function ReportGenerationEditor() {
   const { id, childId: paramChildId, reportId } = useParams();
   const targetId = paramChildId || reportId || id || "KCR-2024-002";
+  const [searchParams] = useSearchParams();
+  const queryAssessmentId = searchParams.get("assessmentId");
   const navigate = useNavigate();
-  const { user, childrenList, updateChildDetails, showToast } = useAuth();
-
-  const child = childrenList.find((c) => c.id === targetId) || childrenList[1] || childrenList[0];
+  const { user, isAdmin, childrenList, updateChildDetails, showToast } = useAuth();
+  const [activeChild, setActiveChild] = useState(
+    () => childrenList?.find((c) => c.id === targetId) || childrenList?.[1] || childrenList?.[0] || null
+  );
+  const child = activeChild || childrenList?.find((c) => c.id === targetId) || {
+    id: targetId,
+    name: targetId === "KCR-2024-001" ? "Aditya Verma" : "Aarav Ramanathan",
+    therapy_category: "ASD",
+    program_type: targetId === "KCR-2024-001" ? "iep" : "therapy",
+    parent: { name: "Mrs. Priya Ramanathan", phone: "9876543210" }
+  };
+  const [assessmentRecord, setAssessmentRecord] = useState(null);
+  const [detectedCategory, setDetectedCategory] = useState("asd");
 
   // Exercises fetched from Supabase DB
   const [availableDbExercises, setAvailableDbExercises] = useState([]);
@@ -54,7 +341,7 @@ export default function ReportGenerationEditor() {
   const [manualSaveSuccess, setManualSaveSuccess] = useState(false);
 
   // Status: draft | published
-  const [reportStatus, setReportStatus] = useState(child?.reportsCount > 0 ? "published" : "draft");
+  const [reportStatus, setReportStatus] = useState(activeChild?.reportsCount > 0 ? "published" : "draft");
   const [isPublishing, setIsPublishing] = useState(false);
 
   // Modals & Banners
@@ -72,96 +359,80 @@ export default function ReportGenerationEditor() {
   const [rowLoading, setRowLoading] = useState({});
 
   // Single Form State Object for All Editable Fields
-  const [formState, setFormState] = useState({
-    therapistReport: {
-      background: `${child?.name} is a ${child?.age} ${child?.gender} presenting with ${child?.primaryConcern}. Evaluated using ISAA protocol by therapy team.`,
-      assessmentFindings: "Clinical assessment evaluated using standard clinical IEP & ISAA protocols. Primary deficits in communication, social interaction, and attention are monitored.",
-      currentStatus: `${child?.name} responds to name call consistently and follows 1-step commands. Shows progress in understanding routines, while working on turn-taking.`,
-      recommendations: "Speech therapy 2x/week, Occupational therapy with sensory integration 2x/week, Parent guidance program.",
-      reviewPlan: "Progress will be re-evaluated in 12 weeks to assess gains in expressive vocabulary and sitting tolerance.",
-      preparedBy: "Priya S",
-      designation: "Senior Therapist",
-      date: new Date().toISOString().split("T")[0]
-    },
-    parentReport: {
-      aboutYourChild: `We are happy to share that ${child?.name || "your child"} has made progress during therapy sessions. They demonstrate good engagement and curiosity during interactive tasks.`,
-      whatWeFound: `${child?.name || "Your child"} shows strong visual processing and enthusiasm for learning activities. Speech clarity and social interaction are being actively supported.`,
-      strengths: [
-        "Responds consistently to name call",
-        "Expresses needs clearly",
-        "Warm and friendly with staff",
-        "Enjoys sensory play activities"
-      ],
-      workingOn: "Building two-word phrase communication, sitting tolerance, and turn-taking with peers.",
-      focusAreas: [
-        "Expanding vocabulary and sentence length",
-        "Social interaction in group settings",
-        "Sitting tolerance during quiet table tasks"
-      ],
-      therapyPlan: "Speech + Occupational Therapy",
-      therapyType: "Speech + Occupational Therapy",
-      sessionsPerWeek: 2,
-      duration: "6 months",
-      nextReviewDate: "2026-10-15",
-      homeAdvice: "Practise naming objects during daily routines (bathing, meal time). Encourage 2-word requests before handing items.",
-      homeSuggestions: [
-        "Practise naming objects during daily activities",
-        "Use picture cards during meals and play time",
-        "Encourage 2-word requests before giving items"
-      ],
-      encouragement: `With your support at home and our guidance at the clinic, ${child?.name || "your child"} will continue to grow beautifully.`
-    },
-    exercises: {
-      clinicExercises: [
-        "Brain Gym Exercises",
-        "Sensory Integration Activities",
-        "Speech Therapy Exercises",
-        "Communication Cards",
-        "Social Skills Training"
-      ],
-      homeExercises: [
-        "Brain Gym Exercises",
-        "Communication Cards",
-        "Sensory Integration Activities"
-      ],
-      parentNotes: "Practise 15 minutes daily before bedtime.",
-      therapyDays: ["Mon", "Wed", "Fri"],
-      sessionTime: "10:00",
-      sessionDuration: "60",
-      frequencyPerWeek: 2,
-      startDate: new Date().toISOString().split("T")[0],
-      nextReviewDate: "2026-10-15"
-    }
-  });
+  const [formState, setFormState] = useState(() => getDefaultFormState(activeChild, "asd", null));
 
-  // Load saved draft/published report from localStorage on mount
+  // Load Child & Assessment details and apply category-tailored template
   useEffect(() => {
-    const saved = localStorage.getItem(`report_published_${child?.id}`) || localStorage.getItem(`report_draft_${child?.id}`);
-    if (saved) {
+    let isMounted = true;
+
+    async function loadData() {
       try {
-        const parsed = JSON.parse(saved);
-        if (parsed.formState) {
-          setFormState(parsed.formState);
-        } else {
-          setFormState((prev) => ({
-            ...prev,
-            therapistReport: { ...prev.therapistReport, ...(parsed.therapistReport || {}) },
-            parentReport: { ...prev.parentReport, ...(parsed.parentReport || {}) },
-            exercises: {
-              ...prev.exercises,
-              clinicExercises: parsed.clinicEx || prev.exercises.clinicExercises,
-              homeExercises: parsed.homeEx || prev.exercises.homeExercises
+        let c = childrenList.find((x) => x.id === targetId);
+        if (!c) {
+          c = await childrenService.getById(targetId);
+        }
+        if (c && isMounted) {
+          setActiveChild(c);
+        }
+
+        let a = null;
+        if (queryAssessmentId) {
+          a = await assessmentService.getById(queryAssessmentId);
+        }
+        if (!a && targetId) {
+          const list = await assessmentService.getByChildId(targetId);
+          if (Array.isArray(list) && list.length > 0) a = list[0];
+        }
+
+        if (isMounted && a) {
+          setAssessmentRecord(a);
+        }
+
+        const cat = (a?.source_table || c?.therapy_category || c?.profile || c?.diagnosis || "").toLowerCase();
+        let pathway = "asd";
+        if (cat.includes("adhd") || cat.includes("conner")) pathway = "adhd";
+        else if (cat.includes("delay") || cat.includes("developmental")) pathway = "developmental_delay";
+        else if (cat.includes("learn") || cat.includes("ldst") || cat.includes("sld") || cat.includes("dyslex")) pathway = "learning_disability";
+
+        if (isMounted) setDetectedCategory(pathway);
+
+        // Check if there is already a published report or saved draft in localStorage
+        const saved = localStorage.getItem(`report_published_${targetId}`) || localStorage.getItem(`report_draft_${targetId}`);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.formState && isMounted) {
+              setFormState(parsed.formState);
+            } else if (isMounted) {
+              setFormState((prev) => ({
+                ...prev,
+                therapistReport: { ...prev.therapistReport, ...(parsed.therapistReport || {}) },
+                parentReport: { ...prev.parentReport, ...(parsed.parentReport || {}) },
+                exercises: {
+                  ...prev.exercises,
+                  clinicExercises: parsed.clinicEx || prev.exercises.clinicExercises,
+                  homeExercises: parsed.homeEx || prev.exercises.homeExercises
+                }
+              }));
             }
-          }));
+            if (isMounted && (parsed.publishedDate || localStorage.getItem(`report_published_${targetId}`))) {
+              setReportStatus("published");
+            }
+          } catch (_) {}
+        } else if (isMounted) {
+          // Initialize fresh form with category-tailored initial template
+          setFormState(getDefaultFormState(c || activeChild, pathway, a));
         }
-        if (parsed.publishedDate || localStorage.getItem(`report_published_${child?.id}`)) {
-          setReportStatus("published");
-        }
-      } catch (e) {
-        console.error(e);
+      } catch (err) {
+        console.warn("ReportGenerationEditor data load notice:", err);
       }
     }
-  }, [child?.id]);
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, [targetId, queryAssessmentId, childrenList]);
 
   // Auto-Save Debounce Handler (3 seconds)
   const autoSaveTimer = useRef(null);
@@ -265,7 +536,9 @@ export default function ReportGenerationEditor() {
           mode: "singleSection",
           sectionKey,
           customPrompt: promptText,
-          childData: child
+          childData: activeChild || child,
+          category: detectedCategory,
+          assessmentData: assessmentRecord
         })
       });
 
@@ -297,13 +570,23 @@ export default function ReportGenerationEditor() {
     setSectionLoading((prev) => ({ ...prev, fullTab: true }));
 
     try {
-      const savedResult = localStorage.getItem(`assessment_result_${child?.id}`);
+      const savedResult = localStorage.getItem(`assessment_result_${activeChild?.id || child?.id}`);
       let isaaRes = null;
       let domainScores = null;
       if (savedResult) {
-        const parsed = JSON.parse(savedResult);
-        isaaRes = parsed.isaa;
-        domainScores = parsed.domainScores;
+        try {
+          const parsed = JSON.parse(savedResult);
+          isaaRes = parsed.isaa;
+          domainScores = parsed.domainScores;
+        } catch (_) {}
+      }
+
+      if (assessmentRecord?.source_table === "assessment_asd") {
+        isaaRes = {
+          totalScore: assessmentRecord.isaa_score,
+          severity: assessmentRecord.isaa_severity
+        };
+        domainScores = assessmentRecord.domain_scores || domainScores;
       }
 
       const res = await fetch("/api/generate-report", {
@@ -311,7 +594,9 @@ export default function ReportGenerationEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "full",
-          childData: child,
+          childData: activeChild || child,
+          category: detectedCategory,
+          assessmentData: assessmentRecord,
           isaaResults: isaaRes,
           domainScores
         })
@@ -378,35 +663,47 @@ export default function ReportGenerationEditor() {
     setShowPublishModal(true);
   };
 
-  // Publish / Republish Action — saves to DB (insert/update + publish) + localStorage cache
+  // Action: Submit for Admin Review (Staff) or Approve & Publish to Parent Portal (Admin)
   const executePublish = async () => {
     setIsPublishing(true);
     const pubDate = new Date().toISOString().split("T")[0];
 
     try {
+      const currentChildId = activeChild?.id || child?.id;
+      const defaultTherapyType =
+        detectedCategory === "adhd"
+          ? "Occupational & Behavioral Therapy"
+          : detectedCategory === "developmental_delay"
+          ? "Early Intervention & Physical Therapy"
+          : detectedCategory === "learning_disability"
+          ? "Remedial Education & Occupational Therapy"
+          : "Speech + Occupational Therapy";
+
       // Step 1: Build complete report object
       const reportPayload = {
-        child_id: child?.id,
+        child_id: currentChildId,
+        assessment_id: queryAssessmentId || assessmentRecord?.id || null,
+        assessment_type: detectedCategory || activeChild?.therapy_category || "therapy",
         therapist_report: formState.therapistReport,
-        parent_report: formState.therapistReport,
+        parent_report: formState.parentReport,
         clinic_exercises: formState.exercises.clinicExercises,
         home_exercises: formState.exercises.homeExercises,
         therapy_details: {
-          therapyType: formState.parentReport.therapyType || "Occupational & Speech Therapy",
+          therapyType: formState.parentReport.therapyType || defaultTherapyType,
           sessionsPerWeek: formState.parentReport.sessionsPerWeek || "2 sessions/week",
           duration: formState.parentReport.duration || "6 months",
           nextReviewDate: formState.parentReport.nextReviewDate || "12 weeks"
         },
         prepared_by: formState.therapistReport.preparedBy || user?.name || null,
         prepared_by_id: user?.id || null,
-        status: "draft"
+        status: isAdmin ? "published" : "pending_review"
       };
 
-      // Step 2: Save draft or update existing draft in DB
+      // Step 2: Save or update draft in DB
       let currentReportId = formState.reportId;
       if (!currentReportId) {
         const saved = await reportService.saveDraft(reportPayload);
-        currentReportId = saved?.id || child?.id;
+        currentReportId = saved?.id || currentChildId;
         if (saved?.id) {
           setFormState((prev) => ({ ...prev, reportId: saved.id }));
         }
@@ -414,47 +711,75 @@ export default function ReportGenerationEditor() {
         await reportService.update(currentReportId, reportPayload);
       }
 
-      // Step 3: Mark as published in DB
-      await reportService.publish(
-        currentReportId,
-        formState.therapistReport.preparedBy || user?.name || null,
-        user?.id || null,
-        reportPayload
-      );
+      if (isAdmin) {
+        // ADMIN FLOW: Approve & Publish directly to Parent Portal
+        await reportService.publish(
+          currentReportId,
+          user?.name || formState.therapistReport.preparedBy || null,
+          user?.id || null,
+          reportPayload
+        );
 
-      // Step 4: Update localStorage as cache
-      const fullPublishedData = {
-        childId: child?.id,
-        childName: child?.name,
-        publishedDate: pubDate,
-        formState,
-        therapistReport: formState.therapistReport,
-        parentReport: formState.therapistReport,
-        clinicEx: formState.exercises.clinicExercises,
-        homeEx: formState.exercises.homeExercises
-      };
-      if (child?.id) {
-        localStorage.setItem(`report_published_${child.id}`, JSON.stringify(fullPublishedData));
+        const fullPublishedData = {
+          childId: currentChildId,
+          childName: activeChild?.name || child?.name,
+          publishedDate: pubDate,
+          status: "published",
+          formState,
+          therapistReport: formState.therapistReport,
+          parentReport: formState.parentReport,
+          clinicEx: formState.exercises.clinicExercises,
+          homeEx: formState.exercises.homeExercises
+        };
+        if (currentChildId) {
+          localStorage.setItem(`report_published_${currentChildId}`, JSON.stringify(fullPublishedData));
+        }
+
+        if (currentChildId) {
+          updateChildDetails(currentChildId, {
+            reportsCount: ((activeChild || child)?.reportsCount || 0) + 1,
+            lastReportDate: pubDate
+          });
+        }
+
+        setReportStatus("published");
+        showToast(`Report approved & published to Parent Portal for ${activeChild?.name || child?.name || "child"}!`, "success");
+      } else {
+        // STAFF FLOW: Submit report for Admin Review (NOT published to parents yet)
+        await reportService.submitForReview(
+          currentReportId,
+          user?.name || formState.therapistReport.preparedBy || null,
+          user?.id || null,
+          reportPayload
+        );
+
+        const fullDraftData = {
+          childId: currentChildId,
+          childName: activeChild?.name || child?.name,
+          status: "pending_review",
+          formState,
+          therapistReport: formState.therapistReport,
+          parentReport: formState.parentReport,
+          clinicEx: formState.exercises.clinicExercises,
+          homeEx: formState.exercises.homeExercises
+        };
+        if (currentChildId) {
+          localStorage.setItem(`report_draft_${currentChildId}`, JSON.stringify(fullDraftData));
+        }
+
+        setReportStatus("pending_review");
+        showToast(`Report submitted for Admin review. Once approved by Admin, it will be published to the Parent Portal.`, "success");
       }
 
-      // Step 5: Update child details & show success
-      if (child?.id) {
-        updateChildDetails(child.id, {
-          reportsCount: (child.reportsCount || 0) + 1,
-          lastReportDate: pubDate
-        });
-      }
-
-      setReportStatus("published");
       setShowPublishModal(false);
-      showToast(`Report published successfully for ${child?.name || "child"}!`, "success");
     } catch (err) {
-      console.error("Publish failed:", err);
-      showToast("Failed to publish report. Please try again.", "error");
+      console.error("Publish/Submit failed:", err);
+      showToast("Notice while saving: " + err.message, "error");
     } finally {
       setIsPublishing(false);
     }
   };
+
 
   // Helper for Auto-save Time String
   const getTimeAgoStr = () => {
@@ -472,15 +797,36 @@ export default function ReportGenerationEditor() {
         {/* LEFT */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(`/children/${child?.id}`)}
+            onClick={() => navigate(`/children/${activeChild?.id || child?.id}`)}
             className="p-1.5 rounded-[8px] border border-[#D3D1C7] hover:bg-slate-100 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-[#2C2C2A]">{child?.name}</h2>
-              <span className="font-mono text-[12px] text-[#9B9A96]">{child?.id}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-[#2C2C2A]">{activeChild?.name || child?.name}</h2>
+              <span className="font-mono text-[12px] text-[#9B9A96]">{activeChild?.id || child?.id}</span>
+              <Badge
+                label={
+                  detectedCategory === "adhd"
+                    ? "ADHD Pathway"
+                    : detectedCategory === "developmental_delay"
+                    ? "Developmental Delay"
+                    : detectedCategory === "learning_disability"
+                    ? "Learning Disability"
+                    : "ASD Pathway"
+                }
+                variant={
+                  detectedCategory === "adhd"
+                    ? "green"
+                    : detectedCategory === "developmental_delay"
+                    ? "amber"
+                    : detectedCategory === "learning_disability"
+                    ? "purple"
+                    : "blue"
+                }
+                size="sm"
+              />
             </div>
           </div>
         </div>
@@ -517,12 +863,43 @@ export default function ReportGenerationEditor() {
 
           {/* 2. Status Badge */}
           <Badge
-            label={reportStatus === "published" ? "Published" : "Draft"}
-            variant={reportStatus === "published" ? "green" : "amber"}
+            label={
+              reportStatus === "published"
+                ? "Published"
+                : reportStatus === "pending_review"
+                ? "Pending Review"
+                : "Draft"
+            }
+            variant={
+              reportStatus === "published"
+                ? "green"
+                : reportStatus === "pending_review"
+                ? "purple"
+                : "amber"
+            }
             size="md"
           />
 
-          {/* 3. [Save Draft] button */}
+          {/* 3. [Print / PDF] button */}
+          <button
+            type="button"
+            onClick={() =>
+              printReportWithFilename({
+                childName: activeChild?.name || formState?.therapistReport?.name,
+                childId: activeChild?.id || targetId,
+                reportNo: formState?.cycle || formState?.report_number,
+                currentReportId: id,
+                fallbackCycle: formState?.cycle
+              })
+            }
+            className="no-print p-2 rounded-[8px] border border-[#D3D1C7] hover:bg-[#F8F8F6] text-[#2C2C2A] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            title="Download or Print PDF"
+          >
+            <Printer className="h-3.5 w-3.5 text-[#185FA5]" />
+            <span>Print / PDF</span>
+          </button>
+
+          {/* 4. [Save Draft] button */}
           <Button
             variant="outlined"
             size="sm"
@@ -533,16 +910,23 @@ export default function ReportGenerationEditor() {
             {isManualSaving ? "Saving..." : manualSaveSuccess ? "Saved ✓" : "Save Draft"}
           </Button>
 
-          {/* 4. [Publish Report] button */}
+          {/* 5. [Submit for Review (Staff) or Approve & Publish (Admin)] button */}
           <Button
             variant={reportStatus === "published" ? "secondary" : "primary"}
             size="sm"
-            icon={Send}
+            icon={isAdmin ? CheckCircle2 : Send}
             onClick={handleValidateAndPublish}
           >
-            {reportStatus === "published" ? "Update & Republish" : "Publish Report"}
+            {isAdmin
+              ? reportStatus === "published"
+                ? "Update & Republish"
+                : "Approve & Publish"
+              : reportStatus === "pending_review"
+              ? "Update Submission"
+              : "Submit for Review"}
           </Button>
         </div>
+
 
       </div>
 
@@ -622,11 +1006,38 @@ export default function ReportGenerationEditor() {
 
           {/* FIVE SECTION CARDS */}
           {[
-            { key: "background", label: "BACKGROUND", prompt: `Write the background section for a clinical therapy report for ${child?.name}, aged ${child?.age}, who has ${child?.diagnosis}. Primary concern: ${child?.primaryConcern}. Clinical tone.` },
-            { key: "assessmentFindings", label: "ASSESSMENT FINDINGS", prompt: `Write the assessment findings section for ${child?.name}. ISAA total score: ${assessmentData?.isaa_score ?? "Not Assessed"}/200, severity: ${assessmentData?.isaa_severity || "Not Assessed"}. Clinical language.` },
-            { key: "currentStatus", label: "CURRENT STATUS", prompt: `Write the current status section for ${child?.name} with ${child?.diagnosis}. What can the child do now, what is improving, what needs support. 3-4 sentences.` },
-            { key: "recommendations", label: "RECOMMENDATIONS", prompt: `Write the recommendations section for ${child?.name}. Recommended therapies: Speech & OT. Include frequency and duration.` },
-            { key: "reviewPlan", label: "REVIEW PLAN", prompt: `Write a review plan sentence for ${child?.name} with ${child?.diagnosis}. Mention when to review progress. 1-2 sentences.` }
+            {
+              key: "background",
+              label: "BACKGROUND",
+              prompt: `Write the background section for a clinical therapy report for ${activeChild?.name || child?.name}, aged ${activeChild?.age || child?.age}, who has ${activeChild?.diagnosis || child?.diagnosis}. Primary concern: ${activeChild?.primaryConcern || child?.primaryConcern}. Clinical tone.`
+            },
+            {
+              key: "assessmentFindings",
+              label: "ASSESSMENT FINDINGS",
+              prompt:
+                detectedCategory === "adhd"
+                  ? `Write the ADHD assessment findings for ${activeChild?.name || child?.name}. Conners score: ${assessmentRecord?.adhd_score ?? "Elevated"}, presentation: ${assessmentRecord?.adhd_presentation || "Combined Presentation"}. Clinical language.`
+                  : detectedCategory === "developmental_delay"
+                  ? `Write the developmental delay assessment findings for ${activeChild?.name || child?.name}. Severity: ${assessmentRecord?.delay_severity || "Mild-to-Moderate"}, delay areas: ${assessmentRecord?.delay_areas?.join(", ") || "Motor and speech"}. Clinical language.`
+                  : detectedCategory === "learning_disability"
+                  ? `Write the specific learning disability (LDST) assessment findings for ${activeChild?.name || child?.name}. Screening classification: ${assessmentRecord?.ldst_classification || "Elevated Risk"}, Dyslexia: ${assessmentRecord?.ldst_subtest_scores?.dyslexiaRisk || "Moderate"}. Clinical language.`
+                  : `Write the ISAA autism assessment findings section for ${activeChild?.name || child?.name}. ISAA total score: ${assessmentRecord?.isaa_score ?? "88"}/200, severity: ${assessmentRecord?.isaa_severity || "Mild Autism"}. Clinical language.`
+            },
+            {
+              key: "currentStatus",
+              label: "CURRENT STATUS",
+              prompt: `Write the current status section for ${activeChild?.name || child?.name} under ${detectedCategory}. What can the child do now, what is improving, what needs support. 3-4 sentences.`
+            },
+            {
+              key: "recommendations",
+              label: "RECOMMENDATIONS",
+              prompt: `Write the recommendations section for ${activeChild?.name || child?.name} under ${detectedCategory}. Recommend appropriate clinical therapies, weekly frequency, and duration.`
+            },
+            {
+              key: "reviewPlan",
+              label: "REVIEW PLAN",
+              prompt: `Write a review plan sentence for ${activeChild?.name || child?.name}. Mention 12-week progress re-evaluation. 1-2 sentences.`
+            }
           ].map((sec) => {
             const textVal = formState.therapistReport[sec.key] || "";
             const isSecLoading = sectionLoading[sec.key];
@@ -709,21 +1120,37 @@ export default function ReportGenerationEditor() {
               </div>
 
               <div className="space-y-2">
-                {formState.exercises.clinicExercises.map((exName, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
-                    <span className="text-[#2C2C2A]">{exName}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
-                        updateExercises("clinicExercises", next);
-                      }}
-                      className="text-[#993C1D] hover:bg-red-50 p-1 rounded cursor-pointer"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                {formState.exercises.clinicExercises.map((exName, idx) => {
+                  const exObj = availableDbExercises.find((e) => e.name?.toLowerCase() === exName?.toLowerCase() || e.id === exName);
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {exObj?.image_url && (
+                          <img
+                            src={exObj.image_url}
+                            alt={exName}
+                            className="h-10 w-10 object-cover rounded-[6px] border border-[#D3D1C7]/60 shrink-0"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <span className="text-[#2C2C2A] truncate block">{exName}</span>
+                          {exObj?.category && <span className="text-[10px] text-[#9B9A96] block font-medium">{exObj.category}</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
+                          updateExercises("clinicExercises", next);
+                        }}
+                        className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               <Button
@@ -754,21 +1181,37 @@ export default function ReportGenerationEditor() {
               )}
 
               <div className="space-y-2">
-                {formState.exercises.homeExercises.map((exName, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
-                    <span className="text-[#2C2C2A]">{exName}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
-                        updateExercises("homeExercises", next);
-                      }}
-                      className="text-[#993C1D] hover:bg-red-50 p-1 rounded cursor-pointer"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                {formState.exercises.homeExercises.map((exName, idx) => {
+                  const exObj = availableDbExercises.find((e) => e.name?.toLowerCase() === exName?.toLowerCase() || e.id === exName);
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {exObj?.image_url && (
+                          <img
+                            src={exObj.image_url}
+                            alt={exName}
+                            className="h-10 w-10 object-cover rounded-[6px] border border-[#D3D1C7]/60 shrink-0"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <span className="text-[#2C2C2A] truncate block">{exName}</span>
+                          {exObj?.category && <span className="text-[10px] text-[#9B9A96] block font-medium">{exObj.category}</span>}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
+                          updateExercises("homeExercises", next);
+                        }}
+                        className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               <Button
@@ -1018,20 +1461,39 @@ export default function ReportGenerationEditor() {
         </div>
       </Modal>
 
-      {/* PUBLISH CONFIRM MODAL */}
-      <Modal isOpen={showPublishModal} onClose={() => setShowPublishModal(false)} title="Publish Assessment Report">
+      {/* PUBLISH / SUBMIT CONFIRM MODAL */}
+      <Modal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        title={isAdmin ? "Approve & Publish Assessment Report" : "Submit Report for Admin Review"}
+      >
         <div className="space-y-4 text-xs font-semibold">
-          <p className="text-[#2C2C2A]">
-            Publish this report for <strong>{child?.name}</strong>? It will immediately become visible to {child?.parent?.name} on the Parent Portal.
+          <p className="text-[#2C2C2A] leading-relaxed">
+            {isAdmin ? (
+              <>
+                Approve and publish this report for <strong>{child?.name}</strong>? It will immediately become visible to parents on the Parent Portal and available for PDF download.
+              </>
+            ) : (
+              <>
+                Submit this completed clinical report for <strong>{child?.name}</strong> for Admin review? Once approved by the Admin, it will be published to the Parent Portal.
+              </>
+            )}
           </p>
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D3D1C7]">
-            <Button variant="outlined" disabled={isPublishing} onClick={() => setShowPublishModal(false)}>Cancel</Button>
+            <Button variant="outlined" disabled={isPublishing} onClick={() => setShowPublishModal(false)}>
+              Cancel
+            </Button>
             <Button disabled={isPublishing} onClick={executePublish}>
-              {isPublishing ? "Publishing..." : "Yes, Publish Report"}
+              {isPublishing
+                ? "Processing..."
+                : isAdmin
+                ? "Approve & Publish to Parents"
+                : "Yes, Submit for Admin Review"}
             </Button>
           </div>
         </div>
       </Modal>
+
 
       {/* SEARCHABLE EXERCISE SELECTOR MODAL */}
       <Modal isOpen={showAddExModal} onClose={() => setShowAddExModal(false)} title={`Add ${addExType === "clinic" ? "Clinic" : "Home"} Exercise`}>
@@ -1050,10 +1512,20 @@ export default function ReportGenerationEditor() {
                 const isAdded = targetList.includes(ex.name);
 
                 return (
-                  <div key={ex.id} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
-                    <div>
-                      <span className="font-bold text-[#2C2C2A] block">{ex.name}</span>
-                      <span className="text-[10px] text-[#9B9A96]">{ex.category}</span>
+                  <div key={ex.id} className="flex items-center justify-between p-2 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {ex.image_url && (
+                        <img
+                          src={ex.image_url}
+                          alt={ex.name}
+                          className="h-9 w-9 object-cover rounded-[6px] border border-[#D3D1C7]/60 shrink-0"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <span className="font-bold text-[#2C2C2A] block truncate">{ex.name}</span>
+                        <span className="text-[10px] text-[#9B9A96] block">{ex.category}</span>
+                      </div>
                     </div>
 
                     <Button

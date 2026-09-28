@@ -27,18 +27,36 @@ import ErrorMessage from "../components/ui/ErrorMessage";
 import { reportService } from "../services/reportService";
 import { childrenService } from "../services/childrenService";
 import { assessmentService } from "../services/assessmentService";
+import { exerciseService } from "../services/exerciseService";
+import { MASTER_EXERCISES } from "../data/exercisesData";
 import { calculateISAAScore, calculateDomainScores } from "../utils/scoringEngine";
+import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
 
 export default function TherapistReportView({ initialEditMode = false }) {
   const { id, reportId } = useParams();
   const targetId = reportId || id;
   const navigate = useNavigate();
-  const { user, childrenList, showToast } = useAuth();
+  const { user, isAdmin, childrenList, showToast } = useAuth();
 
   const [child, setChild] = useState(null);
   const [reportDataRaw, setReportDataRaw] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (child) {
+      const activeName = child?.name;
+      const activeId = child?.id || targetId;
+      const reportNum = reportDataRaw?.cycle || reportDataRaw?.report_number || 1;
+      if (activeName) {
+        document.title = formatReportFilename({
+          childName: activeName,
+          childId: activeId,
+          reportNo: reportNum
+        });
+      }
+    }
+  }, [child, targetId, reportDataRaw]);
 
   // View Mode (false) vs Edit Mode (true)
   const [isEditing, setIsEditing] = useState(initialEditMode);
@@ -75,6 +93,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
     reportStatus: "draft"
   });
 
+  const [exerciseMap, setExerciseMap] = useState({});
+  const [assignedClinicExercises, setAssignedClinicExercises] = useState([]);
+  const [assignedHomeExercises, setAssignedHomeExercises] = useState([]);
+
   const autoSaveTimerRef = useRef(null);
 
   // 1. Load Data
@@ -95,8 +117,26 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
       // Report & Assessment details
       let reportObj = await reportService.getById(targetId);
-      let assessmentObj = null;
+      if (!reportObj) {
+        reportObj = await reportService.getPublishedByChildId(targetId);
+      }
+      if (!reportObj) {
+        const reps = await reportService.getByChildId(targetId);
+        if (Array.isArray(reps) && reps.length > 0) {
+          reportObj = reps[0];
+        }
+      }
 
+      if (!reportObj) {
+        const localPub = localStorage.getItem(`report_published_${targetId}`) || localStorage.getItem(`report_draft_${targetId}`);
+        if (localPub) {
+          try {
+            reportObj = JSON.parse(localPub);
+          } catch (_) {}
+        }
+      }
+
+      let assessmentObj = null;
       if (!reportObj) {
         const assList = await assessmentService.getByChildId(targetId);
         if (assList && assList.length > 0) {
@@ -108,17 +148,56 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
       setReportDataRaw(reportObj || { assessments: assessmentObj });
 
+      // Load master exercises with image URLs
+      const map = {};
+      try {
+        const allEx = await exerciseService.getAll();
+        (allEx || MASTER_EXERCISES).forEach((ex) => {
+          if (ex.name) map[ex.name.toLowerCase()] = ex;
+        });
+      } catch (_) {
+        MASTER_EXERCISES.forEach((ex) => {
+          if (ex.name) map[ex.name.toLowerCase()] = ex;
+        });
+      }
+      setExerciseMap(map);
+
+      // Extract assigned clinic & home exercises
+      const clinicEx = reportObj?.clinic_exercises || reportObj?.clinicExercises || reportObj?.therapy_details?.clinic_exercises || reportObj?.formState?.exercises?.clinicExercises || [];
+      const homeEx = reportObj?.home_exercises || reportObj?.homeExercises || reportObj?.therapy_details?.home_exercises || reportObj?.formState?.exercises?.homeExercises || [];
+      setAssignedClinicExercises(Array.isArray(clinicEx) ? clinicEx : []);
+      setAssignedHomeExercises(Array.isArray(homeEx) ? homeEx : []);
+
       // Populate initial text fields
-      const rep = reportObj?.therapist_report || reportObj?.therapistReport || {};
+      const rep = reportObj?.therapist_report || reportObj?.therapistReport || reportObj?.formState?.therapistReport || {};
+      const cat = (childObj?.therapy_category || childObj?.diagnosis || "").toLowerCase();
+
+      let defaultFindings = "Clinical assessment evaluated using standardized diagnostic protocol.";
+      let defaultStatus = `${childObj?.name || 'Child'} demonstrates active participation and is making steady progress toward therapeutic milestones.`;
+      let defaultRecs = "1. Weekly Therapy Sessions (2x/week)\n2. Occupational Therapy / Speech Therapy\n3. Home Practice & Routine Reinforcement";
+
+      if (cat.includes("adhd") || cat.includes("conner")) {
+        defaultFindings = "Conners' Rating Scale assessment reveals elevated symptoms in attention span, task initiation, and impulse regulation.";
+        defaultStatus = `${childObj?.name || 'Child'} shows high creativity and energetic engagement, with ongoing need for structured visual schedules and physical movement breaks.`;
+        defaultRecs = "1. Occupational Therapy & Sensory Regulation (2x/week)\n2. Behavioral & Executive Function Coaching (1-2x/week)\n3. Classroom & Homework Accommodations (timers, short intervals)";
+      } else if (cat.includes("delay") || cat.includes("developmental")) {
+        defaultFindings = "Developmental milestone checklist indicates motor, communicative, and postural delays requiring early intervention.";
+        defaultStatus = `${childObj?.name || 'Child'} shows positive response to sensory stimulation, imitation exercises, and playful physical therapy.`;
+        defaultRecs = "1. Pediatric Physiotherapy & Gross Motor Training (2x/week)\n2. Early Intervention Occupational Therapy (2x/week)\n3. Daily Floor Play & Milestone Exercises at Home";
+      } else if (cat.includes("learn") || cat.includes("ldst") || cat.includes("dyslex") || cat.includes("sld")) {
+        defaultFindings = "Learning Disability Screening Test (LDST) indicates vulnerabilities in reading decoding, phonological memory, and handwriting stamina.";
+        defaultStatus = `${childObj?.name || 'Child'} demonstrates strong verbal reasoning and comprehension, with fatigue occurring during multi-step written tasks.`;
+        defaultRecs = "1. Special Education & Remedial Therapy (2-3x/week)\n2. Multi-Sensory Phonics Instruction (Orton-Gillingham Approach)\n3. Academic Accommodations (extra time, scribing, reduced copywork)";
+      }
 
       setFormState({
-        background: rep.background || `${childObj?.name || 'The child'} is a ${childObj?.age || '4-year-old'} ${childObj?.gender || 'child'} referred for IEP assessment regarding ${childObj?.primaryConcern || childObj?.primary_concern || 'developmental & speech concerns'}. Evaluated using standard clinical IEP & ISAA protocols.`,
-        assessmentFindings: rep.assessmentFindings || rep.findings || "Clinical assessment evaluated using standard clinical IEP & ISAA protocols.",
-        currentStatus: rep.currentStatus || rep.concerns || `Child currently demonstrates speech delay, limited multi-word phrasing, sensory hyper-responsiveness to sudden auditory stimuli, and impulse management during structured tasks.`,
-        recommendations: rep.recommendations || `1. Speech & Communication Therapy (2x/week)\n2. Occupational & Sensory Integration Therapy (2x/week)\n3. Special Education & Pre-Academic Remediation (3x/week)\n4. Daily Home Practice Routine (15 mins/day)`,
-        reviewPlan: rep.reviewPlan || `First progress review scheduled in 3 months. Quarterly IEP evaluation to monitor short-term goal achievements.`,
-        preparedBy: rep.preparedBy || user?.name || "Dr. Radha Balachandar",
-        designation: rep.designation || user?.designation || "Senior Clinical Therapist",
+        background: rep.background || `${childObj?.name || 'The child'} is a ${childObj?.age || '4-year-old'} ${childObj?.gender || 'child'} referred for clinical assessment regarding ${childObj?.primaryConcern || childObj?.primary_concern || 'developmental concerns'}.`,
+        assessmentFindings: rep.assessmentFindings || rep.findings || defaultFindings,
+        currentStatus: rep.currentStatus || rep.concerns || defaultStatus,
+        recommendations: rep.recommendations || defaultRecs,
+        reviewPlan: rep.reviewPlan || "First formal progress review scheduled in 12 weeks. Quarterly multidisciplinary evaluation to measure milestone achievement.",
+        preparedBy: rep.preparedBy || user?.name || "Senior Clinical Specialist",
+        designation: rep.designation || user?.designation || "Pediatric Clinical Specialist",
         preparedDate: rep.preparedDate || new Date().toISOString().split("T")[0],
         reportStatus: reportObj?.status || "draft"
       });
@@ -133,6 +212,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     loadData();
@@ -263,31 +343,54 @@ export default function TherapistReportView({ initialEditMode = false }) {
       parent_report: formState,
       prepared_by: formState.preparedBy,
       prepared_by_id: user?.id,
-      status: "published"
+      status: isAdmin ? "published" : "pending_review"
     };
 
     try {
-      await reportService.saveDraft(reportPayload);
-      await reportService.publish(reportDataRaw?.id || targetId, formState.preparedBy, user?.id, reportPayload);
-      localStorage.setItem(`report_published_${child?.id || targetId}`, JSON.stringify({
-        childId: child?.id || targetId,
-        formState: { therapistReport: formState, parentReport: formState },
-        therapistReport: formState,
-        parentReport: formState,
-        publishedDate: new Date().toISOString().split("T")[0]
-      }));
-      setFormState((prev) => ({ ...prev, reportStatus: "published" }));
-      setIsEditing(false);
-      showToast("Report published successfully! Parents can now view it.", "success");
+      if (isAdmin) {
+        await reportService.saveDraft(reportPayload);
+        await reportService.publish(reportDataRaw?.id || targetId, formState.preparedBy || user?.name, user?.id, reportPayload);
+        localStorage.setItem(`report_published_${child?.id || targetId}`, JSON.stringify({
+          childId: child?.id || targetId,
+          formState: { therapistReport: formState, parentReport: formState },
+          therapistReport: formState,
+          parentReport: formState,
+          status: "published",
+          publishedDate: new Date().toISOString().split("T")[0]
+        }));
+        setFormState((prev) => ({ ...prev, reportStatus: "published" }));
+        setIsEditing(false);
+        showToast("Report approved & published successfully! Parents can now view it.", "success");
+      } else {
+        await reportService.submitForReview(reportDataRaw?.id || targetId, formState.preparedBy || user?.name, user?.id, reportPayload);
+        localStorage.setItem(`report_draft_${child?.id || targetId}`, JSON.stringify({
+          childId: child?.id || targetId,
+          formState: { therapistReport: formState, parentReport: formState },
+          therapistReport: formState,
+          parentReport: formState,
+          status: "pending_review",
+          updatedDate: new Date().toISOString().split("T")[0]
+        }));
+        setFormState((prev) => ({ ...prev, reportStatus: "pending_review" }));
+        setIsEditing(false);
+        showToast("Report submitted for Admin review. Admin approval is required before publishing to parents.", "success");
+      }
     } catch (err) {
       console.warn("Publish notice:", err.message);
-      setFormState((prev) => ({ ...prev, reportStatus: "published" }));
-      setIsEditing(false);
-      showToast("Report published successfully!", "success");
+      if (isAdmin) {
+        setFormState((prev) => ({ ...prev, reportStatus: "published" }));
+        setIsEditing(false);
+        showToast("Report published successfully!", "success");
+      } else {
+        setFormState((prev) => ({ ...prev, reportStatus: "pending_review" }));
+        setIsEditing(false);
+        showToast("Report submitted for Admin review.", "info");
+      }
     } finally {
       setIsPublishing(false);
     }
   };
+
 
   const handleCancelEdit = () => {
     if (hasUnsavedChanges) {
@@ -307,23 +410,20 @@ export default function TherapistReportView({ initialEditMode = false }) {
     }
   };
 
-  const executePrint = () => {
+  const executePrint = async () => {
     setIsPreparingPdf(true);
     setShowPdfModal(false);
     localStorage.setItem("pdf_tip_shown", "true");
 
-    const childName = (child?.name || "Child").replace(/\s+/g, "_");
-    const dateStr = formState.preparedDate || new Date().toISOString().split("T")[0];
-    const originalTitle = document.title;
-    document.title = `KCR_Report_${childName}_${dateStr}`;
+    await printReportWithFilename({
+      childName: child?.name,
+      childId: child?.id || targetId,
+      reportNo: reportDataRaw?.cycle || reportDataRaw?.report_number,
+      currentReportId: reportDataRaw?.id,
+      fallbackCycle: reportDataRaw?.cycle
+    });
 
-    setTimeout(() => {
-      window.print();
-      setIsPreparingPdf(false);
-      setTimeout(() => {
-        document.title = originalTitle;
-      }, 1000);
-    }, 300);
+    setIsPreparingPdf(false);
   };
 
   // Regenerate Section helper using AI API
@@ -336,6 +436,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         body: JSON.stringify({
           mode: "singleSection",
           sectionKey,
+          category: child?.therapy_category || child?.diagnosis,
           childData: child
         })
       });
@@ -451,28 +552,29 @@ export default function TherapistReportView({ initialEditMode = false }) {
       `}</style>
 
       {/* ────────────────────────────────────────────────────────── */}
-      {/* STICKY TOP ACTION BAR (56px height, no-print)              */}
+      {/* STICKY TOP ACTION BAR (no-print)                          */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 h-[56px] w-full bg-white border-b border-[#D3D1C7] px-4 flex items-center justify-between shadow-xs no-print">
+      <div className="sticky top-0 z-40 min-h-[56px] w-full bg-white border-b border-[#D3D1C7] px-3 sm:px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs no-print">
         {/* Left Side */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={() => navigate(`/children/${child?.id}`)}
-            className="p-1.5 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer"
+            className="p-1.5 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer shrink-0"
+            aria-label="Back to child profile"
           >
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
           </button>
-          <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-bold text-[#2C2C2A]">Therapist Report</h2>
-            <span className="text-xs text-[#5F5E5A] font-semibold">• {child?.name}</span>
-            <span className="font-mono text-[12px] font-bold text-[#9B9A96] bg-[#F0EFEA] px-2 py-0.5 rounded border border-[#D3D1C7]">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <h2 className="text-sm sm:text-[15px] font-bold text-[#2C2C2A] truncate">Therapist Report</h2>
+            <span className="text-xs text-[#5F5E5A] font-semibold truncate hidden sm:inline">• {child?.name}</span>
+            <span className="font-mono text-[11px] sm:text-[12px] font-bold text-[#9B9A96] bg-[#F0EFEA] px-1.5 sm:px-2 py-0.5 rounded border border-[#D3D1C7] shrink-0">
               {child?.id}
             </span>
           </div>
         </div>
 
         {/* Right Side Controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap shrink-0">
           {/* Edit Mode Auto-save Indicator */}
           {isEditing && (
             <div className="flex items-center gap-1.5 text-xs font-semibold mr-2">
@@ -512,13 +614,30 @@ export default function TherapistReportView({ initialEditMode = false }) {
                   <span className="px-2.5 py-1 rounded-[6px] bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 border border-emerald-300">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" /> Published
                   </span>
-                  <Button size="sm" variant="secondary" onClick={handlePublish} loading={isPublishing} className="bg-amber-600 hover:bg-amber-700 text-white border-none">
-                    Update Report
-                  </Button>
+                  {isAdmin && (
+                    <Button size="sm" variant="secondary" onClick={handlePublish} loading={isPublishing} className="bg-amber-600 hover:bg-amber-700 text-white border-none">
+                      Update Report
+                    </Button>
+                  )}
+                </div>
+              ) : formState.reportStatus === "pending_review" ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-1 rounded-[6px] bg-purple-100 text-purple-800 text-xs font-bold flex items-center gap-1 border border-purple-300">
+                    Pending Admin Review
+                  </span>
+                  {isAdmin ? (
+                    <Button size="sm" icon={CheckCircle2} onClick={handlePublish} loading={isPublishing} className="bg-[#0F6E56] hover:bg-[#08503E] text-white">
+                      Approve & Publish
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outlined" onClick={() => setIsEditing(true)}>
+                      Edit Submission
+                    </Button>
+                  )}
                 </div>
               ) : (
-                <Button size="sm" icon={Send} onClick={handlePublish} loading={isPublishing}>
-                  Publish Report
+                <Button size="sm" icon={isAdmin ? CheckCircle2 : Send} onClick={handlePublish} loading={isPublishing}>
+                  {isAdmin ? "Approve & Publish" : "Submit for Review"}
                 </Button>
               )}
             </>
@@ -544,11 +663,18 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 ⬇ Download PDF
               </Button>
 
-              <Button size="sm" icon={Send} onClick={handlePublish} loading={isPublishing}>
-                {formState.reportStatus === "published" ? "Update & Republish" : "Publish Report"}
+              <Button size="sm" icon={isAdmin ? CheckCircle2 : Send} onClick={handlePublish} loading={isPublishing}>
+                {isAdmin
+                  ? formState.reportStatus === "published"
+                    ? "Update & Republish"
+                    : "Approve & Publish to Parents"
+                  : formState.reportStatus === "pending_review"
+                  ? "Update Review Submission"
+                  : "Submit for Admin Review"}
               </Button>
             </>
           )}
+
         </div>
       </div>
 
@@ -877,6 +1003,110 @@ export default function TherapistReportView({ initialEditMode = false }) {
           ))}
         </div>
 
+        {/* ═══ SECTION 4B — ASSIGNED CLINICAL & HOME EXERCISES ═══ */}
+        {(assignedClinicExercises.length > 0 || assignedHomeExercises.length > 0) && (
+          <div className="no-page-break space-y-6 pt-4">
+            <div className="border-b-2 border-[#185FA5] pb-1 flex items-center justify-between">
+              <h3 className="text-[13px] font-bold text-[#185FA5] uppercase tracking-wider">
+                ASSIGNED THERAPY EXERCISES & HOME PROGRAM
+              </h3>
+              <span className="text-[10px] font-bold text-[#5F5E5A]">
+                {assignedClinicExercises.length + assignedHomeExercises.length} Prescribed Activities
+              </span>
+            </div>
+
+            {/* Clinic Exercises */}
+            {assignedClinicExercises.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-[12px] font-bold uppercase text-[#0F6E56] flex items-center gap-1.5">
+                  <span>🏥 In-Clinic Therapeutic Exercises</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {assignedClinicExercises.map((ex, idx) => {
+                    const isObj = typeof ex === "object" && ex !== null;
+                    const name = isObj ? ex.name || ex.title : ex;
+                    const master = exerciseMap[name?.toLowerCase()] || (isObj ? ex : null);
+                    const imageUrl = master?.image_url || master?.imageUrl || (isObj ? (ex.image_url || ex.imageUrl) : null);
+                    const desc = master?.description || (isObj ? ex.description : null);
+                    const cat = master?.category || (isObj ? ex.category : null);
+                    const duration = master?.duration || (isObj ? ex.duration : "10–15 mins");
+
+                    return (
+                      <div key={idx} className="p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[10px] space-y-2">
+                        {imageUrl && (
+                          <div className="h-28 w-full rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200">
+                            <img
+                              src={imageUrl}
+                              alt={name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                          {cat && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-100 text-[#185FA5] rounded-full uppercase shrink-0">
+                              {cat}
+                            </span>
+                          )}
+                        </div>
+                        {desc && <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3">{desc}</p>}
+                        <div className="text-[10px] font-semibold text-[#5F5E5A]">⏱ Duration: {duration}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Home Exercises */}
+            {assignedHomeExercises.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-[12px] font-bold uppercase text-[#854F0B] flex items-center gap-1.5">
+                  <span>🏠 Prescribed Home Routine</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {assignedHomeExercises.map((ex, idx) => {
+                    const isObj = typeof ex === "object" && ex !== null;
+                    const name = isObj ? ex.name || ex.title : ex;
+                    const master = exerciseMap[name?.toLowerCase()] || (isObj ? ex : null);
+                    const imageUrl = master?.image_url || master?.imageUrl || (isObj ? (ex.image_url || ex.imageUrl) : null);
+                    const desc = master?.home_description || master?.description || (isObj ? ex.description : null);
+                    const cat = master?.category || (isObj ? ex.category : null);
+                    const freq = master?.frequency || (isObj ? ex.frequency : "Daily");
+
+                    return (
+                      <div key={idx} className="p-3 bg-[#FEF6E7]/40 border border-[#854F0B]/30 rounded-[10px] space-y-2">
+                        {imageUrl && (
+                          <div className="h-28 w-full rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200">
+                            <img
+                              src={imageUrl}
+                              alt={name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                          {cat && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-[#854F0B] rounded-full uppercase shrink-0">
+                              {cat}
+                            </span>
+                          )}
+                        </div>
+                        {desc && <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3">{desc}</p>}
+                        <div className="text-[10px] font-semibold text-[#854F0B]">⏱ Frequency: {freq}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ═══ SECTION 5 — SIGN OFF ═══ */}
         <div className="no-page-break page-break-before space-y-4 pt-6">
           <div className="border-b-2 border-[#185FA5] pb-1">
@@ -938,8 +1168,20 @@ export default function TherapistReportView({ initialEditMode = false }) {
             <Button variant="outlined" size="sm" icon={Download} onClick={triggerPdfDownload} className="border-[#0F6E56] text-[#0F6E56]">
               ⬇ Download PDF
             </Button>
-            <Button size="sm" icon={Send} onClick={handlePublish} loading={isPublishing}>
-              Publish Report
+            <Button 
+              size="sm" 
+              icon={isAdmin ? CheckCircle2 : Send} 
+              onClick={handlePublish} 
+              loading={isPublishing}
+              className={isAdmin ? "bg-[#0F6E56] hover:bg-[#0c5845] text-white" : "bg-[#185FA5] hover:bg-[#12497d] text-white"}
+            >
+              {isAdmin
+                ? formState.reportStatus === "published"
+                  ? "Update & Republish"
+                  : "✓ Approve & Publish to Parents"
+                : formState.reportStatus === "pending_review"
+                ? "Update Review Submission"
+                : "Submit for Admin Review"}
             </Button>
           </>
         ) : (
@@ -953,8 +1195,20 @@ export default function TherapistReportView({ initialEditMode = false }) {
             <Button variant="outlined" size="sm" icon={Download} onClick={triggerPdfDownload} className="border-[#0F6E56] text-[#0F6E56]">
               ⬇ Download PDF
             </Button>
-            <Button size="sm" icon={Send} onClick={handlePublish} loading={isPublishing}>
-              {formState.reportStatus === "published" ? "Update & Republish" : "Publish Report"}
+            <Button 
+              size="sm" 
+              icon={isAdmin ? CheckCircle2 : Send} 
+              onClick={handlePublish} 
+              loading={isPublishing}
+              className={isAdmin ? "bg-[#0F6E56] hover:bg-[#0c5845] text-white" : "bg-[#185FA5] hover:bg-[#12497d] text-white"}
+            >
+              {isAdmin
+                ? formState.reportStatus === "published"
+                  ? "Update & Republish"
+                  : "✓ Approve & Publish to Parents"
+                : formState.reportStatus === "pending_review"
+                ? "Update Review Submission"
+                : "Submit for Admin Review"}
             </Button>
           </>
         )}

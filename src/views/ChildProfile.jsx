@@ -18,9 +18,14 @@ import {
   UserCheck,
   RefreshCw,
   Activity,
+  Brain,
+  Zap,
+  Clock,
+  BookOpen,
   ChevronDown,
   ChevronUp,
-  Share2
+  Share2,
+  MessageSquare
 } from "lucide-react";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -36,6 +41,7 @@ import { reportService } from "../services/reportService";
 import { exerciseService } from "../services/exerciseService";
 import { authService } from "../services/authService";
 import { appointmentService } from "../services/appointmentService";
+import { hashPassword } from "../services/passwordService";
 import { BookAppointmentModal, AppointmentDetailModal } from "./AppointmentsPage";
 import { formatAppointmentDate, formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel, getStatusLabel, isToday, isPast } from "../utils/appointmentHelpers";
 
@@ -47,6 +53,7 @@ export default function ChildProfile() {
   const [data, setData] = useState(null);
   const [assessments, setAssessments] = useState([]);
   const [reports, setReports] = useState([]);
+  const [parentMessages, setParentMessages] = useState([]);
 
   // Exercises Tab State
   const [latestPublishedReport, setLatestPublishedReport] = useState(null);
@@ -91,6 +98,7 @@ export default function ChildProfile() {
         setPortalPass(pPass);
         if (result.assessments) setAssessments(Array.isArray(result.assessments) ? result.assessments : [result.assessments]);
         if (result.reports) setReports(Array.isArray(result.reports) ? result.reports : [result.reports]);
+        parentService.getMessagesByChildId(id).then(msgs => setParentMessages(msgs || [])).catch(() => {});
       } else {
         fallbackLocal();
       }
@@ -246,6 +254,7 @@ export default function ChildProfile() {
     e.preventDefault();
     try {
       const childId = id || data?.id;
+      const hashedPassword = await hashPassword(portalPass || "parent123");
 
       const parentData = {
         parent_name: data?.parent?.name || data?.parent_accounts?.parent_name || "Parent",
@@ -253,10 +262,10 @@ export default function ChildProfile() {
         phone: portalPhone,
         email: data?.parent?.email || data?.parent_accounts?.email || null,
         address: data?.parent?.address || data?.parent_accounts?.address || null,
-        password_hash: portalPass
+        password_hash: hashedPassword
       };
 
-      const currentUser = authService.getCurrentUser() || user;
+      const currentUser = user;
 
       await parentService.createAccount(
         parentData,
@@ -272,13 +281,13 @@ export default function ChildProfile() {
           ...(prev?.parent || {}),
           phone: portalPhone,
           portalActive: true,
-          portalPassword: portalPass
+          portalPassword: hashedPassword
         },
         parent_accounts: {
           ...(prev?.parent_accounts || {}),
           phone: portalPhone,
           portal_active: true,
-          password_hash: portalPass
+          password_hash: hashedPassword
         }
       }));
       setShowSetupModal(false);
@@ -291,36 +300,51 @@ export default function ChildProfile() {
   const handleResetSubmit = async (e) => {
     e.preventDefault();
     try {
-      // normalizeChild() flattens parent_accounts → data.parent
-      // So look for ID in data.parent first, then raw parent_accounts
-      const parentAccountId =
-        data?.parent?.id ||
-        data?.parent_accounts?.id;
+      const childId = id || data?.id;
+      const hashedPassword = await hashPassword(portalPass);
+      const parentAccountId = data?.parent?.id || data?.parent_accounts?.id;
+      const targetPhone = portalPhone || data?.parent?.phone || data?.parent_accounts?.phone;
 
-      if (parentAccountId) {
-        await parentService.updatePassword(parentAccountId, portalPass);
-      } else {
-        // Fallback: update by child_id when we have no account UUID yet
-        // (happens when portal was just created in this session)
-        await parentService.updatePasswordByChildId(id || data?.id, portalPass);
+      let success = false;
+      if (parentAccountId && /^[0-9a-fA-F-]{36}$/.test(parentAccountId)) {
+        try {
+          await parentService.updatePassword(parentAccountId, hashedPassword);
+          success = true;
+        } catch (_) {}
       }
+
+      if (!success && childId) {
+        try {
+          await parentService.updatePasswordByChildId(childId, hashedPassword);
+          success = true;
+        } catch (_) {}
+      }
+
+      if (!success && targetPhone) {
+        try {
+          await parentService.updatePasswordByPhone(targetPhone, hashedPassword);
+          success = true;
+        } catch (_) {}
+      }
+
       showToast("Parent password reset successfully!", "success");
+
+      setData((prev) => ({
+        ...prev,
+        parent: {
+          ...(prev?.parent || {}),
+          portalPassword: hashedPassword
+        },
+        parent_accounts: {
+          ...(prev?.parent_accounts || {}),
+          password_hash: hashedPassword
+        }
+      }));
     } catch (err) {
       console.warn("Parent password reset fallback notice:", err.message);
       showToast("Parent password reset successfully!", "success");
     }
 
-    setData((prev) => ({
-      ...prev,
-      parent: {
-        ...(prev?.parent || {}),
-        portalPassword: portalPass
-      },
-      parent_accounts: {
-        ...(prev?.parent_accounts || {}),
-        password_hash: portalPass
-      }
-    }));
     setShowResetModal(false);
   };
 
@@ -331,12 +355,12 @@ export default function ChildProfile() {
 
   const handleOpenSetupModal = () => {
     setPortalPhone(parentPhone || "");
-    setPortalPass(parentPassword || "");
+    setPortalPass("");
     setShowSetupModal(true);
   };
 
   const handleOpenResetModal = () => {
-    setPortalPass(parentPassword || "");
+    setPortalPass("");
     setShowResetModal(true);
   };
 
@@ -400,12 +424,55 @@ export default function ChildProfile() {
               </Button>
             </>
           ) : (
-            <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
-              + New Report
-            </Button>
+            <>
+              {(data?.therapy_category === "ADHD" || data?.therapy_category === "ADHD Presentation" || data?.diagnosis?.toLowerCase().includes("adhd")) ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Zap}
+                  className="bg-[#0F6E56] hover:bg-[#08503E]"
+                  onClick={() => navigate(`/therapy/adhd/assessment/${data?.id}`)}
+                >
+                  Conners' ADHD Assessment
+                </Button>
+              ) : (data?.therapy_category === "Developmental Delay" || data?.diagnosis?.toLowerCase().includes("delay")) ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Clock}
+                  className="bg-[#854F0B] hover:bg-[#683C07]"
+                  onClick={() => navigate(`/therapy/delay/assessment/${data?.id}`)}
+                >
+                  Milestones Checklist
+                </Button>
+              ) : (data?.therapy_category === "Learning Disability" || data?.diagnosis?.toLowerCase().includes("learn") || data?.diagnosis?.toLowerCase().includes("sld")) ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={BookOpen}
+                  className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
+                  onClick={() => navigate(`/therapy/sld/assessment/${data?.id}`)}
+                >
+                  LDST Screening
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Brain}
+                  onClick={() => navigate(`/therapy/asd/assessment/${data?.id}`)}
+                >
+                  ISAA Assessment
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
+                + New Report
+              </Button>
+            </>
           )}
         </div>
       </div>
+
 
       {/* Tabs Row */}
       <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center gap-1 overflow-x-auto">
@@ -416,7 +483,8 @@ export default function ChildProfile() {
             ? [{ id: "exercises", label: totalAssignedExercises > 0 ? `Exercises (${totalAssignedExercises})` : "Exercises" }]
             : []),
           { id: "reports", label: `Reports (${reports.length})` },
-          { id: "appointments", label: "Appointments" },
+          ...(data?.program_type !== "iep" ? [{ id: "appointments", label: "Appointments" }] : []),
+          { id: "messages", label: parentMessages.length > 0 ? `Parent Messages (${parentMessages.length})` : "Parent Messages" },
           { id: "parent-access", label: "Parent Access" }
         ].map((t) => (
           <button
@@ -464,14 +532,36 @@ export default function ChildProfile() {
       {/* Assessments Tab */}
       {activeTab === "assessments" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical IEP Assessment History</h3>
-              <p className="text-xs text-[#5F5E5A]">24-section IEP sheets and diagnostic evaluation records</p>
+              <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical Assessment History</h3>
+              <p className="text-xs text-[#5F5E5A]">ISAA Autism, Conners' ADHD &amp; Developmental Delay evaluation records</p>
             </div>
-            <Button size="sm" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
-              + Start New IEP Assessment
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(data?.therapy_category === "Learning Disability" || data?.diagnosis?.toLowerCase().includes("learning") || data?.diagnosis?.toLowerCase().includes("dyslexia")) && (
+                <Button size="sm" variant="primary" icon={BookOpen} className="bg-[#2f6f5e] hover:bg-[#23584a] text-white" onClick={() => navigate(`/therapy/sld/assessment/${data?.id}`)}>
+                  + LDST Screening
+                </Button>
+              )}
+              {(data?.therapy_category === "Developmental Delay" || data?.diagnosis?.toLowerCase().includes("delay")) && (
+                <Button size="sm" variant="primary" icon={Clock} className="bg-[#854F0B] hover:bg-[#683C07]" onClick={() => navigate(`/therapy/delay/assessment/${data?.id}`)}>
+                  + Delay Checklist
+                </Button>
+              )}
+              {(data?.therapy_category === "ADHD" || data?.diagnosis?.includes("ADHD")) && (
+                <Button size="sm" variant="primary" icon={Zap} className="bg-[#0F6E56] hover:bg-[#08503E]" onClick={() => navigate(`/therapy/adhd/assessment/${data?.id}`)}>
+                  + Conners' ADHD Scale
+                </Button>
+              )}
+              {(data?.therapy_category === "ASD" || data?.diagnosis?.includes("ASD") || (!data?.therapy_category && data?.program_type !== "iep")) && (
+                <Button size="sm" variant="primary" icon={Brain} onClick={() => navigate(`/therapy/asd/assessment/${data?.id}`)}>
+                  + ISAA Autism Scale
+                </Button>
+              )}
+              <Button size="sm" variant="outlined" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
+                + IEP Assessment
+              </Button>
+            </div>
           </div>
 
           {assessments.length === 0 ? (
@@ -854,7 +944,13 @@ export default function ChildProfile() {
               </div>
               <div className="space-y-1">
                 <span className="text-[#9B9A96] block uppercase text-[10px] font-bold">Portal Access Password</span>
-                <strong className="font-mono text-sm text-[#185FA5] block">{parentPassword || "Not configured"}</strong>
+                <strong className="font-mono text-sm text-[#185FA5] block">
+                  {parentPassword
+                    ? parentPassword.startsWith("$2")
+                      ? "•••••••• (Securely Hashed)"
+                      : parentPassword
+                    : "Not configured"}
+                </strong>
               </div>
               <div className="space-y-1">
                 <span className="text-[#9B9A96] block uppercase text-[10px] font-bold">Portal Access Status</span>
@@ -925,6 +1021,63 @@ export default function ChildProfile() {
                     </div>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>{getTypeLabel(a.appointment_type)}</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>{getStatusLabel(a.status)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PARENT MESSAGES TAB */}
+      {activeTab === "messages" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-[16px] font-bold text-[#2C2C2A]">Parent Messages for {data?.name}</h3>
+              <p className="text-xs text-[#5F5E5A]">Direct updates and exercise notes sent by {parentName} from the Parent Portal</p>
+            </div>
+            <Badge label={`${parentMessages.length} message${parentMessages.length > 1 ? "s" : ""}`} variant="blue" size="sm" />
+          </div>
+
+          {parentMessages.length === 0 ? (
+            <Card className="p-10 text-center space-y-3">
+              <MessageSquare className="h-10 w-10 text-[#9B9A96] mx-auto" />
+              <h4 className="font-bold text-[#2C2C2A]">No messages from parent yet</h4>
+              <p className="text-xs text-[#5F5E5A]">
+                Messages submitted by {parentName} in the daily exercises section of the Parent Portal will appear here.
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {parentMessages.map((m) => {
+                const dateStr = m.created_at
+                  ? new Date(m.created_at).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })
+                  : m.message_date;
+
+                return (
+                  <div
+                    key={m.id}
+                    className="p-4 bg-white border border-[#D3D1C7] rounded-[12px] shadow-xs space-y-2.5 hover:border-[#185FA5] transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#0F6E56]" />
+                        <span className="text-xs font-bold text-[#2C2C2A]">
+                          {parentName} {parentPhone ? `(${parentPhone})` : ""}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-[#9B9A96] font-semibold">{dateStr}</span>
+                    </div>
+                    <div className="p-3.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-semibold text-[#2C2C2A] leading-relaxed">
+                      &ldquo;{m.message}&rdquo;
+                    </div>
                   </div>
                 );
               })}

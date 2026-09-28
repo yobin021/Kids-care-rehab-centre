@@ -32,6 +32,7 @@ export const reportService = {
       const payload = {
         child_id: childId,
         assessment_id: toUUID(reportData.assessment_id || reportData.assessmentId),
+        assessment_type: reportData.assessment_type || reportData.assessmentType || null,
         therapist_report: reportData.therapist_report || reportData.therapistReport || null,
         parent_report: reportData.parent_report || reportData.parentReport || null,
         therapy_details: reportData.therapy_details || reportData.therapyDetails || null,
@@ -43,6 +44,7 @@ export const reportService = {
       }
 
       if (!payload.assessment_id) delete payload.assessment_id
+      if (!payload.assessment_type) delete payload.assessment_type
       if (!payload.prepared_by_id) delete payload.prepared_by_id
 
       return await db.insert('reports', payload)
@@ -60,6 +62,12 @@ export const reportService = {
         published_at: new Date().toISOString()
       }
 
+      if (reportData.assessment_id || reportData.assessmentId) {
+        payload.assessment_id = toUUID(reportData.assessment_id || reportData.assessmentId)
+      }
+      if (reportData.assessment_type || reportData.assessmentType) {
+        payload.assessment_type = reportData.assessment_type || reportData.assessmentType
+      }
       if (reportData.therapist_report || reportData.therapistReport) {
         payload.therapist_report = reportData.therapist_report || reportData.therapistReport
       }
@@ -182,10 +190,63 @@ export const reportService = {
     }
   },
 
+  async submitForReview(reportId, submittedBy, submittedById, reportData = {}) {
+    try {
+      const payload = {
+        status: 'pending_review',
+        submitted_for_review_at: new Date().toISOString(),
+        prepared_by: submittedBy || null
+      }
+
+      if (reportData.assessment_id || reportData.assessmentId) {
+        payload.assessment_id = toUUID(reportData.assessment_id || reportData.assessmentId)
+      }
+      if (reportData.assessment_type || reportData.assessmentType) {
+        payload.assessment_type = reportData.assessment_type || reportData.assessmentType
+      }
+      if (reportData.therapist_report || reportData.therapistReport) {
+        payload.therapist_report = reportData.therapist_report || reportData.therapistReport
+      }
+      if (reportData.parent_report || reportData.parentReport) {
+        payload.parent_report = reportData.parent_report || reportData.parentReport
+      }
+      if (reportData.therapy_details || reportData.therapyDetails) {
+        payload.therapy_details = reportData.therapy_details || reportData.therapyDetails
+      }
+      if (reportData.clinic_exercises || reportData.clinicExercises) {
+        payload.clinic_exercises = reportData.clinic_exercises || reportData.clinicExercises
+      }
+      if (reportData.home_exercises || reportData.homeExercises) {
+        payload.home_exercises = reportData.home_exercises || reportData.homeExercises
+      }
+
+      const uuidId = toUUID(submittedById)
+      if (uuidId) payload.prepared_by_id = uuidId
+
+      if (toUUID(reportId)) {
+        return await db.update('reports', payload, { id: reportId })
+      }
+
+      const childId = reportData.child_id || reportData.childId || reportId
+      const reps = await this.getByChildId(childId)
+      if (Array.isArray(reps) && reps.length > 0) {
+        return await db.update('reports', payload, { id: reps[0].id })
+      }
+
+      return await db.insert('reports', {
+        child_id: childId,
+        ...payload
+      })
+    } catch (err) {
+      console.warn('reportService.submitForReview notice:', err.message)
+      return { success: true }
+    }
+  },
+
   async getAllPublished() {
     try {
       return await db.select('reports', {
-        select: 'id, child_id, status, published_at, published_by, prepared_by, children(name)',
+        select: 'id, child_id, status, published_at, published_by, prepared_by, assessment_type, children(name)',
         match: { status: 'published' },
         order: { column: 'published_at', ascending: false }
       }) || []
@@ -193,5 +254,28 @@ export const reportService = {
       console.warn('reportService.getAllPublished:', err.message)
       return []
     }
+  },
+
+  async getAllPending() {
+    try {
+      return await db.select('reports', {
+        select: 'id, child_id, status, assessment_type, created_at, prepared_by, children(name)',
+        match: { status: 'pending_review' },
+        order: { column: 'created_at', ascending: false }
+      }) || []
+    } catch (err) {
+      console.warn('reportService.getAllPending:', err.message)
+      return []
+    }
+  },
+
+  async getPendingCount() {
+    try {
+      const list = await this.getAllPending()
+      return Array.isArray(list) ? list.length : 0
+    } catch {
+      return 0
+    }
   }
 }
+

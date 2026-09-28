@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, Send, Dumbbell, Calendar, RefreshCw } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -12,6 +13,7 @@ import { parentService } from "../services/parentService";
 import { reportService } from "../services/reportService";
 import { exerciseService } from "../services/exerciseService";
 import { authService } from "../services/authService";
+import { isIepProgram } from "../utils/programHelpers";
 
 const FEEDBACK_OPTIONS = [
   { label: "😊 Great", value: "great" },
@@ -21,22 +23,18 @@ const FEEDBACK_OPTIONS = [
 
 export default function ParentExercises() {
   const { user, childrenList, showToast } = useAuth();
-  const child = childrenList.find((c) => c.id === user?.childId) || childrenList[0];
+  const navigate = useNavigate();
+  const child =
+    childrenList.find((c) => c.id === user?.childId) ||
+    (user?.childId ? { id: user.childId, name: user.childName } : childrenList[0]);
 
-  const [exercises, setExercises] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const isIep = isIepProgram(child) || isIepProgram(user);
 
-  const [expandedId, setExpandedId] = useState(null);
-  const [doneLogs, setDoneLogs] = useState({});
-  const [message, setMessage] = useState("");
-  const [sentMessage, setSentMessage] = useState(null);
-
-  // Weekly Progress State
-  const [weekDays, setWeekDays] = useState([]);
-  const [weekStatus, setWeekStatus] = useState({});
-
-  const isIep = child?.program_type === "iep";
+  useEffect(() => {
+    if (isIep) {
+      navigate("/parent/home", { replace: true });
+    }
+  }, [isIep, navigate]);
 
   const loadExercises = async () => {
     setLoading(true);
@@ -210,6 +208,10 @@ export default function ParentExercises() {
   const totalCount = exercises.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  if (isIep) {
+    return null;
+  }
+
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 max-w-3xl mx-auto">
       {/* Header Banner */}
@@ -309,9 +311,9 @@ export default function ParentExercises() {
                     </span>
                   </div>
                 )}
-                <div className="p-4 flex items-center justify-between gap-3">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2">
+                <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-bold text-[#2C2C2A]">{ex.name}</h3>
                       {isDone && (
                         <span className="px-2 py-0.5 bg-[#3B6D11] text-white text-[10px] font-bold rounded-full flex items-center gap-1">
@@ -319,19 +321,19 @@ export default function ParentExercises() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[#5F5E5A] font-medium">{ex.homeDescription || ex.description}</p>
+                    <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed">{ex.homeDescription || ex.description}</p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#D3D1C7]/40">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {FEEDBACK_OPTIONS.map((option) => (
                         <button
                           key={option.value}
                           type="button"
                           onClick={() => handleMarkDone(ex.id, option.value)}
-                          className={`px-2 py-1 rounded-[6px] text-xs font-bold border transition-colors cursor-pointer ${
+                          className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-[8px] text-xs font-bold border transition-all cursor-pointer ${
                             doneLogs[ex.id] === option.value
-                              ? "bg-[#0F6E56] text-white border-[#0F6E56]"
+                              ? "bg-[#0F6E56] text-white border-[#0F6E56] shadow-xs"
                               : "bg-white text-[#2C2C2A] border-[#D3D1C7] hover:bg-slate-50"
                           }`}
                         >
@@ -341,7 +343,8 @@ export default function ParentExercises() {
                     </div>
                     <button
                       onClick={() => toggleExpand(ex.id)}
-                      className="p-1.5 rounded-[8px] hover:bg-slate-100 text-[#5F5E5A] cursor-pointer"
+                      className="min-h-[36px] min-w-[36px] flex items-center justify-center p-1.5 rounded-[8px] hover:bg-slate-100 text-[#5F5E5A] cursor-pointer shrink-0"
+                      aria-label="Expand exercise details"
                     >
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>

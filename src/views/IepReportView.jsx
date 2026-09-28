@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ArrowLeft, Printer, Edit3, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { ArrowLeft, Printer, Edit3, CheckCircle2, AlertTriangle, Clock, FileText } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -11,6 +11,7 @@ import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import IepDomainRadarGraph from "../components/assessment/IepDomainRadarGraph";
 import { iepService } from "../services/iepService";
+import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
 
 export default function IepReportView() {
   const { reportId } = useParams();
@@ -70,6 +71,21 @@ export default function IepReportView() {
   const isPublished = reportData?.status === "published" || reportData?.review_status === "published";
   const isPending = reportData?.review_status === "pending_review";
 
+  useEffect(() => {
+    if (reportData) {
+      const activeName = child?.name || iep.studentInfo?.name || reportData?.student_name;
+      const activeId = child?.id || reportData?.child_id;
+      const reportNum = iep.cycle || reportData?.iep_cycle || reportData?.cycle || 1;
+      if (activeName) {
+        document.title = formatReportFilename({
+          childName: activeName,
+          childId: activeId,
+          reportNo: reportNum
+        });
+      }
+    }
+  }, [reportData, child, iep]);
+
   if (loading) return <div className="space-y-4"><SkeletonCard count={5} /></div>;
   if (error) return <ErrorMessage error={error} />;
 
@@ -123,7 +139,20 @@ export default function IepReportView() {
               Edit Report
             </Button>
           )}
-          <Button variant="outlined" size="sm" icon={Printer} onClick={() => window.print()}>
+          <Button
+            variant="outlined"
+            size="sm"
+            icon={Printer}
+            onClick={() =>
+              printReportWithFilename({
+                childName: child?.name || iep.studentInfo?.name || reportData?.student_name,
+                childId: child?.id || reportData?.child_id,
+                reportNo: iep.cycle || reportData?.iep_cycle || reportData?.cycle || 1,
+                currentReportId: reportData?.id,
+                fallbackCycle: iep.cycle || reportData?.iep_cycle || reportData?.cycle
+              })
+            }
+          >
             Print
           </Button>
         </div>

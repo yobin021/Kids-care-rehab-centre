@@ -65,28 +65,28 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Parent Top Navigation Bar */}
-        <header className="sticky top-0 z-30 glass border-b border-white/50 px-4 py-3 shadow-sm">
-          <div className="max-w-[800px] mx-auto flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-3 shadow-sm">
+          <div className="max-w-[800px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
             
             {/* Left Logo */}
-            <div className="flex items-center gap-3">
-              <div className="relative group cursor-pointer" onClick={() => navigate("/parent/home")}>
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="relative group cursor-pointer shrink-0" onClick={() => navigate("/parent/home")}>
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-xl blur opacity-40 group-hover:opacity-75 transition-opacity" />
                 <img
                   src="/kids_care_rehab_center_logo.jpg"
                   alt="Logo"
-                  className="relative h-10 w-10 rounded-xl object-cover border-2 border-white shadow-sm"
+                  className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl object-cover border-2 border-white shadow-sm"
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               </div>
-              <div className="hidden sm:block">
-                <span className="text-sm font-black tracking-tight gradient-text-teal block leading-tight">KIDS CARE 360</span>
-                <span className="text-[10px] font-semibold text-slate-500 block leading-tight">Parent Portal</span>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-black tracking-tight gradient-text-teal block leading-tight truncate">KIDS CARE 360</span>
+                <span className="text-[9px] sm:text-[10px] font-semibold text-slate-500 block leading-tight">Parent Portal</span>
               </div>
             </div>
 
-            {/* Center Links */}
-            <nav className="flex items-center gap-1 bg-white/50 p-1 rounded-full border border-white shadow-xs">
+            {/* Center Links (Desktop & Tablet) */}
+            <nav className="hidden sm:flex items-center gap-1 bg-white/50 p-1 rounded-full border border-white shadow-xs">
               <Link
                 to="/parent/home"
                 className={`transition-all px-4 py-1.5 rounded-full text-[13px] font-semibold ${
@@ -116,12 +116,12 @@ export default function AppShell({ children }) {
             </nav>
 
             {/* Right Child Name + Logout */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-full border border-white/50 shadow-xs">
-                <div className="h-6 w-6 rounded-full bg-gradient-emerald text-white flex items-center justify-center text-[10px] font-bold">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-white/60 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-white/50 shadow-xs">
+                <div className="h-6 w-6 rounded-full bg-gradient-emerald text-white flex items-center justify-center text-[10px] font-bold shrink-0">
                   {activeChild?.name?.[0] || "C"}
                 </div>
-                <span className="text-xs font-bold text-slate-700 hidden sm:inline">
+                <span className="text-xs font-bold text-slate-700 max-w-[80px] sm:max-w-[120px] truncate">
                   {activeChild?.name}
                 </span>
               </div>
@@ -140,8 +140,41 @@ export default function AppShell({ children }) {
           </div>
         </header>
 
+        {/* Mobile Bottom Navigation Bar (Parent) */}
+        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-4 py-2 flex items-center justify-around pb-safe">
+          <Link
+            to="/parent/home"
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              location.pathname === "/parent/home" ? "text-emerald-700 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
+            }`}
+          >
+            <Home className="h-5 w-5" />
+            <span className="text-[11px] leading-tight">Home</span>
+          </Link>
+          <Link
+            to="/parent/report"
+            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              location.pathname.startsWith("/parent/report") || location.pathname.startsWith("/iep/report") ? "text-emerald-700 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
+            }`}
+          >
+            <BookOpen className="h-5 w-5" />
+            <span className="text-[11px] leading-tight">Reports</span>
+          </Link>
+          {!isIep && (
+            <Link
+              to="/parent/exercises"
+              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+                location.pathname === "/parent/exercises" ? "text-emerald-700 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              <Activity className="h-5 w-5" />
+              <span className="text-[11px] leading-tight">Exercises</span>
+            </Link>
+          )}
+        </nav>
+
         {/* Parent Main Content Area */}
-        <main className="max-w-[800px] mx-auto p-4 sm:p-6 min-h-[calc(100vh-70px)] relative z-10 animate-fade-in">
+        <main className="max-w-[800px] mx-auto p-3 sm:p-6 pb-24 sm:pb-8 min-h-[calc(100vh-70px)] relative z-10 animate-fade-in">
           {children}
         </main>
       </div>
@@ -313,36 +346,37 @@ export default function AppShell({ children }) {
       <div className="flex flex-1 flex-col overflow-hidden min-w-0 relative z-10">
         
         {/* Top Header Bar (Glass) */}
-        <header className="sticky top-0 z-30 glass border-b border-white/50 px-6 py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-          <div className="flex items-center gap-4">
+        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setMobileOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm"
+              className="md:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm shrink-0"
+              aria-label="Open sidebar menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             
             {/* Animated Title */}
-            <div className="flex items-center gap-2">
-              <h1 className="text-[20px] font-black tracking-tight text-slate-800 flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-base sm:text-[20px] font-black tracking-tight text-slate-800 flex items-center gap-2 truncate max-w-[170px] xs:max-w-[240px] sm:max-w-none">
                 {getPageTitle()}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-[13px] font-bold text-slate-800 leading-tight">{user?.name}</span>
               <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{isAdmin ? 'Admin' : 'Staff'} Role</span>
             </div>
-            <div className="h-9 w-9 rounded-full bg-white border-2 border-slate-100 shadow-sm text-blue-600 font-bold text-xs flex items-center justify-center">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white border-2 border-slate-100 shadow-sm text-blue-600 font-bold text-xs flex items-center justify-center">
               {initials}
             </div>
           </div>
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
           <div className="animate-slide-up">
             {children}
           </div>

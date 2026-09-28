@@ -124,12 +124,9 @@ export default function StaffLogin() {
               </div>
             </form>
 
-            <div className="text-center space-y-2">
+            <div className="text-center">
               <p className="text-[13px] text-slate-500 font-medium">
-                Trouble logging in? <button className="text-blue-600 font-bold hover:underline cursor-pointer">Contact IT Support</button>
-              </p>
-              <p className="text-[13px] text-slate-500 font-medium">
-                Don't have an account? <Link to="/register" className="text-blue-600 font-bold hover:underline cursor-pointer">Register here</Link>
+                Trouble logging in? Please contact your administrator.
               </p>
             </div>
 

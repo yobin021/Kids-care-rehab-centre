@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { authService } from "../services/authService";
 import { childrenService } from "../services/childrenService";
-import { db } from "../services/../lib/db";
+import { hashPassword, isHashed } from "../services/passwordService";
+import { db } from "../lib/db";
 
 const AuthContext = createContext();
 
@@ -15,45 +16,55 @@ export function AuthProvider({ children }) {
   const toastIdRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session + load live data from DB on startup
+  // Restore authenticated session on application startup
   useEffect(() => {
-    const savedUser = authService.getCurrentUser();
-    if (savedUser) {
-      setUser(savedUser);
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("kcr_user") || sessionStorage.getItem("kcr_user");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.role) {
+            setUser(parsed);
+          }
+        }
+      } catch (_) {}
     }
 
-    // Load children from Supabase or fallback
+
+    // Load children from Supabase
     childrenService.getAll()
       .then((data) => {
-        if (data && data.length > 0) {
+        if (Array.isArray(data)) {
           setChildrenList(data);
         }
       })
       .catch((err) => {
-        console.warn("Using local children fallback:", err.message);
+        console.warn("Children load notice:", err.message);
       })
       .finally(() => {
         setIsLoading(false);
       });
 
-    // Load staff from DB so counts and list are always accurate
+    // Load staff from DB so counts and list are always accurate (excluding admin)
     db.select("users", { order: { column: "name", ascending: true } })
       .then((rows) => {
-        if (rows && rows.length > 0) {
+        if (Array.isArray(rows)) {
           setStaffList(
-            rows.map((d) => ({
-              id: d.id,
-              name: d.name,
-              designation: d.designation,
-              username: d.username,
-              password: d.password_hash || "",
-              isActive: d.is_active !== false
-            }))
+            rows
+              .filter((d) => d.role !== "admin")
+              .map((d) => ({
+                id: d.id,
+                name: d.name,
+                designation: d.designation,
+                username: d.username,
+                password: d.password_hash || "",
+                isActive: d.is_active !== false
+              }))
           );
         }
       })
       .catch((err) => {
-        console.warn("Staff DB load fallback:", err.message);
+        console.warn("Staff DB load notice:", err.message);
       });
   }, []);
 
@@ -80,6 +91,9 @@ export function AuthProvider({ children }) {
       const res = await authService.loginStaff(username, password);
       if (res.success && res.user) {
         setUser(res.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("kcr_user", JSON.stringify(res.user));
+        }
         showToast(`Welcome back, ${res.user.name}!`, "success");
         return { success: true };
       }
@@ -96,6 +110,9 @@ export function AuthProvider({ children }) {
       const res = await authService.registerStaff(name, username, password, designation);
       if (res.success && res.user) {
         setUser(res.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("kcr_user", JSON.stringify(res.user));
+        }
         showToast(`Welcome, ${res.user.name}! Your account has been created.`, "success");
         return { success: true };
       }
@@ -112,10 +129,14 @@ export function AuthProvider({ children }) {
       const res = await authService.loginParent(phone, password);
       if (res.success && res.user) {
         setUser(res.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("kcr_user", JSON.stringify(res.user));
+        }
         showToast(`Welcome to ${res.user.childName || "your child"}'s therapy portal!`, "success");
         return { success: true };
       }
       return { success: false, error: res.error || "Invalid phone number or password" };
+
     } catch (err) {
       console.error("Parent authentication error:", err.message);
       return { success: false, error: "Login failed. Please check your network connection." };
@@ -139,30 +160,33 @@ export function AuthProvider({ children }) {
     );
   };
 
-  const setupParentPortal = (childId, phone, password) => {
+  const setupParentPortal = async (childId, phone, password) => {
+    const hashedPassword = isHashed(password) ? password : await hashPassword(password);
     updateChildDetails(childId, {
       parent: {
         ...(childrenList.find((c) => c.id === childId)?.parent || {}),
         phone,
         portalActive: true,
-        portalPassword: password
+        portalPassword: hashedPassword
       }
     });
     showToast("Parent portal access activated successfully!", "success");
   };
 
-  const resetParentPassword = (childId, newPassword) => {
+  const resetParentPassword = async (childId, newPassword) => {
+    const hashedPassword = isHashed(newPassword) ? newPassword : await hashPassword(newPassword);
     updateChildDetails(childId, {
       parent: {
         ...(childrenList.find((c) => c.id === childId)?.parent || {}),
-        portalPassword: newPassword
+        portalPassword: hashedPassword
       }
     });
     showToast("Parent password reset successfully!", "success");
   };
 
-  const addStaffMember = (newStaff) => {
-    setStaffList((prev) => [...prev, newStaff]);
+  const addStaffMember = async (newStaff) => {
+    const hashedPassword = isHashed(newStaff.password) ? newStaff.password : await hashPassword(newStaff.password);
+    setStaffList((prev) => [...prev, { ...newStaff, password: hashedPassword }]);
     showToast(`Staff member ${newStaff.name} added.`, "success");
   };
 
@@ -173,9 +197,10 @@ export function AuthProvider({ children }) {
     showToast("Staff status updated.", "info");
   };
 
-  const resetStaffPassword = (staffId, newPassword) => {
+  const resetStaffPassword = async (staffId, newPassword) => {
+    const hashedPassword = isHashed(newPassword) ? newPassword : await hashPassword(newPassword);
     setStaffList((prev) =>
-      prev.map((s) => (s.id === staffId ? { ...s, password: newPassword } : s))
+      prev.map((s) => (s.id === staffId ? { ...s, password: hashedPassword } : s))
     );
     showToast("Password reset successfully.", "success");
   };

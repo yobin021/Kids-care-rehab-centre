@@ -3,16 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Users, FileText, ClipboardList, Eye, PlusCircle, CalendarDays, Clock, MessageSquare } from "lucide-react";
+import { Users, FileText, ClipboardList, Eye, PlusCircle, CalendarDays, Clock, ArrowRight, BookOpen, Activity } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import EmptyState from "../components/ui/EmptyState";
 import { reportService } from "../services/reportService";
 import { assessmentService } from "../services/assessmentService";
 import { appointmentService } from "../services/appointmentService";
-import { parentService } from "../services/parentService";
 import { formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel } from "../utils/appointmentHelpers";
 
 export default function StaffDashboard() {
@@ -22,20 +20,17 @@ export default function StaffDashboard() {
   const [publishedCount, setPublishedCount] = useState(0);
   const [assessmentsCount, setAssessmentsCount] = useState(0);
   const [todayApts, setTodayApts] = useState([]);
-  const [parentMessages, setParentMessages] = useState([]);
 
   useEffect(() => {
     Promise.all([
       reportService.getAllPublished(),
       assessmentService.getAllThisMonth(),
-      appointmentService.getToday(),
-      parentService.getAllMessages()
+      appointmentService.getToday()
     ])
-      .then(([reportsData, assessmentsData, aptsData, msgsData]) => {
+      .then(([reportsData, assessmentsData, aptsData]) => {
         if (reportsData) setPublishedCount(reportsData.length);
         if (assessmentsData) setAssessmentsCount(assessmentsData.length);
         if (aptsData) setTodayApts(aptsData);
-        if (msgsData) setParentMessages(msgsData);
       })
       .catch((err) => {
         console.warn("Staff dashboard fetch metrics notice:", err.message);
@@ -59,256 +54,268 @@ export default function StaffDashboard() {
       case "C": return "amber";
       case "D": return "teal";
       case "E": return "coral";
-      default: return "blue";
+      default: return "blue-soft";
     }
   };
 
   return (
-    <div className="space-y-6 text-[#2C2C2A]">
-      <div>
-        <h2 className="text-[20px] font-bold text-[#2C2C2A]">Good morning, {user?.name || "Staff"}</h2>
-        <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">{todayStr}</p>
+    <div className="space-y-8 text-slate-800 pb-10">
+      
+      {/* ─── Gradient Welcome Banner ─── */}
+      <div className="relative bg-white rounded-3xl border border-white shadow-[0_8px_32px_rgba(37,99,235,0.06)] overflow-hidden p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-50/80 to-transparent pointer-events-none" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        
+        <div className="relative z-10 space-y-2">
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+            Good morning, <span className="gradient-text-blue">{user?.name || "Clinician"}</span>
+          </h2>
+          <p className="text-[14px] font-semibold text-slate-500">{todayStr}</p>
+        </div>
       </div>
 
-      {/* Dynamic Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title="Total Children" value={totalChildrenCount} icon={Users} color="#185FA5" />
-        <StatCard title="Reports Published" value={publishedCount} icon={FileText} color="#0F6E56" />
-        <StatCard title="Assessments This Month" value={assessmentsCount} icon={ClipboardList} color="#3C3489" />
+      {/* ─── Dynamic Metric Cards ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <StatCard title="Total Children" value={totalChildrenCount} icon={Users} color="#2563EB" />
+        <StatCard title="Reports Published" value={publishedCount} icon={FileText} color="#059669" />
+        <StatCard title="Assessments (Month)" value={assessmentsCount} icon={ClipboardList} color="#7C3AED" />
       </div>
 
-      {/* ═══ TWO MAIN BUTTONS: IEP + THERAPY ═══ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* ─── TWO MAIN CLINICAL MODULES ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* IEP Module Card */}
         <div
-          className="flex flex-col justify-between bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#185FA5] transition-all duration-200 cursor-pointer group hover:shadow-md p-6"
           onClick={() => navigate("/iep")}
+          className="group relative bg-white rounded-3xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(124,58,237,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden p-8 flex flex-col"
         >
-          <div className="space-y-3">
-            <div className="h-12 w-12 rounded-[12px] bg-[#185FA5]/10 flex items-center justify-center group-hover:bg-[#185FA5]/20 transition-colors">
-              <svg className="h-6 w-6 text-[#185FA5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-violet" />
+          <div className="absolute -bottom-8 -right-8 text-violet-500/5 group-hover:text-violet-500/10 transition-colors pointer-events-none">
+            <BookOpen className="w-48 h-48" />
+          </div>
+
+          <div className="relative z-10 space-y-6 flex-1">
+            <div className="h-14 w-14 rounded-2xl bg-gradient-violet text-white flex items-center justify-center shadow-lg shadow-violet-500/30">
+              <BookOpen className="h-7 w-7" />
             </div>
+
             <div>
-              <h3 className="text-[18px] font-bold text-[#2C2C2A]">IEP</h3>
-              <p className="text-[11px] font-bold text-[#185FA5] uppercase tracking-wide">Individualized Education Program</p>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">IEP Program</h3>
+              <p className="text-[11px] font-bold text-violet-600 uppercase tracking-widest mt-1">Assessment &amp; Milestones</p>
             </div>
-            <p className="text-xs text-[#5F5E5A] leading-relaxed">
-              Conduct IEP assessments and generate structured 3-month progress reports for each student. Track improvement cycles from initial assessment through discharge.
+
+            <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+              Conduct IEP assessments, generate structured 3-month progress reports, and track competency growth over time.
             </p>
           </div>
-          <div className="pt-4 border-t border-[#D3D1C7]/60 mt-4">
-            <Button onClick={(e) => { e.stopPropagation(); navigate("/iep"); }} fullWidth className="h-11">Open IEP →</Button>
+
+          <div className="relative z-10 pt-6 mt-6 border-t border-slate-100 flex items-center justify-between text-violet-600 font-bold">
+            <span>Open IEP Dashboard</span>
+            <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
-        {/* Button 2: Therapy */}
+
+        {/* Therapy Module Card */}
         <div
-          className="flex flex-col justify-between bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#0F6E56] transition-all duration-200 cursor-pointer group hover:shadow-md p-6"
           onClick={() => navigate("/therapy")}
+          className="group relative bg-white rounded-3xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(5,150,105,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden p-8 flex flex-col"
         >
-          <div className="space-y-3">
-            <div className="h-12 w-12 rounded-[12px] bg-[#0F6E56]/10 flex items-center justify-center group-hover:bg-[#0F6E56]/20 transition-colors">
-              <svg className="h-6 w-6 text-[#0F6E56]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-emerald" />
+          <div className="absolute -bottom-8 -right-8 text-emerald-500/5 group-hover:text-emerald-500/10 transition-colors pointer-events-none">
+            <Activity className="w-48 h-48" />
+          </div>
+
+          <div className="relative z-10 space-y-6 flex-1">
+            <div className="h-14 w-14 rounded-2xl bg-gradient-emerald text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <Activity className="h-7 w-7" />
             </div>
+
             <div>
-              <h3 className="text-[18px] font-bold text-[#2C2C2A]">Therapy</h3>
-              <p className="text-[11px] font-bold text-[#0F6E56] uppercase tracking-wide">4 Therapy Pathways (ASD · ADHD · DD · LD)</p>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Therapy Pathways</h3>
+              <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Intervention &amp; Exercises</p>
             </div>
-            <p className="text-xs text-[#5F5E5A] leading-relaxed">
-              Manage clinical therapy pathways across ASD, ADHD, Developmental Delay, and Learning Disability. Assign clinic and home exercise regimens with progress logs.
+
+            <p className="text-[14px] text-slate-600 font-medium leading-relaxed">
+              Manage clinical tracks, assign daily home exercise regimens, and review parent progress logs.
             </p>
           </div>
-          <div className="pt-4 border-t border-[#D3D1C7]/60 mt-4">
-            <Button onClick={(e) => { e.stopPropagation(); navigate("/therapy"); }} fullWidth className="h-11 bg-[#0F6E56] hover:bg-[#085041]">Open Therapy →</Button>
+
+          <div className="relative z-10 pt-6 mt-6 border-t border-slate-100 flex items-center justify-between text-emerald-600 font-bold">
+            <span>Open Therapy Dashboard</span>
+            <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
       </div>
 
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="flex flex-col justify-between hover:border-[#185FA5] transition-colors">
-          <div className="space-y-2">
-            <div className="text-2xl">➕👶</div>
-            <h3 className="text-[16px] font-bold text-[#2C2C2A]">Register New Child</h3>
-            <p className="text-xs text-[#5F5E5A]">Add a new child to the system</p>
+      {/* ─── QUICK ACTIONS ─── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="flex flex-col justify-between p-6 space-y-5 hover:border-blue-400 group cursor-pointer" padding="p-0">
+          <div className="space-y-3">
+            <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <PlusCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-bold text-slate-900">Register New Child</h3>
+              <p className="text-[12px] text-slate-500 font-medium mt-1">Enroll a new patient into the system.</p>
+            </div>
           </div>
-          <div className="pt-4">
+          <div className="pt-4 border-t border-slate-100">
             <Button onClick={() => navigate("/children/new")} fullWidth>
               Register Child
             </Button>
           </div>
         </Card>
 
-        <Card className="flex flex-col justify-between hover:border-[#185FA5] transition-colors">
-          <div className="space-y-2">
-            <div className="text-2xl">📋</div>
-            <h3 className="text-[16px] font-bold text-[#2C2C2A]">New Assessment</h3>
-            <p className="text-xs text-[#5F5E5A]">Fill assessment form for a child</p>
+        <Card className="flex flex-col justify-between p-6 space-y-5 hover:border-emerald-400 group cursor-pointer" padding="p-0">
+          <div className="space-y-3">
+            <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <ClipboardList className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-bold text-slate-900">New Assessment</h3>
+              <p className="text-[12px] text-slate-500 font-medium mt-1">Start a fresh evaluation for a child.</p>
+            </div>
           </div>
-          <div className="pt-4">
+          <div className="pt-4 border-t border-slate-100">
             <Button variant="secondary" onClick={() => navigate("/children")} fullWidth>
               Start Assessment
             </Button>
           </div>
         </Card>
 
-        <Card className="flex flex-col justify-between hover:border-[#185FA5] transition-colors">
-          <div className="space-y-2">
-            <div className="text-2xl">👥</div>
-            <h3 className="text-[16px] font-bold text-[#2C2C2A]">View All Children</h3>
-            <p className="text-xs text-[#5F5E5A]">See all registered children and their reports</p>
+        <Card className="flex flex-col justify-between p-6 space-y-5 hover:border-violet-400 group cursor-pointer" padding="p-0">
+          <div className="space-y-3">
+            <div className="h-12 w-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Users className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-bold text-slate-900">View Directory</h3>
+              <p className="text-[12px] text-slate-500 font-medium mt-1">Browse all registered children and files.</p>
+            </div>
           </div>
-          <div className="pt-4">
-            <Button variant="outlined" onClick={() => navigate("/children")} fullWidth>
+          <div className="pt-4 border-t border-slate-100">
+            <Button variant="outlined" onClick={() => navigate("/children")} fullWidth className="group-hover:border-violet-300 group-hover:text-violet-700">
               View Children
             </Button>
           </div>
         </Card>
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-[16px] font-bold text-[#2C2C2A]">Recently Registered</h3>
-
-        {recentChildren.length === 0 ? (
-          <Card className="p-8 text-center space-y-3">
-            <p className="text-xs font-semibold text-[#5F5E5A]">No children registered yet.</p>
-            <Button icon={PlusCircle} size="sm" className="mx-auto" onClick={() => navigate("/children/new")}>
-              + Register First Child
-            </Button>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {recentChildren.map((c) => (
-              <Card key={c.id} padding="p-4" className="space-y-3 flex flex-col justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-[#2C2C2A] truncate">{c.name}</h4>
-                    <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} size="sm" />
-                  </div>
-                  <p className="text-[11px] text-[#5F5E5A] font-semibold">{c.age} • {c.diagnosis}</p>
-                  <p className="text-[10px] font-mono text-[#9B9A96]">{c.id}</p>
-                </div>
-
-                <Button
-                  variant="outlined"
-                  size="sm"
-                  fullWidth
-                  icon={Eye}
-                  onClick={() => navigate(`/children/${c.id}`)}
-                >
-                  View
-                </Button>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ═══ PARENT MESSAGES & CLINICAL FEEDBACK ═══ */}
-      {parentMessages && parentMessages.length > 0 && (
-        <Card
-          title={
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-[#185FA5]" />
-                <span className="font-bold text-sm text-[#2C2C2A]">Parent Messages &amp; Care Feedback</span>
-              </div>
-              <Badge label={`${parentMessages.length} message${parentMessages.length > 1 ? "s" : ""}`} variant="blue" size="sm" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+        
+        {/* ─── RECENTLY REGISTERED (2/3 width) ─── */}
+        <div className="lg:col-span-2 space-y-4 overflow-hidden relative">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[18px] font-bold text-slate-900 tracking-tight">Recently Enrolled (Attendance Log)</h3>
+            <div className="text-[12px] font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+              {recentChildren.length} Registered Recently
             </div>
-          }
-        >
-          <div className="space-y-3">
-            {parentMessages.slice(0, 5).map((m) => {
-              const childObj = m.children || childrenList.find((c) => c.id === m.child_id);
-              const childName = childObj?.name || m.child_id;
-              const parentName = m.parent_accounts?.parent_name || "Parent";
-              const parentPhone = m.parent_accounts?.phone || "";
-              const dateStr = m.created_at ? new Date(m.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : m.message_date;
+          </div>
 
-              return (
-                <div
-                  key={m.id}
-                  className="p-3.5 bg-[#F8F8F6] border border-[#D3D1C7]/70 rounded-[10px] hover:border-[#185FA5] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div className="space-y-1.5 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className="text-xs font-bold text-[#185FA5] cursor-pointer hover:underline"
-                        onClick={() => navigate(`/children/${m.child_id}`)}
-                      >
-                        {childName}
-                      </span>
-                      <span className="text-[11px] text-[#5F5E5A] font-semibold">
-                        from {parentName} {parentPhone ? `(${parentPhone})` : ""}
-                      </span>
-                      <span className="text-[10px] text-[#9B9A96]">
-                        • {dateStr}
-                      </span>
+          {recentChildren.length === 0 ? (
+            <Card className="p-8 text-center bg-slate-50 border-dashed">
+              <p className="text-[14px] font-semibold text-slate-500 mb-4">No children registered yet.</p>
+              <Button icon={PlusCircle} onClick={() => navigate("/children/new")}>
+                Register First Child
+              </Button>
+            </Card>
+          ) : (
+            <div className="relative w-full rounded-2xl overflow-hidden py-2" style={{ maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)' }}>
+              {/* Duplicate the array to create a seamless loop */}
+              <div className="animate-marquee flex gap-4">
+                {[...recentChildren, ...recentChildren, ...recentChildren, ...recentChildren].map((c, i) => {
+                  // Fallback for timestamp formatting
+                  const regDate = c.registered_date 
+                    ? new Date(c.registered_date).toLocaleDateString() 
+                    : (c.created_at ? new Date(c.created_at).toLocaleDateString() : "Today");
+
+                  return (
+                    <div key={`${c.id}-${i}`} className="w-[280px] shrink-0">
+                      <Card padding="p-5" accent="blue" className="group flex flex-col justify-between cursor-pointer hover:border-blue-300 h-full">
+                        <div className="space-y-3 mb-6">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-[15px] font-bold text-slate-900 truncate pr-2">{c.name}</h4>
+                            <Badge label={`Profile ${c.profile}`} variant={getProfileVariant(c.profile)} size="sm" />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-[12px] text-slate-500 font-medium">{c.age} yrs • {c.diagnosis}</p>
+                            <p className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md inline-block">ID: {c.id}</p>
+                            
+                            {/* Attendance / Entry Timestamp */}
+                            <div className="flex items-center gap-1.5 mt-2 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
+                              <Clock className="w-3.5 h-3.5 text-blue-500" />
+                              <span className="text-[11px] font-semibold text-blue-700">
+                                Entered: {regDate}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outlined"
+                          size="sm"
+                          fullWidth
+                          icon={Eye}
+                          onClick={() => navigate(`/children/${c.id}`)}
+                          className="group-hover:border-blue-300 group-hover:text-blue-700 mt-auto"
+                        >
+                          View Details
+                        </Button>
+                      </Card>
                     </div>
-                    <p className="text-xs font-semibold text-[#2C2C2A] bg-white p-2.5 rounded-[6px] border border-[#D3D1C7]/50 shadow-2xs leading-relaxed">
-                      &ldquo;{m.message}&rdquo;
-                    </p>
-                  </div>
-                  <Button
-                    variant="outlined"
-                    size="sm"
-                    className="shrink-0 text-xs"
-                    onClick={() => navigate(`/children/${m.child_id}`)}
-                  >
-                    View Child Profile →
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      {/* Today's Schedule */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[16px] font-bold text-[#2C2C2A] flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-[#185FA5]" />
-            Today&apos;s Schedule
-          </h3>
-          <button onClick={() => navigate("/appointments")} className="text-xs font-bold text-[#185FA5] hover:underline cursor-pointer">
-            View all →
-          </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
-        {todayApts.length === 0 ? (
-          <Card className="p-6 text-center">
-            <p className="text-xs font-semibold text-[#5F5E5A]">No appointments scheduled for today.</p>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {todayApts.map(a => {
-              const child = a.children;
-              const ts = getTypeStyle(a.appointment_type);
-              const ss = getStatusStyle(a.status);
-              return (
-                <div key={a.id} className="bg-white rounded-[12px] border border-[#D3D1C7] flex items-center gap-4 p-4 shadow-xs">
-                  <div className="shrink-0 text-center w-16">
-                    <Clock className="h-4 w-4 text-[#185FA5] mx-auto mb-0.5" />
-                    <p className="text-xs font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
-                  </div>
-                  <div className="w-px h-8 bg-[#D3D1C7]/60 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-xs text-[#2C2C2A] truncate">{child?.name || "Child"}</p>
-                    <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} min</p>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>
-                    {getTypeLabel(a.appointment_type)}
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>
-                    {a.status}
-                  </span>
-                </div>
-              );
-            })}
+
+        {/* ─── TODAY'S SCHEDULE (1/3 width) ─── */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[18px] font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-amber-500" />
+              Schedule
+            </h3>
+            <button onClick={() => navigate("/appointments")} className="text-[12px] font-bold text-blue-600 hover:underline">
+              View all
+            </button>
           </div>
-        )}
+          
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 flex flex-col gap-2 min-h-[300px]">
+            {todayApts.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-6 opacity-60">
+                <CalendarDays className="h-10 w-10 text-slate-300 mb-3" />
+                <p className="text-[13px] font-semibold text-slate-500">No appointments scheduled for today.</p>
+              </div>
+            ) : (
+              todayApts.map(a => {
+                const child = a.children;
+                const ts = getTypeStyle(a.appointment_type);
+                const ss = getStatusStyle(a.status);
+                
+                return (
+                  <div key={a.id} className="bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3 p-3 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
+                    <div className="shrink-0 text-center w-14 border-r border-slate-200 pr-3">
+                      <p className="text-[13px] font-black text-slate-700 leading-tight">{formatAppointmentTime(a.appointment_time)}</p>
+                    </div>
+                    
+                    <div className="flex-1 min-w-0 py-1">
+                      <p className="font-bold text-[13px] text-slate-900 truncate">{child?.name || "Child"}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ts.bg === '#F3F4F6' ? '#94A3B8' : ts.border }} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: ts.bg === '#F3F4F6' ? '#64748B' : ts.text }}>
+                          {getTypeLabel(a.appointment_type)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );

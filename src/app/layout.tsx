@@ -1,11 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 
-const plusJakarta = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-plus-jakarta",
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  variable: "--font-inter",
+  display: "swap"
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-poppins",
   display: "swap"
 });
 
@@ -13,12 +20,13 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  themeColor: "#185FA5",
+  themeColor: "#2563EB",
 };
 
 export const metadata: Metadata = {
-  title: "KIDS CARE 360",
-  description: "Assess • Plan • Intervene • Track • Progress",
+  title: "KIDS CARE 360 — Neurodiversity Clinical System",
+  description: "A comprehensive clinical management platform for neurodiverse children. Assess • Plan • Intervene • Track • Progress",
+  keywords: ["kids care", "neurodiversity", "IEP", "therapy", "clinical", "rehab"],
   icons: {
     icon: "/kids_care_rehab_center_logo.jpg",
     shortcut: "/kids_care_rehab_center_logo.jpg",
@@ -32,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={plusJakarta.variable}>
-      <body className="antialiased bg-slate-50/50 text-slate-800 font-sans">
+    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
+      <body className="antialiased" style={{ fontFamily: "var(--font-inter, 'Inter', system-ui, sans-serif)" }}>
         {children}
       </body>
     </html>

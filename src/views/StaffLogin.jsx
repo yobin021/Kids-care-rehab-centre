@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, ArrowLeft, Lock } from "lucide-react";
 import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
 
 export default function StaffLogin() {
   const { loginStaff } = useAuth();
@@ -14,107 +15,125 @@ export default function StaffLogin() {
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    const res = await loginStaff(username, password);
-    if (res.success) {
-      navigate("/dashboard");
-    } else {
-      setError(res.error || "Invalid username or password. Please try again.");
+    try {
+      const res = await loginStaff(username, password);
+      if (res.success) {
+        navigate("/dashboard");
+      } else {
+        setError(res.error || "Invalid username or password. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#EEF4FB] p-4 text-[#2C2C2A]">
-      <div className="w-[400px] max-w-full bg-white p-6 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] space-y-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#F0F4FF] p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white relative overflow-hidden">
+      {/* Background Mesh */}
+      <div className="absolute inset-0 bg-gradient-mesh opacity-60 pointer-events-none" />
+      <div className="absolute top-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-blue-500/20 rounded-full blur-[100px] animate-float pointer-events-none" />
+      
+      <div className="w-full max-w-[1000px] bg-white rounded-3xl shadow-[0_24px_64px_rgba(37,99,235,0.12)] flex flex-col md:flex-row overflow-hidden relative z-10 border border-white">
         
-        {/* Logo & Subtitle */}
-        <div className="text-center space-y-2">
-          <img
-            src="/kids_care_rehab_center_logo.jpg"
-            alt="KIDS CARE 360 Logo"
-            className="h-16 w-16 mx-auto rounded-[12px] object-cover border border-[#185FA5]/20 shadow-xs"
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
-          <div>
-            <h1 className="text-[22px] font-black text-[#185FA5] tracking-tight">
-              KIDS CARE 360
+        {/* Left Side: Branding / Info Panel */}
+        <div className="w-full md:w-5/12 bg-gradient-blue p-10 md:p-12 text-white flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
+          
+          <div className="relative z-10">
+            <Link to="/" className="inline-flex items-center gap-2 text-blue-100 hover:text-white transition-colors text-sm font-bold mb-12">
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Home</span>
+            </Link>
+
+            <img
+              src="/kids_care_rehab_center_logo.jpg"
+              alt="Logo"
+              className="h-16 w-16 rounded-2xl object-cover border-2 border-white/20 shadow-lg mb-6"
+            />
+            
+            <h1 className="text-3xl lg:text-4xl font-black tracking-tight leading-[1.1] mb-4">
+              Clinical &amp; <br/>Staff Portal
             </h1>
-            <p className="text-[#2C2C2A] text-[13px] font-bold mt-0.5">
-              Neurodiversity Clinical & Therapy Management System
+            <p className="text-blue-100 text-[15px] font-medium leading-relaxed max-w-sm">
+              Access the secure dashboard to manage IEP cycles, track therapy pathways, and publish progress reports.
             </p>
-            <p className="text-[#5F5E5A] text-[11px] font-semibold tracking-wide uppercase mt-1">
-              Assess • Plan • Intervene • Track • Progress
-            </p>
+          </div>
+
+          <div className="relative z-10 mt-12 bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="h-6 w-6 text-blue-200 shrink-0" />
+              <div>
+                <h4 className="font-bold text-[13px] text-white">HIPAA Compliant System</h4>
+                <p className="text-[11px] text-blue-200 font-medium mt-1">All clinical records and assessment data are securely encrypted.</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <hr className="border-[#D3D1C7]/60" />
-
-        <h2 className="text-[16px] font-bold text-[#2C2C2A]">Staff Login</h2>
-
-        {/* Error Alert */}
-        {error && (
-          <div className="p-3 rounded-[8px] bg-[#993C1D]/10 border border-[#993C1D]/30 text-[#993C1D] text-xs font-bold flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-[#2C2C2A] mb-1">
-              Username
-            </label>
-            <input
-              type="text"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter username"
-              className="w-full h-10 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#185FA5]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[#2C2C2A] mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPass ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full h-10 pl-3 pr-10 border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#185FA5]"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass(!showPass)}
-                className="absolute right-3 top-2.5 text-[#5F5E5A] hover:text-[#2C2C2A] cursor-pointer"
-              >
-                {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+        {/* Right Side: Login Form */}
+        <div className="w-full md:w-7/12 p-8 md:p-14 lg:p-16 bg-white flex items-center justify-center relative">
+          <div className="w-full max-w-[380px] space-y-8 animate-fade-in">
+            
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
+              <p className="text-[14px] text-slate-500 font-medium mt-1.5">Enter your staff credentials to continue.</p>
             </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <Input
+                label="Staff Username"
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. dr.radha"
+                error={error ? " " : ""} // Suppress text, let border show
+              />
+
+              <div className="relative">
+                <Input
+                  label="Password"
+                  type={showPass ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  error={error}
+                  icon={Lock}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-3 top-[34px] p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              <div className="pt-2">
+                <Button type="submit" fullWidth size="xl" loading={loading}>
+                  Access Portal
+                </Button>
+              </div>
+            </form>
+
+            <div className="text-center space-y-2">
+              <p className="text-[13px] text-slate-500 font-medium">
+                Trouble logging in? <button className="text-blue-600 font-bold hover:underline cursor-pointer">Contact IT Support</button>
+              </p>
+              <p className="text-[13px] text-slate-500 font-medium">
+                Don't have an account? <Link to="/register" className="text-blue-600 font-bold hover:underline cursor-pointer">Register here</Link>
+              </p>
+            </div>
+
           </div>
-
-          <Button type="submit" fullWidth className="h-[44px] text-sm">
-            Login
-          </Button>
-        </form>
-
-        <p className="text-[12px] text-[#9B9A96] text-center">
-          Forgot your login? Contact administrator.
-        </p>
-
-        <div className="pt-2 text-center border-t border-[#D3D1C7]/40">
-          <Link to="/" className="text-xs text-[#9B9A96] hover:text-[#185FA5] font-bold transition-colors">
-            ← Back to Home
-          </Link>
         </div>
       </div>
     </div>

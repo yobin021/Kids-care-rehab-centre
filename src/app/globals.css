@@ -126,3 +126,220 @@ body {
 .animate-scale-in {
   animation: scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+/* ─────────────────────────────────────────────
+   Gradient Text
+───────────────────────────────────────────── */
+.gradient-text-blue {
+  background: linear-gradient(135deg, #2563EB, #7C3AED);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-teal {
+  background: linear-gradient(135deg, #059669, #0891B2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-violet {
+  background: linear-gradient(135deg, #7C3AED, #DB2777);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─────────────────────────────────────────────
+   Premium Card Styles
+───────────────────────────────────────────── */
+.card-premium {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-premium:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+  border-color: #CBD5E1;
+}
+
+.card-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #2563EB, #7C3AED, #059669);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card-premium:hover::before {
+  opacity: 1;
+}
+
+/* ─────────────────────────────────────────────
+   Gradient Backgrounds
+───────────────────────────────────────────── */
+.bg-gradient-blue {
+  background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 50%, #4F46E5 100%);
+}
+
+.bg-gradient-emerald {
+  background: linear-gradient(135deg, #065F46 0%, #059669 50%, #0891B2 100%);
+}
+
+.bg-gradient-violet {
+  background: linear-gradient(135deg, #4C1D95 0%, #7C3AED 50%, #DB2777 100%);
+}
+
+.bg-gradient-amber {
+  background: linear-gradient(135deg, #92400E 0%, #D97706 50%, #F59E0B 100%);
+}
+
+.bg-gradient-mesh {
+  background-color: #F0F4FF;
+  background-image:
+    radial-gradient(at 40% 20%, rgba(37,99,235,0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, rgba(124,58,237,0.12) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(5,150,105,0.10) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, rgba(249,115,22,0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(37,99,235,0.08) 0px, transparent 50%);
+}
+
+/* ─────────────────────────────────────────────
+   Animations
+───────────────────────────────────────────── */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down {
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-16px); }
+}
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-24px) rotate(3deg); }
+}
+.animate-float-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+  50%       { box-shadow: 0 0 24px 6px rgba(37,99,235,0.25); }
+}
+.animate-pulse-glow {
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────
+   Utility: Focus Rings
+───────────────────────────────────────────── */
+.focus-ring {
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+.focus-ring:focus {
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
+}
+
+/* ─────────────────────────────────────────────
+   Sidebar Dark Theme Helpers
+───────────────────────────────────────────── */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(148,163,184,1);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+}
+.sidebar-nav-item:hover {
+  background: rgba(255,255,255,0.07);
+  color: #E2E8F0;
+}
+.sidebar-nav-item.active {
+  background: rgba(37,99,235,0.20);
+  color: #BFDBFE;
+}
+.sidebar-nav-item.active-emerald {
+  background: rgba(5,150,105,0.20);
+  color: #A7F3D0;
+}
+.sidebar-nav-item.active-violet {
+  background: rgba(124,58,237,0.20);
+  color: #DDD6FE;
+}
+
+/* ─────────────────────────────────────────────
+   Input Styles
+───────────────────────────────────────────── */
+.input-premium {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1E293B;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+.input-premium::placeholder {
+  color: #94A3B8;
+}
+.input-premium:focus {
+  background: #FFFFFF;
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+.input-premium:hover:not(:focus) {
+  border-color: #CBD5E1;
+  background: #FFFFFF;
+}
+

@@ -104,6 +104,25 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Staff Registration
+  const registerStaff = async (name, username, password, designation) => {
+    try {
+      const res = await authService.registerStaff(name, username, password, designation);
+      if (res.success && res.user) {
+        setUser(res.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("kcr_user", JSON.stringify(res.user));
+        }
+        showToast(`Welcome, ${res.user.name}! Your account has been created.`, "success");
+        return { success: true };
+      }
+      return { success: false, error: res.error || "Registration failed" };
+    } catch (err) {
+      console.error("Staff registration error:", err.message);
+      return { success: false, error: "Registration failed. Please check your network connection." };
+    }
+  };
+
   // Parent Login (Database authentication only)
   const loginParent = async (phone, password) => {
     try {
@@ -193,6 +212,7 @@ export function AuthProvider({ children }) {
     isStaff: user?.role === "staff" || user?.role === "admin",
     isParent: user?.role === "parent",
     loginStaff,
+    registerStaff,
     loginParent,
     logout,
     childrenList,

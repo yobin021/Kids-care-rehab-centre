@@ -116,19 +116,19 @@ export default function ParentDashboard() {
   return (
     <div className="space-y-6 text-[#2C2C2A]">
       {/* Greeting Banner */}
-      <div className="bg-[#185FA5] text-white p-6 rounded-[12px] shadow-sm space-y-2">
-        <div className="flex items-center justify-between gap-2">
+      <div className="bg-[#185FA5] text-white p-4 sm:p-6 rounded-[12px] shadow-sm space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2">
           <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">
             Hello, {user?.name || "Parent"}! 👋
           </span>
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white">
+          <span className="text-[10px] sm:text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/20 text-white self-start sm:self-auto">
             {isIep ? "IEP Special School Student" : `Therapy Pathway: ${child?.therapy_category || 'ASD'}`}
           </span>
         </div>
-        <h2 className="text-2xl font-black tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-snug">
           Here is <span className="underline decoration-teal-400">{child?.name}</span>&apos;s update today.
         </h2>
-        <p className="text-xs text-blue-100 font-medium">{todayStr}</p>
+        <p className="text-[11px] sm:text-xs text-blue-100 font-medium">{todayStr}</p>
       </div>
 
       {loading ? (

@@ -35,6 +35,11 @@ export default function AppShell({ children }) {
     }).catch(() => {});
   }, [isAdmin]);
 
+  // Automatically close mobile menu on route change
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const getPageTitle = () => {
     const path = location.pathname;
     if (path === "/dashboard") return isAdmin ? "Admin Dashboard" : "Staff Dashboard";
@@ -63,7 +68,7 @@ export default function AppShell({ children }) {
     const isIep = isIepProgram(activeChild) || isIepProgram(user);
 
     return (
-      <div className="min-h-screen bg-[#F8F8F6] text-[#2C2C2A] font-sans">
+      <div className="min-h-screen bg-[#F8F8F6] text-[#2C2C2A] font-sans pb-safe">
         {/* Toast Overlay */}
         <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full">
           {toasts.map((t) => (
@@ -72,25 +77,25 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Parent Top Navigation Bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+        <header className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] px-3.5 sm:px-4 py-2.5 sm:py-3 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
           <div className="max-w-[720px] mx-auto flex items-center justify-between gap-2">
             
             {/* Left Logo */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
               <img
                 src="/kids_care_rehab_center_logo.jpg"
                 alt="KIDS CARE 360 Logo"
-                className="h-9 w-9 rounded-[8px] object-cover border border-[#185FA5]/20 shadow-2xs"
+                className="h-8 w-8 sm:h-9 sm:w-9 rounded-[8px] object-cover border border-[#185FA5]/20 shadow-2xs shrink-0"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
-              <div>
-                <span className="text-sm font-black text-[#185FA5] tracking-tight block leading-tight">KIDS CARE 360</span>
-                <span className="text-[9px] font-semibold text-[#5F5E5A] block leading-tight">Neurodiversity Clinical System</span>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-black text-[#185FA5] tracking-tight block leading-tight truncate">KIDS CARE 360</span>
+                <span className="text-[8px] sm:text-[9px] font-semibold text-[#5F5E5A] block leading-tight truncate">Parent Portal</span>
               </div>
             </div>
 
-            {/* Center Links */}
-            <nav className="flex items-center gap-4 text-xs font-extrabold">
+            {/* Desktop Center Links (hidden on mobile, served via bottom nav bar) */}
+            <nav className="hidden sm:flex items-center gap-4 text-xs font-extrabold">
               <Link
                 to="/parent/home"
                 className={`transition-colors py-1 ${
@@ -120,8 +125,8 @@ export default function AppShell({ children }) {
             </nav>
 
             {/* Right Child Name + Logout */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-[#2C2C2A] hidden sm:inline">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <span className="text-xs font-bold text-[#185FA5] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200/60 max-w-[120px] truncate">
                 {activeChild?.name}
               </span>
               <button
@@ -130,6 +135,7 @@ export default function AppShell({ children }) {
                   navigate("/login");
                 }}
                 className="p-1.5 text-[#993C1D] hover:bg-rose-50 rounded-[6px] transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
+                title="Logout"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Logout</span>
@@ -140,9 +146,42 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Parent Main Content Area */}
-        <main className="max-w-[720px] mx-auto p-4 min-h-[calc(100vh-60px)]">
+        <main className="max-w-[720px] mx-auto p-3.5 sm:p-4 pb-24 sm:pb-8 min-h-[calc(100vh-60px)]">
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation Bar (app-like touch experience on phones) */}
+        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#D3D1C7] pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.06)] flex items-center justify-around h-15">
+          <Link
+            to="/parent/home"
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+              location.pathname === "/parent/home" ? "text-[#185FA5] font-black" : "text-[#5F5E5A] hover:text-[#2C2C2A] font-semibold"
+            }`}
+          >
+            <Home className="h-5 w-5 mb-0.5" />
+            <span className="text-[10px]">Home</span>
+          </Link>
+          <Link
+            to="/parent/report"
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+              location.pathname.startsWith("/parent/report") || location.pathname.startsWith("/iep/report") ? "text-[#185FA5] font-black" : "text-[#5F5E5A] hover:text-[#2C2C2A] font-semibold"
+            }`}
+          >
+            <FileText className="h-5 w-5 mb-0.5" />
+            <span className="text-[10px]">Report</span>
+          </Link>
+          {!isIep && (
+            <Link
+              to="/parent/exercises"
+              className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+                location.pathname === "/parent/exercises" ? "text-[#185FA5] font-black" : "text-[#5F5E5A] hover:text-[#2C2C2A] font-semibold"
+              }`}
+            >
+              <Activity className="h-5 w-5 mb-0.5" />
+              <span className="text-[10px]">Exercises</span>
+            </Link>
+          )}
+        </nav>
       </div>
     );
   }
@@ -325,19 +364,20 @@ export default function AppShell({ children }) {
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] px-6 py-3.5 flex items-center justify-between shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] px-3.5 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setMobileOpen(true)}
-              className="md:hidden p-2 rounded-[8px] border border-[#D3D1C7] text-[#2C2C2A] hover:bg-[#F8F8F6]"
+              aria-label="Open sidebar menu"
+              className="md:hidden p-2 rounded-[8px] border border-[#D3D1C7] text-[#2C2C2A] hover:bg-[#F8F8F6] shrink-0 cursor-pointer"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-[20px] font-bold text-[#2C2C2A] truncate">{getPageTitle()}</h1>
+            <h1 className="text-base sm:text-lg md:text-[20px] font-bold text-[#2C2C2A] truncate">{getPageTitle()}</h1>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-full bg-[#185FA5] text-white font-black text-xs flex items-center justify-center">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            <div className="h-8 w-8 rounded-full bg-[#185FA5] text-white font-black text-xs flex items-center justify-center shrink-0">
               {initials}
             </div>
             <span className="text-xs font-bold text-[#2C2C2A] hidden sm:inline">{user?.name}</span>
@@ -345,7 +385,7 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 overflow-y-auto p-6 max-w-7xl w-full mx-auto">
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-5 lg:p-6 max-w-7xl w-full mx-auto pb-safe">
           {children}
         </main>
       </div>

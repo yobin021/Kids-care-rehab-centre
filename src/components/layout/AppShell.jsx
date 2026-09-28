@@ -10,17 +10,15 @@ import {
   LogOut,
   Menu,
   X,
-  FileText,
   Activity,
-  User,
-  Heart,
   CalendarDays,
-  BookOpen
+  BookOpen,
+  ChevronRight
 } from "lucide-react";
 import Toast from "../ui/Toast";
 
 export default function AppShell({ children }) {
-  const { user, role, isAdmin, isParent, logout, toasts, removeToast, childrenList } = useAuth();
+  const { user, isAdmin, isParent, logout, toasts, removeToast, childrenList } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -55,55 +53,61 @@ export default function AppShell({ children }) {
     const isIep = activeChild?.program_type === "iep";
 
     return (
-      <div className="min-h-screen bg-[#F8F8F6] text-[#2C2C2A] font-sans">
+      <div className="min-h-screen bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden">
+        {/* Background Mesh */}
+        <div className="absolute inset-0 bg-gradient-mesh opacity-50 pointer-events-none fixed" />
+
         {/* Toast Overlay */}
-        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full">
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4">
           {toasts.map((t) => (
             <Toast key={t.id} message={t.message} type={t.type} onClose={() => removeToast(t.id)} />
           ))}
         </div>
 
         {/* Parent Top Navigation Bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-          <div className="max-w-[720px] mx-auto flex items-center justify-between gap-2">
+        <header className="sticky top-0 z-30 glass border-b border-white/50 px-4 py-3 shadow-sm">
+          <div className="max-w-[800px] mx-auto flex items-center justify-between gap-4">
             
             {/* Left Logo */}
-            <div className="flex items-center gap-2.5">
-              <img
-                src="/kids_care_rehab_center_logo.jpg"
-                alt="KIDS CARE 360 Logo"
-                className="h-9 w-9 rounded-[8px] object-cover border border-[#185FA5]/20 shadow-2xs"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-              <div>
-                <span className="text-sm font-black text-[#185FA5] tracking-tight block leading-tight">KIDS CARE 360</span>
-                <span className="text-[9px] font-semibold text-[#5F5E5A] block leading-tight">Neurodiversity Clinical System</span>
+            <div className="flex items-center gap-3">
+              <div className="relative group cursor-pointer" onClick={() => navigate("/parent/home")}>
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-xl blur opacity-40 group-hover:opacity-75 transition-opacity" />
+                <img
+                  src="/kids_care_rehab_center_logo.jpg"
+                  alt="Logo"
+                  className="relative h-10 w-10 rounded-xl object-cover border-2 border-white shadow-sm"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              </div>
+              <div className="hidden sm:block">
+                <span className="text-sm font-black tracking-tight gradient-text-teal block leading-tight">KIDS CARE 360</span>
+                <span className="text-[10px] font-semibold text-slate-500 block leading-tight">Parent Portal</span>
               </div>
             </div>
 
             {/* Center Links */}
-            <nav className="flex items-center gap-4 text-xs font-extrabold">
+            <nav className="flex items-center gap-1 bg-white/50 p-1 rounded-full border border-white shadow-xs">
               <Link
                 to="/parent/home"
-                className={`transition-colors py-1 ${
-                  location.pathname === "/parent/home" ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
+                className={`transition-all px-4 py-1.5 rounded-full text-[13px] font-semibold ${
+                  location.pathname === "/parent/home" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Home
               </Link>
               <Link
                 to="/parent/report"
-                className={`transition-colors py-1 ${
-                  location.pathname.startsWith("/parent/report") || location.pathname.startsWith("/iep/report") ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
+                className={`transition-all px-4 py-1.5 rounded-full text-[13px] font-semibold ${
+                  location.pathname.startsWith("/parent/report") || location.pathname.startsWith("/iep/report") ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                Report
+                Reports
               </Link>
               {!isIep && (
                 <Link
                   to="/parent/exercises"
-                  className={`transition-colors py-1 ${
-                    location.pathname === "/parent/exercises" ? "text-[#185FA5] border-b-2 border-[#185FA5]" : "text-[#5F5E5A] hover:text-[#2C2C2A]"
+                  className={`transition-all px-4 py-1.5 rounded-full text-[13px] font-semibold ${
+                    location.pathname === "/parent/exercises" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
                   Exercises
@@ -113,18 +117,23 @@ export default function AppShell({ children }) {
 
             {/* Right Child Name + Logout */}
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-[#2C2C2A] hidden sm:inline">
-                {activeChild?.name}
-              </span>
+              <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-full border border-white/50 shadow-xs">
+                <div className="h-6 w-6 rounded-full bg-gradient-emerald text-white flex items-center justify-center text-[10px] font-bold">
+                  {activeChild?.name?.[0] || "C"}
+                </div>
+                <span className="text-xs font-bold text-slate-700 hidden sm:inline">
+                  {activeChild?.name}
+                </span>
+              </div>
               <button
                 onClick={() => {
                   logout();
-                  navigate("/login");
+                  navigate("/parent/login");
                 }}
-                className="p-1.5 text-[#993C1D] hover:bg-rose-50 rounded-[6px] transition-colors cursor-pointer text-xs font-bold flex items-center gap-1"
+                className="p-2 text-rose-500 hover:bg-rose-50 rounded-full transition-colors cursor-pointer"
+                title="Logout"
               >
                 <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
 
@@ -132,7 +141,7 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Parent Main Content Area */}
-        <main className="max-w-[720px] mx-auto p-4 min-h-[calc(100vh-60px)]">
+        <main className="max-w-[800px] mx-auto p-4 sm:p-6 min-h-[calc(100vh-70px)] relative z-10 animate-fade-in">
           {children}
         </main>
       </div>
@@ -143,9 +152,12 @@ export default function AppShell({ children }) {
   const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("") : "KC";
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F8F8F6] text-[#2C2C2A] font-sans">
+    <div className="flex min-h-screen w-full bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden">
+      {/* Background Mesh */}
+      <div className="absolute inset-0 bg-gradient-mesh opacity-40 pointer-events-none fixed" />
+
       {/* Toast Overlay */}
-      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full">
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4">
         {toasts.map((t) => (
           <Toast key={t.id} message={t.message} type={t.type} onClose={() => removeToast(t.id)} />
         ))}
@@ -154,191 +166,186 @@ export default function AppShell({ children }) {
       {/* Mobile Drawer Backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm md:hidden animate-fade-in"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* LEFT SIDEBAR (240px Fixed) */}
+      {/* LEFT SIDEBAR (Dark Theme - 260px) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[240px] flex-col border-r border-[#D3D1C7] bg-white px-4 py-5 transition-transform duration-300 md:static md:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col bg-[#0F172A] border-r border-slate-800 transition-transform duration-300 md:static md:translate-x-0 shadow-[4px_0_24px_rgba(0,0,0,0.1)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Top Logo */}
-        <div className="border-b border-[#D3D1C7]/60 pb-3 mb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
+        <div className="px-5 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative">
+              <div className="absolute inset-0 bg-blue-500 blur opacity-40 rounded-xl" />
               <img
                 src="/kids_care_rehab_center_logo.jpg"
-                alt="KIDS CARE 360 Logo"
-                className="h-10 w-10 rounded-[10px] object-cover border border-[#185FA5]/20 shadow-2xs shrink-0"
+                alt="Logo"
+                className="relative h-11 w-11 rounded-xl object-cover border border-white/10 shrink-0 shadow-lg"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
-              <div className="min-w-0">
-                <h1 className="text-[15px] font-black text-[#185FA5] tracking-tight leading-tight truncate">
-                  KIDS CARE 360
-                </h1>
-                <span className="text-[9px] font-bold text-[#2C2C2A] block leading-tight truncate">
-                  Neurodiversity Clinical System
-                </span>
-              </div>
             </div>
-
-            <button onClick={() => setMobileOpen(false)} className="md:hidden text-[#5F5E5A]">
-              <X className="h-5 w-5" />
-            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[15px] font-black text-white tracking-tight leading-tight truncate">
+                KIDS CARE 360
+              </h1>
+              <span className="text-[10px] font-semibold text-blue-300 block leading-tight truncate">
+                Clinical System
+              </span>
+            </div>
           </div>
-          <p className="text-[8px] font-bold text-[#5F5E5A] tracking-wider uppercase mt-2 pt-1 border-t border-[#D3D1C7]/40 text-center">
-            Assess • Plan • Intervene • Track • Progress
-          </p>
+          <button onClick={() => setMobileOpen(false)} className="md:hidden text-slate-400 hover:text-white p-1">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 space-y-1 overflow-y-auto">
-          <Link
-            to="/dashboard"
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
-              location.pathname === "/dashboard"
-                ? "bg-[#185FA5] text-white"
-                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
-            }`}
-          >
-            <Home className="h-4 w-4 shrink-0" />
-            <span>Dashboard</span>
-          </Link>
-
-          <Link
-            to="/children"
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
-              location.pathname.startsWith("/children")
-                ? "bg-[#185FA5] text-white"
-                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
-            }`}
-          >
-            <Users className="h-4 w-4 shrink-0" />
-            <span>Children & Reports</span>
-          </Link>
-
-          <Link
-            to="/appointments"
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
-              location.pathname === "/appointments"
-                ? "bg-[#185FA5] text-white"
-                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
-            }`}
-          >
-            <CalendarDays className="h-4 w-4 shrink-0" />
-            <span>Appointments</span>
-          </Link>
-
-          <Link
-            to="/iep"
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
-              location.pathname.startsWith("/iep")
-                ? "bg-[#185FA5] text-white"
-                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
-            }`}
-          >
-            <BookOpen className="h-4 w-4 shrink-0" />
-            <span className="flex-1">IEP</span>
-            {isAdmin && iepPendingCount > 0 && (
-              <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${location.pathname.startsWith("/iep") ? "bg-white/30 text-white" : "bg-[#F59E0B] text-white"}`}>
-                {iepPendingCount}
-              </span>
-            )}
-          </Link>
-
-          <Link
-            to="/therapy"
-            onClick={() => setMobileOpen(false)}
-            className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
-              location.pathname.startsWith("/therapy")
-                ? "bg-[#0F6E56] text-white"
-                : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#0F6E56]"
-            }`}
-          >
-            <Activity className="h-4 w-4 shrink-0" />
-            <span>Therapy</span>
-          </Link>
-
-          {/* Admin Only Link */}
-          {isAdmin && (
+        <div className="flex-1 px-3 py-4 space-y-6 overflow-y-auto custom-scrollbar">
+          
+          {/* Main Menu */}
+          <div className="space-y-1">
+            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>
             <Link
-              to="/admin/staff"
+              to="/dashboard"
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 rounded-[8px] px-3 py-2.5 text-xs font-bold transition-colors ${
-                location.pathname === "/admin/staff"
-                  ? "bg-[#185FA5] text-white"
-                  : "text-[#2C2C2A] hover:bg-[#F8F8F6] hover:text-[#185FA5]"
-              }`}
+              className={`sidebar-nav-item ${location.pathname === "/dashboard" ? "active" : ""}`}
             >
-              <Shield className="h-4 w-4 shrink-0" />
-              <span>Staff Management</span>
+              <Home className="h-4 w-4 shrink-0" />
+              <span>Dashboard</span>
             </Link>
-          )}
-        </nav>
 
-        {/* Bottom User Profile */}
-        <div className="mt-auto pt-4 border-t border-[#D3D1C7]/60 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-full bg-[#185FA5] text-white font-black text-xs flex items-center justify-center shrink-0">
-              {initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h4 className="text-xs font-bold text-[#2C2C2A] truncate">{user?.name || "User"}</h4>
-              <span
-                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  isAdmin ? "bg-[#185FA5] text-white" : "bg-[#0F6E56] text-white"
-                }`}
-              >
-                {isAdmin ? "Admin" : "Staff"}
-              </span>
-            </div>
+            <Link
+              to="/children"
+              onClick={() => setMobileOpen(false)}
+              className={`sidebar-nav-item ${location.pathname.startsWith("/children") ? "active" : ""}`}
+            >
+              <Users className="h-4 w-4 shrink-0" />
+              <span>Children & Reports</span>
+            </Link>
+
+            <Link
+              to="/appointments"
+              onClick={() => setMobileOpen(false)}
+              className={`sidebar-nav-item ${location.pathname === "/appointments" ? "active" : ""}`}
+            >
+              <CalendarDays className="h-4 w-4 shrink-0" />
+              <span>Appointments</span>
+            </Link>
           </div>
 
-          <button
-            onClick={() => {
-              logout();
-              navigate("/login");
-            }}
-            className="w-full text-left px-3 py-2 rounded-[8px] text-xs font-bold text-[#5F5E5A] hover:bg-[#F8F8F6] hover:text-[#993C1D] transition-colors flex items-center gap-2 cursor-pointer"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Logout</span>
-          </button>
+          {/* Clinical Programs */}
+          <div className="space-y-1">
+            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Clinical Programs</p>
+            
+            <Link
+              to="/iep"
+              onClick={() => setMobileOpen(false)}
+              className={`sidebar-nav-item ${location.pathname.startsWith("/iep") ? "active-violet" : ""}`}
+            >
+              <BookOpen className="h-4 w-4 shrink-0" />
+              <span className="flex-1">IEP Special School</span>
+              {isAdmin && iepPendingCount > 0 && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white shadow-[0_0_8px_rgba(245,158,11,0.5)]">
+                  {iepPendingCount}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              to="/therapy"
+              onClick={() => setMobileOpen(false)}
+              className={`sidebar-nav-item ${location.pathname.startsWith("/therapy") ? "active-emerald" : ""}`}
+            >
+              <Activity className="h-4 w-4 shrink-0" />
+              <span>Therapy Pathways</span>
+            </Link>
+          </div>
+
+          {/* Admin */}
+          {isAdmin && (
+            <div className="space-y-1">
+              <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Admin</p>
+              <Link
+                to="/admin/staff"
+                onClick={() => setMobileOpen(false)}
+                className={`sidebar-nav-item ${location.pathname === "/admin/staff" ? "active" : ""}`}
+              >
+                <Shield className="h-4 w-4 shrink-0" />
+                <span>Staff Management</span>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom User Profile */}
+        <div className="p-4 bg-slate-900/50 border-t border-slate-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-xl bg-gradient-blue text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-inner">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-[13px] font-bold text-white truncate">{user?.name || "User"}</h4>
+                <span className="text-[11px] font-medium text-slate-400 block truncate">
+                  {isAdmin ? "Administrator" : "Clinical Staff"}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+              className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-[#D3D1C7] px-6 py-3.5 flex items-center justify-between shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-          <div className="flex items-center gap-3">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0 relative z-10">
+        
+        {/* Top Header Bar (Glass) */}
+        <header className="sticky top-0 z-30 glass border-b border-white/50 px-6 py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileOpen(true)}
-              className="md:hidden p-2 rounded-[8px] border border-[#D3D1C7] text-[#2C2C2A] hover:bg-[#F8F8F6]"
+              className="md:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-[20px] font-bold text-[#2C2C2A] truncate">{getPageTitle()}</h1>
+            
+            {/* Animated Title */}
+            <div className="flex items-center gap-2">
+              <h1 className="text-[20px] font-black tracking-tight text-slate-800 flex items-center gap-2">
+                {getPageTitle()}
+              </h1>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-full bg-[#185FA5] text-white font-black text-xs flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex flex-col items-end">
+              <span className="text-[13px] font-bold text-slate-800 leading-tight">{user?.name}</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{isAdmin ? 'Admin' : 'Staff'} Role</span>
+            </div>
+            <div className="h-9 w-9 rounded-full bg-white border-2 border-slate-100 shadow-sm text-blue-600 font-bold text-xs flex items-center justify-center">
               {initials}
             </div>
-            <span className="text-xs font-bold text-[#2C2C2A] hidden sm:inline">{user?.name}</span>
           </div>
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 overflow-y-auto p-6 max-w-7xl w-full mx-auto">
-          {children}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
+          <div className="animate-slide-up">
+            {children}
+          </div>
         </main>
       </div>
     </div>

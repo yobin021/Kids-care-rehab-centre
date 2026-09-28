@@ -17,7 +17,8 @@ import {
   TrendingUp,
   BrainCircuit,
   Lock,
-  ChevronRight
+  ChevronRight,
+  Baby
 } from "lucide-react";
 
 export default function HomePage() {
@@ -25,213 +26,236 @@ export default function HomePage() {
   const { user, isParent } = useAuth();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] flex flex-col font-sans selection:bg-[#185FA5] selection:text-white">
+    <div className="min-h-screen bg-[#F0F4FF] text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-hidden">
+      
+      {/* ─── Animated Background ─── */}
+      <div className="absolute inset-0 bg-gradient-mesh opacity-60 pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-blue-400/20 rounded-full blur-[100px] animate-float-slow pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-emerald-400/20 rounded-full blur-[100px] animate-float pointer-events-none" style={{ animationDelay: "2s" }} />
+
       {/* ─── Top Navigation Bar ─── */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/kids_care_rehab_center_logo.jpg"
-              alt="KIDS CARE 360 Logo"
-              className="h-11 w-11 rounded-xl object-cover border border-blue-600/20 shadow-xs"
-              onError={(e) => { e.target.style.display = "none"; }}
-            />
+      <header className="sticky top-0 z-50 glass border-b border-white/50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-emerald-500 rounded-xl blur opacity-40 group-hover:opacity-75 transition-opacity" />
+              <img
+                src="/kids_care_rehab_center_logo.jpg"
+                alt="KIDS CARE 360 Logo"
+                className="relative h-12 w-12 rounded-xl object-cover border-2 border-white shadow-md"
+                onError={(e) => { e.target.style.display = "none"; }}
+              />
+            </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-black text-[#185FA5] tracking-tight">KIDS CARE 360</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#185FA5] border border-blue-200/60 uppercase">Clinical & IEP</span>
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl font-black gradient-text-blue tracking-tight">KIDS CARE 360</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 uppercase shadow-sm">Clinical System</span>
               </div>
-              <p className="text-[11px] font-semibold text-slate-500 hidden sm:block">Neurodiversity Clinical &amp; Therapy Management System</p>
+              <p className="text-xs font-semibold text-slate-500 hidden sm:block">Neurodiversity Assessment &amp; Therapy Platform</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {user ? (
-              <button
-                onClick={() => navigate(isParent ? "/parent/home" : "/dashboard")}
-                className="px-4 py-2 rounded-lg bg-[#185FA5] hover:bg-[#134D87] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>Go to Dashboard</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            ) : (
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={() => navigate("/parent/login")}
-                  className="px-3.5 py-2 rounded-lg border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-[#185FA5] bg-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <HeartHandshake className="h-4 w-4 text-[#0F6E56]" />
-                  <span>Parent Portal</span>
-                </button>
-                <button
-                  onClick={() => navigate("/login")}
-                  className="px-4 py-2 rounded-lg bg-[#185FA5] hover:bg-[#134D87] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  <span>Staff Login</span>
-                </button>
-              </div>
-            )}
+            <a
+              href="tel:+18001234567"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border border-white/60 bg-white/70 hover:bg-white text-slate-600 text-[13px] font-bold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 backdrop-blur-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13 19.79 19.79 0 0 1 1.61 4.44 2 2 0 0 1 3.6 2.26h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.1 6.1l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              <span>+1 (800) 123-4567</span>
+            </a>
+            <a
+              href="mailto:info@kidscare360.com"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-blue text-white text-[13px] font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 border-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="20" height="16" x="2" y="4" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              <span>Contact Us</span>
+            </a>
           </div>
         </div>
       </header>
 
-      {/* ─── Hero Section ─── */}
-      <section className="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-white via-slate-50 to-[#F8FAFC]">
-        {/* Subtle Background Glows */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-1/3 right-10 w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
 
+      {/* ─── Hero Section ─── */}
+      <section className="relative pt-20 pb-24 lg:pt-32 lg:pb-32 overflow-hidden z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center max-w-3xl mx-auto space-y-6">
+          <div className="text-center max-w-4xl mx-auto space-y-8 animate-slide-up">
             
             {/* Tagline Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200/80 text-[#185FA5] text-xs font-bold shadow-2xs">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 border border-white shadow-sm text-blue-700 text-xs font-bold backdrop-blur-md">
+              <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
               <span>Assess • Plan • Intervene • Track • Progress</span>
             </div>
 
             {/* Main Headline */}
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[1.15]">
-              Empowering Neurodiverse Children with <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#185FA5] to-[#0F6E56]">Precision Care</span>
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-slate-900 tracking-tight leading-[1.1]">
+              Empowering Neurodiverse <br className="hidden sm:block"/> Children with <span className="gradient-text-teal relative inline-block">Precision Care<div className="absolute -bottom-2 left-0 right-0 h-3 bg-emerald-400/20 -z-10 rounded-full blur-sm"/></span>
             </h1>
 
             {/* Sub-headline */}
-            <p className="text-sm sm:text-base text-slate-600 font-medium leading-relaxed max-w-2xl mx-auto">
-              A comprehensive clinical management platform unifying <strong>IEP Special School assessment cycles</strong> and <strong>specialized therapy pathways</strong> with automated 3-month reporting and interactive parent tracking.
+            <p className="text-[15px] sm:text-[17px] text-slate-600 font-medium leading-relaxed max-w-3xl mx-auto">
+              A comprehensive clinical management platform unifying <strong className="text-violet-700">IEP Special School assessment cycles</strong> and <strong className="text-emerald-700">specialized therapy pathways</strong> with automated 3-month reporting and interactive parent tracking.
             </p>
 
             {/* Primary Action Portals */}
-            <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
+            <div className="pt-8 grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              
               {/* Staff Portal Button Card */}
               <div
                 onClick={() => navigate("/login")}
-                className="group p-5 rounded-2xl bg-white border-2 border-blue-500/20 hover:border-[#185FA5] shadow-sm hover:shadow-md transition-all cursor-pointer text-left flex flex-col justify-between space-y-3 relative overflow-hidden"
+                className="group p-6 rounded-2xl bg-white border border-white shadow-sm hover:shadow-[0_20px_40px_rgba(37,99,235,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer text-left flex flex-col justify-between space-y-4 relative overflow-hidden"
               >
-                <div className="flex items-center justify-between">
-                  <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#185FA5] flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <ShieldCheck className="h-5 w-5" />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-blue text-white flex items-center justify-center shadow-inner shadow-blue-400/30">
+                      <ShieldCheck className="h-6 w-6" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full">Therapists &amp; Admin</span>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Therapists &amp; Admin</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 group-hover:text-[#185FA5] transition-colors">Staff &amp; Clinical Portal</h3>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Access diagnostic assessments, IEP sheets, and report publishing.</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[#185FA5] pt-1">
-                  <span>Sign In as Staff</span>
-                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors">Staff &amp; Clinical Portal</h3>
+                    <p className="text-[13px] text-slate-500 font-medium mt-1">Access diagnostic assessments, IEP sheets, and publish reports.</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[13px] font-bold text-blue-700 pt-4 mt-auto">
+                    <span>Sign In as Staff</span>
+                    <ChevronRight className="h-4 w-4 group-hover:translate-x-1.5 transition-transform" />
+                  </div>
                 </div>
               </div>
 
               {/* Parent Portal Button Card */}
               <div
                 onClick={() => navigate("/parent/login")}
-                className="group p-5 rounded-2xl bg-white border-2 border-emerald-500/20 hover:border-[#0F6E56] shadow-sm hover:shadow-md transition-all cursor-pointer text-left flex flex-col justify-between space-y-3 relative overflow-hidden"
+                className="group p-6 rounded-2xl bg-white border border-white shadow-sm hover:shadow-[0_20px_40px_rgba(5,150,105,0.15)] hover:-translate-y-1 transition-all duration-300 cursor-pointer text-left flex flex-col justify-between space-y-4 relative overflow-hidden"
               >
-                <div className="flex items-center justify-between">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-50 text-[#0F6E56] flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <HeartHandshake className="h-5 w-5" />
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-emerald text-white flex items-center justify-center shadow-inner shadow-emerald-400/30">
+                      <HeartHandshake className="h-6 w-6" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">Parents &amp; Families</span>
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">Parents &amp; Families</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 group-hover:text-[#0F6E56] transition-colors">Parent Portal</h3>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">View published 3-month progress reports &amp; daily home exercises.</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs font-bold text-[#0F6E56] pt-1">
-                  <span>Parent Phone Login</span>
-                  <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">Parent Portal</h3>
+                    <p className="text-[13px] text-slate-500 font-medium mt-1">View published 3-month progress reports &amp; daily home exercises.</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[13px] font-bold text-emerald-700 pt-4 mt-auto">
+                    <span>Parent Phone Login</span>
+                    <ChevronRight className="h-4 w-4 group-hover:translate-x-1.5 transition-transform" />
+                  </div>
                 </div>
               </div>
-            </div>
 
+            </div>
           </div>
         </div>
       </section>
 
       {/* ─── Two Distinct Dedicated Care Programs ─── */}
-      <section className="py-14 bg-white border-y border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-          
-          <div className="text-center max-w-2xl mx-auto space-y-2">
-            <span className="text-xs font-black text-[#185FA5] uppercase tracking-wider">Dual Specialized Structure</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Separate Programs for Targeted Development</h2>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+      <section className="py-24 relative z-10">
+        <div className="absolute inset-0 bg-white/50 backdrop-blur-3xl -skew-y-2 origin-top-left border-y border-white" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="text-xs font-black text-blue-600 uppercase tracking-widest">Dual Specialized Structure</span>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">Separate Programs for Targeted Development</h2>
+            <p className="text-[15px] text-slate-600 font-medium">
               IEP Special School students and Therapy children are managed through independent clinical workflows.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
             
             {/* Program 1: IEP Special School */}
-            <div className="p-7 rounded-2xl bg-gradient-to-br from-blue-50/50 via-white to-slate-50 border border-blue-200/80 shadow-xs space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-[#185FA5] text-white flex items-center justify-center shadow-xs">
-                  <GraduationCap className="h-6 w-6" />
+            <div className="p-8 lg:p-10 rounded-3xl bg-white border border-white shadow-[0_8px_32px_rgba(124,58,237,0.1)] hover:shadow-[0_16px_48px_rgba(124,58,237,0.15)] transition-shadow relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-32 bg-violet-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 group-hover:scale-110 transition-transform duration-700" />
+              
+              <div className="relative z-10 space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-2xl bg-gradient-violet text-white flex items-center justify-center shadow-lg shadow-violet-500/30">
+                    <GraduationCap className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-violet-100 text-violet-700 uppercase tracking-widest shadow-sm">Program 1</span>
+                    <h3 className="text-2xl font-black text-slate-900 mt-1.5">IEP — Special School</h3>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-[#185FA5] uppercase">Program 1</span>
-                  <h3 className="text-lg font-black text-slate-900 mt-0.5">IEP — Special School</h3>
-                </div>
+
+                <p className="text-[14px] text-slate-600 leading-relaxed font-medium">
+                  Dedicated for children registered under the special education school curriculum with comprehensive functional skill tracking.
+                </p>
+
+                <ul className="space-y-4 text-[13px] text-slate-700 font-medium pt-2">
+                  <li className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div className="p-1 bg-violet-100 rounded-md shrink-0">
+                      <CheckCircle2 className="h-4 w-4 text-violet-600" />
+                    </div>
+                    <span><strong className="text-slate-900">24-Section Clinical Form:</strong> Full competency mapping across self-care, communication, sensory, and academics.</span>
+                  </li>
+                  <li className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div className="p-1 bg-violet-100 rounded-md shrink-0">
+                      <CheckCircle2 className="h-4 w-4 text-violet-600" />
+                    </div>
+                    <span><strong className="text-slate-900">3-Month Evaluation Cycles:</strong> Quarterly baseline comparisons and individualized growth targets.</span>
+                  </li>
+                  <li className="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div className="p-1 bg-violet-100 rounded-md shrink-0">
+                      <CheckCircle2 className="h-4 w-4 text-violet-600" />
+                    </div>
+                    <span><strong className="text-slate-900">Competency Radar Graph:</strong> Visual 8-axis domain capability profile for parent reviews.</span>
+                  </li>
+                </ul>
               </div>
-
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Dedicated for children registered under the special education school curriculum with comprehensive functional skill tracking.
-              </p>
-
-              <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[#185FA5] shrink-0 mt-0.5" />
-                  <span><strong>24-Section Clinical Form:</strong> Full competency mapping across self-care, communication, sensory, and academics.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[#185FA5] shrink-0 mt-0.5" />
-                  <span><strong>3-Month Evaluation Cycles:</strong> Quarterly baseline comparisons and individualized growth targets.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[#185FA5] shrink-0 mt-0.5" />
-                  <span><strong>Competency Radar Graph:</strong> Visual 8-axis domain capability profile for parent reviews.</span>
-                </li>
-              </ul>
             </div>
 
             {/* Program 2: Therapy */}
-            <div className="p-7 rounded-2xl bg-gradient-to-br from-emerald-50/40 via-white to-slate-50 border border-emerald-200/80 shadow-xs space-y-5">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-[#0F6E56] text-white flex items-center justify-center shadow-xs">
-                  <Activity className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#0F6E56] uppercase">Program 2</span>
-                  <h3 className="text-lg font-black text-slate-900 mt-0.5">Therapy Pathways</h3>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                Dedicated clinical therapy tracks focusing on targeted intervention, clinic sessions, and daily parent-led home routines.
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {[
-                  { name: "ASD", desc: "Autism Spectrum Disorder" },
-                  { name: "ADHD", desc: "Attention & Hyperactivity" },
-                  { name: "Developmental Delay", desc: "Milestone Intervention" },
-                  { name: "Learning Disability", desc: "Cognitive & Academic Support" }
-                ].map((cat, i) => (
-                  <div key={i} className="p-2.5 rounded-lg bg-white border border-slate-200 text-xs shadow-2xs">
-                    <span className="font-bold text-[#0F6E56] block">{cat.name}</span>
-                    <span className="text-[10px] text-slate-500 block truncate">{cat.desc}</span>
+            <div className="p-8 lg:p-10 rounded-3xl bg-white border border-white shadow-[0_8px_32px_rgba(5,150,105,0.1)] hover:shadow-[0_16px_48px_rgba(5,150,105,0.15)] transition-shadow relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-32 bg-emerald-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 group-hover:scale-110 transition-transform duration-700" />
+              
+              <div className="relative z-10 space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-2xl bg-gradient-emerald text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <Activity className="h-8 w-8" />
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 uppercase tracking-widest shadow-sm">Program 2</span>
+                    <h3 className="text-2xl font-black text-slate-900 mt-1.5">Therapy Pathways</h3>
+                  </div>
+                </div>
 
-              <ul className="space-y-2.5 text-xs text-slate-700 font-medium">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-[#0F6E56] shrink-0 mt-0.5" />
-                  <span><strong>Interactive Home Exercise Program:</strong> Step-by-step guidance with daily parent completion check-ins.</span>
-                </li>
-              </ul>
+                <p className="text-[14px] text-slate-600 leading-relaxed font-medium">
+                  Dedicated clinical therapy tracks focusing on targeted intervention, clinic sessions, and daily parent-led home routines.
+                </p>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  {[
+                    { name: "ASD", desc: "Autism Spectrum Disorder" },
+                    { name: "ADHD", desc: "Attention & Hyperactivity" },
+                    { name: "Developmental Delay", desc: "Milestone Intervention" },
+                    { name: "Learning Disability", desc: "Cognitive Support" }
+                  ].map((cat, i) => (
+                    <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-emerald-200 transition-colors">
+                      <span className="font-bold text-emerald-700 block text-[13px]">{cat.name}</span>
+                      <span className="text-[11px] font-medium text-slate-500 block truncate mt-0.5">{cat.desc}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-start gap-3 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 mt-4">
+                  <div className="p-1 bg-emerald-100 rounded-md shrink-0">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <span className="text-[13px] text-emerald-900 font-medium leading-relaxed">
+                    <strong>Interactive Home Exercise Program:</strong> Step-by-step guidance with daily parent completion check-ins, fully monitored by staff.
+                  </span>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -239,27 +263,32 @@ export default function HomePage() {
       </section>
 
       {/* ─── 5-Stage Clinical Care Cycle ─── */}
-      <section className="py-14 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-          <div className="text-center max-w-2xl mx-auto space-y-2">
-            <span className="text-xs font-black text-[#185FA5] uppercase tracking-wider">End-to-End Methodology</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900">The 5 Pillars of KIDS CARE 360</h2>
+      <section className="py-24 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center max-w-3xl mx-auto space-y-3">
+            <span className="text-xs font-black text-blue-600 uppercase tracking-widest">End-to-End Methodology</span>
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">The 5 Pillars of KIDS CARE 360</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 lg:gap-6">
             {[
-              { num: "01", title: "Assess", desc: "Diagnostic evaluation & 24-section functional competency mapping.", color: "from-blue-500 to-blue-600" },
-              { num: "02", title: "Plan", desc: "Quarterly individualized education & therapy intervention blueprints.", color: "from-sky-500 to-sky-600" },
-              { num: "03", title: "Intervene", desc: "Structured clinic therapy & therapist-prescribed home activities.", color: "from-teal-500 to-teal-600" },
-              { num: "04", title: "Track", desc: "Daily parent activity check-ins and clinical progress logs.", color: "from-emerald-500 to-emerald-600" },
-              { num: "05", title: "Progress", desc: "Multi-cycle radar graph comparison & admin-verified reports.", color: "from-indigo-500 to-indigo-600" }
+              { num: "01", title: "Assess", desc: "Diagnostic evaluation & 24-section functional mapping.", color: "from-blue-500 to-blue-600", shadow: "shadow-blue-500/20" },
+              { num: "02", title: "Plan", desc: "Quarterly individualized education & therapy blueprints.", color: "from-sky-500 to-sky-600", shadow: "shadow-sky-500/20" },
+              { num: "03", title: "Intervene", desc: "Structured clinic therapy & prescribed home activities.", color: "from-emerald-500 to-emerald-600", shadow: "shadow-emerald-500/20" },
+              { num: "04", title: "Track", desc: "Daily parent activity check-ins and clinical progress logs.", color: "from-amber-500 to-amber-600", shadow: "shadow-amber-500/20" },
+              { num: "05", title: "Progress", desc: "Multi-cycle radar graph comparison & admin-verified reports.", color: "from-violet-500 to-violet-600", shadow: "shadow-violet-500/20" }
             ].map((p, idx) => (
-              <div key={idx} className="p-5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2 relative overflow-hidden">
-                <div className={`text-xs font-black px-2 py-0.5 rounded-full text-white bg-gradient-to-r ${p.color} w-fit`}>
+              <div key={idx} className="group p-6 rounded-2xl bg-white border border-white shadow-[0_4px_16px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 relative overflow-hidden flex flex-col">
+                <div className={`text-sm font-black px-3 py-1 rounded-full text-white bg-gradient-to-r ${p.color} w-fit shadow-md ${p.shadow} mb-4`}>
                   {p.num}
                 </div>
-                <h4 className="text-base font-bold text-slate-900">{p.title}</h4>
-                <p className="text-xs text-slate-500 leading-relaxed font-medium">{p.desc}</p>
+                <h4 className="text-[17px] font-bold text-slate-900 mb-2">{p.title}</h4>
+                <p className="text-[13px] text-slate-500 leading-relaxed font-medium mt-auto">{p.desc}</p>
+                
+                {/* Decorative background number */}
+                <div className="absolute -bottom-6 -right-4 text-9xl font-black text-slate-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none select-none">
+                  {p.num}
+                </div>
               </div>
             ))}
           </div>
@@ -267,26 +296,27 @@ export default function HomePage() {
       </section>
 
       {/* ─── Bottom CTA Banner ─── */}
-      <section className="py-12 bg-white border-t border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 text-center space-y-6">
-          <div className="space-y-2">
-            <h3 className="text-2xl font-black text-slate-900">Ready to get started?</h3>
-            <p className="text-xs text-slate-500 font-medium">Select your portal to access diagnostic records and reports.</p>
+      <section className="py-20 relative z-10">
+        <div className="absolute inset-0 bg-slate-900 -skew-y-2 origin-bottom-right" />
+        <div className="max-w-4xl mx-auto px-4 text-center space-y-8 relative z-10 py-12">
+          <div className="space-y-3">
+            <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Ready to access your portal?</h3>
+            <p className="text-[15px] text-slate-400 font-medium">Select your role to view diagnostic records, therapy paths, and reports.</p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-5 pt-4">
             <button
               onClick={() => navigate("/login")}
-              className="px-6 py-3 rounded-xl bg-[#185FA5] hover:bg-[#134D87] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              className="px-8 py-4 rounded-xl bg-gradient-blue hover:brightness-110 text-white font-bold text-[14px] transition-all shadow-[0_8px_24px_rgba(37,99,235,0.4)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer border-0"
             >
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldCheck className="h-5 w-5" />
               <span>Staff &amp; Admin Sign In</span>
             </button>
             <button
               onClick={() => navigate("/parent/login")}
-              className="px-6 py-3 rounded-xl bg-[#0F6E56] hover:bg-[#085041] text-white font-bold text-xs transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              className="px-8 py-4 rounded-xl bg-gradient-emerald hover:brightness-110 text-white font-bold text-[14px] transition-all shadow-[0_8px_24px_rgba(5,150,105,0.4)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer border-0"
             >
-              <HeartHandshake className="h-4 w-4" />
+              <HeartHandshake className="h-5 w-5" />
               <span>Parent Portal Sign In</span>
             </button>
           </div>
@@ -294,18 +324,21 @@ export default function HomePage() {
       </section>
 
       {/* ─── Footer ─── */}
-      <footer className="mt-auto bg-slate-900 text-slate-400 py-8 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-3">
+      <footer className="mt-auto bg-[#0F172A] text-slate-400 py-10 relative z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-[13px]">
+          <div className="flex items-center gap-4">
             <img
               src="/kids_care_rehab_center_logo.jpg"
               alt="Logo"
-              className="h-7 w-7 rounded-lg object-cover bg-white p-0.5"
+              className="h-10 w-10 rounded-xl object-cover border-2 border-slate-700"
             />
-            <span className="font-bold text-white">KIDS CARE 360 — Neurodiversity Clinical System</span>
+            <div>
+              <span className="font-bold text-white text-[15px] block">KIDS CARE 360</span>
+              <span className="text-slate-500 font-medium">Neurodiversity Clinical System</span>
+            </div>
           </div>
-          <p className="text-[11px] text-slate-500">
-            © {new Date().getFullYear()} Kids Care Rehab Centre. All clinical information is confidential.
+          <p className="text-slate-500 font-medium text-center md:text-right">
+            © {new Date().getFullYear()} Kids Care Rehab Centre. <br className="md:hidden" /> All clinical information is confidential.
           </p>
         </div>
       </footer>

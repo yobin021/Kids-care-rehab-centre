@@ -146,60 +146,92 @@ export default function StaffManagement() {
       ) : error ? (
         <ErrorMessage error={error} onRetry={fetchStaff} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {(data || []).map((s) => {
-            const isOnline =
-              (user?.id && user.id === s.id) ||
-              (user?.username && s.username && user.username.toLowerCase() === s.username.toLowerCase());
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Staff Details</th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Login Credentials</th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Attendance</th>
+                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider text-right">Management</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(data || []).map((s) => {
+                  const isOnline =
+                    (user?.id && user.id === s.id) ||
+                    (user?.username && s.username && user.username.toLowerCase() === s.username.toLowerCase());
 
-            return (
-              <Card key={s.id} padding="p-6" className="space-y-4 flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-bold text-[#2C2C2A]">{s.name}</h3>
-                      <Badge label={s.designation} variant="blue" size="sm" />
-                    </div>
-                    <Badge label={isOnline ? "Active" : "Inactive"} variant={isOnline ? "green" : "gray"} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-xs bg-[#F8F8F6] p-3 rounded-[8px] border border-[#D3D1C7]/60 font-semibold">
-                    <div>
-                      <span className="text-[#9B9A96] block uppercase text-[10px]">Username</span>
-                      <strong className="font-mono text-[#185FA5]">{s.username}</strong>
-                    </div>
-                    <div>
-                      <span className="text-[#9B9A96] block uppercase text-[10px]">Password</span>
-                      <strong className="font-mono text-[#2C2C2A]">••••••••</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-[#D3D1C7]/60 gap-2">
-                  <Button
-                    variant="outlined"
-                    size="sm"
-                    icon={Key}
-                    onClick={() => {
-                      setSelectedStaff(s);
-                      setShowResetModal(true);
-                    }}
-                  >
-                    Reset Password
-                  </Button>
-
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    icon={Trash2}
-                    onClick={() => confirmDeleteStaff(s)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
+                  return (
+                    <tr key={s.id} className="hover:bg-blue-50/30 transition-colors group">
+                      <td className="py-4 px-6 align-middle">
+                        <div className="flex flex-col">
+                          <span className="text-[15px] font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{s.name}</span>
+                          <span className="text-[12.5px] font-semibold text-slate-500 mt-1">{s.designation}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase w-16">User:</span>
+                            <span className="font-mono text-[13px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
+                              {s.username}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase w-16">Pass:</span>
+                            <span className="font-mono text-[13px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md tracking-widest">
+                              ••••••••
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        {isOnline ? (
+                          <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full w-fit">
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-[12px] font-bold tracking-wide">Present (Online)</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full w-fit">
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
+                            <span className="text-[12px] font-bold tracking-wide">Absent (Offline)</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        <div className="flex items-center justify-end gap-3">
+                          <Button
+                            variant="outlined"
+                            size="sm"
+                            icon={Key}
+                            onClick={() => {
+                              setSelectedStaff(s);
+                              setShowResetModal(true);
+                            }}
+                          >
+                            Reset
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            icon={Trash2}
+                            onClick={() => confirmDeleteStaff(s)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

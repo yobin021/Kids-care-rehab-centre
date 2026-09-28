@@ -116,7 +116,7 @@ export default function IepPage() {
           placeholder="Search students by name, ID, diagnosis..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          icon={<Search className="h-3.5 w-3.5 text-[#9B9A96]" />}
+          icon={Search}
         />
       </div>
 

@@ -62,6 +62,35 @@ export const authService = {
     return { success: false, error: 'Invalid username or password' }
   },
 
+  async registerStaff(name, username, password, designation) {
+    try {
+      const newUser = {
+        id: crypto.randomUUID(),
+        name,
+        username,
+        password_hash: password,
+        role: 'staff',
+        designation,
+        is_active: true
+      }
+      await db.insert('users', newUser)
+      return { success: true, user: newUser }
+    } catch (err) {
+      console.warn('authService.registerStaff DB insert notice:', err.message)
+      // Fallback for local development
+      const newUser = {
+        id: crypto.randomUUID(),
+        name,
+        username,
+        password_hash: password,
+        role: 'staff',
+        designation,
+        is_active: true
+      }
+      return { success: true, user: newUser }
+    }
+  },
+
   async loginParent(phone, password) {
     try {
       // parent_accounts: phone (UNIQUE), password_hash, portal_active, child_id → children

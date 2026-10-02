@@ -12,7 +12,7 @@ import { appointmentService } from "../services/appointmentService";
 import { iepService } from "../services/iepService";
 
 export default function AdminDashboard() {
-  const { user, childrenList, staffList, reloadStaff } = useAuth();
+  const { user, childrenList } = useAuth();
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
@@ -26,8 +26,6 @@ export default function AdminDashboard() {
     month: "long",
     day: "numeric"
   });
-
-  const activeStaffCount = staffList.filter((s) => s.isActive).length;
 
   const fetchReports = async () => {
     try {
@@ -54,9 +52,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchReports();
-    if (reloadStaff) reloadStaff();
     iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
-  }, [childrenList, reloadStaff]);
+  }, [childrenList]);
 
   return (
     <div className="space-y-8 text-slate-800 pb-10">
@@ -73,15 +70,10 @@ export default function AdminDashboard() {
           <p className="text-xs sm:text-[14px] font-semibold text-slate-500">{todayStr}</p>
         </div>
 
-        <div className="w-full sm:w-auto relative z-10 flex items-center justify-around sm:justify-start gap-4 bg-white/60 backdrop-blur-md px-4 sm:px-5 py-3 rounded-2xl border border-white shadow-sm">
-          <div className="text-center sm:text-right">
+        <div className="w-full sm:w-auto relative z-10 flex items-center justify-center sm:justify-start gap-4 bg-white/60 backdrop-blur-md px-5 py-3 rounded-2xl border border-white shadow-sm">
+          <div className="text-center sm:text-left">
             <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Reports</p>
             <p className="text-lg sm:text-xl font-black text-blue-700">{(data || []).length}</p>
-          </div>
-          <div className="w-px h-10 bg-slate-200" />
-          <div className="text-center sm:text-left">
-            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Staff</p>
-            <p className="text-lg sm:text-xl font-black text-emerald-600">{activeStaffCount}</p>
           </div>
         </div>
       </div>

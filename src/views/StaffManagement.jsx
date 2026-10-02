@@ -194,7 +194,6 @@ export default function StaffManagement() {
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Staff Details</th>
                   <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Login Credentials</th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Attendance</th>
                   <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider text-right">Management</th>
                 </tr>
               </thead>
@@ -227,22 +226,6 @@ export default function StaffManagement() {
                             </span>
                           </div>
                         </div>
-                      </td>
-                      <td className="py-4 px-6 align-middle">
-                        {isOnline ? (
-                          <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full w-fit">
-                            <span className="relative flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                            </span>
-                            <span className="text-[12px] font-bold tracking-wide">Present (Online)</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-full w-fit">
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
-                            <span className="text-[12px] font-bold tracking-wide">Absent (Offline)</span>
-                          </div>
-                        )}
                       </td>
                       <td className="py-4 px-6 align-middle">
                         <div className="flex items-center justify-end gap-3">

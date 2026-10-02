@@ -59,7 +59,7 @@ export default function AdminDashboard() {
     <div className="space-y-8 text-slate-800 pb-10">
       
       {/* ─── Gradient Welcome Banner ─── */}
-      <div className="relative bg-white rounded-3xl border border-white shadow-[0_8px_32px_rgba(37,99,235,0.06)] overflow-hidden p-5 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      <div className="relative bg-white rounded-3xl border border-white shadow-[0_8px_32px_rgba(37,99,235,0.06)] overflow-hidden p-5 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-50/80 to-transparent pointer-events-none" />
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
         
@@ -68,13 +68,6 @@ export default function AdminDashboard() {
             Welcome back, <span className="gradient-text-blue">{user?.name || "Dr. Radha"}</span>
           </h2>
           <p className="text-xs sm:text-[14px] font-semibold text-slate-500">{todayStr}</p>
-        </div>
-
-        <div className="w-full sm:w-auto relative z-10 flex items-center justify-center sm:justify-start gap-4 bg-white/60 backdrop-blur-md px-5 py-3 rounded-2xl border border-white shadow-sm">
-          <div className="text-center sm:text-left">
-            <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Reports</p>
-            <p className="text-lg sm:text-xl font-black text-blue-700">{(data || []).length}</p>
-          </div>
         </div>
       </div>
 

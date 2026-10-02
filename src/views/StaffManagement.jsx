@@ -14,7 +14,7 @@ import { db } from "../lib/db";
 import { hashPassword } from "../services/passwordService";
 
 export default function StaffManagement() {
-  const { user, addStaffMember, resetStaffPassword, showToast } = useAuth();
+  const { user, addStaffMember, resetStaffPassword, showToast, reloadStaff } = useAuth();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +78,7 @@ export default function StaffManagement() {
 
       showToast(`Staff member ${inserted.name} added!`, "success");
       fetchStaff();
+      if (reloadStaff) reloadStaff();
     } catch (err) {
       console.warn("Local add staff fallback:", err.message);
       const hashedPassword = await hashPassword(newStaff.password);
@@ -90,6 +91,7 @@ export default function StaffManagement() {
         sessionsThisMonth: 0
       });
       fetchStaff();
+      if (reloadStaff) reloadStaff();
     }
 
     setNewStaff({ name: "", designation: "Therapist", username: "", password: "" });
@@ -122,6 +124,7 @@ export default function StaffManagement() {
         showToast(`Staff member ${staffToDelete.name} deleted successfully.`, "success");
       }
       fetchStaff();
+      if (reloadStaff) reloadStaff();
     } catch (err) {
       console.warn("Delete staff error:", err.message);
       showToast(`Failed to delete staff: ${err.message}`, "error");

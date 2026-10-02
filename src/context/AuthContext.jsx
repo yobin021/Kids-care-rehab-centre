@@ -16,6 +16,28 @@ export function AuthProvider({ children }) {
   const toastIdRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
 
+  const reloadStaff = useCallback(async () => {
+    try {
+      const rows = await db.select("users", { order: { column: "name", ascending: true } });
+      if (Array.isArray(rows)) {
+        setStaffList(
+          rows
+            .filter((d) => d.role !== "admin")
+            .map((d) => ({
+              id: d.id,
+              name: d.name,
+              designation: d.designation,
+              username: d.username,
+              password: d.password_hash || "",
+              isActive: d.is_active !== false
+            }))
+        );
+      }
+    } catch (err) {
+      console.warn("Staff reload notice:", err.message);
+    }
+  }, []);
+
   // Restore authenticated session on application startup
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -46,27 +68,8 @@ export function AuthProvider({ children }) {
       });
 
     // Load staff from DB so counts and list are always accurate (excluding admin)
-    db.select("users", { order: { column: "name", ascending: true } })
-      .then((rows) => {
-        if (Array.isArray(rows)) {
-          setStaffList(
-            rows
-              .filter((d) => d.role !== "admin")
-              .map((d) => ({
-                id: d.id,
-                name: d.name,
-                designation: d.designation,
-                username: d.username,
-                password: d.password_hash || "",
-                isActive: d.is_active !== false
-              }))
-          );
-        }
-      })
-      .catch((err) => {
-        console.warn("Staff DB load notice:", err.message);
-      });
-  }, []);
+    reloadStaff();
+  }, [reloadStaff]);
 
   const showToast = useCallback((message, type = "success") => {
     const id = ++toastIdRef.current;
@@ -218,6 +221,7 @@ export function AuthProvider({ children }) {
     childrenList,
     setChildrenList,
     staffList,
+    reloadStaff,
     addRegisteredChild,
     updateChildDetails,
     setupParentPortal,

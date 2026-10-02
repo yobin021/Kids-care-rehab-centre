@@ -12,7 +12,7 @@ import { appointmentService } from "../services/appointmentService";
 import { iepService } from "../services/iepService";
 
 export default function AdminDashboard() {
-  const { user, childrenList, staffList } = useAuth();
+  const { user, childrenList, staffList, reloadStaff } = useAuth();
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
@@ -54,8 +54,9 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchReports();
+    if (reloadStaff) reloadStaff();
     iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
-  }, [childrenList]);
+  }, [childrenList, reloadStaff]);
 
   return (
     <div className="space-y-8 text-slate-800 pb-10">
@@ -224,6 +225,12 @@ export default function AdminDashboard() {
           <SkeletonCard count={3} />
         ) : error ? (
           <ErrorMessage error={error} onRetry={fetchReports} />
+        ) : (data || []).length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center">
+            <p className="text-slate-500 font-medium text-sm">
+              No published reports yet. When clinical reports are approved and published, they will appear here.
+            </p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {(data || []).slice(0, 3).map((r) => {

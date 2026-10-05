@@ -300,17 +300,17 @@ export default function ParentExercises() {
               >
                 {/* EXERCISE IMAGE — PROMINENT ON PARENT PORTAL */}
                 {(ex.image_url || ex.imageUrl) ? (
-                  <div className="relative h-48 bg-gray-100 overflow-hidden">
+                  <div className="relative h-60 sm:h-72 bg-[#F8F9FA] border-b border-[#D3D1C7]/60 overflow-hidden flex items-center justify-center p-3">
                     <img
                       src={ex.image_url || ex.imageUrl}
                       alt={ex.name}
-                      className="w-full h-full object-cover"
+                      className="max-h-full max-w-full object-contain mx-auto rounded-[6px]"
                       onError={(e) => {
-                        e.target.parentElement.style.display = "none";
+                        e.currentTarget.parentElement.style.display = "none";
                       }}
                     />
                     {ex.category && (
-                      <span className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 rounded-full bg-white/90 text-[#0F6E56] shadow-2xs">
+                      <span className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 rounded-full bg-white/95 text-[#0F6E56] shadow-sm border border-[#D3D1C7]/40">
                         {ex.category}
                       </span>
                     )}

@@ -67,6 +67,7 @@ export default function ChildProfile() {
   const [expandedClinicBenefits, setExpandedClinicBenefits] = useState({});
   const [expandedHomeBenefits, setExpandedHomeBenefits] = useState({});
   const [expandedHomeInstructions, setExpandedHomeInstructions] = useState({});
+  const [previewExerciseModal, setPreviewExerciseModal] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -688,52 +689,72 @@ export default function ChildProfile() {
                     const isExpanded = !!expandedClinicBenefits[ex.id || idx];
 
                     return (
-                      <div key={ex.id || idx} className="p-4 space-y-2 hover:bg-slate-50/60 transition-colors">
-                        {(ex.image_url || ex.imageUrl) && (
-                          <div className="mb-3 rounded-[8px] overflow-hidden h-40 bg-gray-50 border border-[#D3D1C7]/60">
-                            <img
-                              src={ex.image_url || ex.imageUrl}
-                              alt={ex.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.parentElement.style.display = "none";
-                              }}
-                            />
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
-                            style={{ backgroundColor: badgeStyle.bg, color: badgeStyle.text }}
-                          >
-                            {ex.category}
-                          </span>
-                          <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
-                            {ex.duration || "15 mins"}
-                          </span>
-                        </div>
-
-                        <h4 className="text-[15px] font-bold text-[#2C2C2A]">{ex.name}</h4>
-                        <p className="text-[13px] text-[#5F5E5A] font-medium line-clamp-2 leading-relaxed">
-                          {ex.description}
-                        </p>
-
-                        {/* Collapsible Benefits */}
-                        <div className="pt-1">
-                          <button
-                            onClick={() => setExpandedClinicBenefits((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
-                            className="text-[12px] text-[#5F5E5A] hover:text-[#185FA5] font-semibold flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>{isExpanded ? "Hide benefits ▲" : "Show benefits ▼"}</span>
-                          </button>
-
-                          {isExpanded && ex.benefits && (
-                            <ul className="mt-2 space-y-1 pl-4 list-disc text-[12px] text-[#5F5E5A]">
-                              {ex.benefits.map((b, bIdx) => (
-                                <li key={bIdx}>{b}</li>
-                              ))}
-                            </ul>
+                      <div key={ex.id || idx} className="p-4 hover:bg-slate-50/60 transition-colors">
+                        <div className="flex flex-col sm:flex-row gap-4 items-start">
+                          {/* Exercise Guide Sheet Preview with proper scaling */}
+                          {(ex.image_url || ex.imageUrl) && (
+                            <div
+                              onClick={() => setPreviewExerciseModal(ex)}
+                              className="w-full sm:w-64 md:w-72 shrink-0 rounded-[10px] overflow-hidden bg-[#F8F9FA] border border-[#D3D1C7] shadow-2xs flex items-center justify-center p-2 cursor-pointer group relative hover:border-[#185FA5] transition-all"
+                              title="Click to view full exercise guide sheet"
+                            >
+                              <img
+                                src={ex.image_url || ex.imageUrl}
+                                alt={ex.name}
+                                className="w-full h-44 sm:h-48 object-contain rounded-[6px] transition-transform duration-200 group-hover:scale-[1.02]"
+                                onError={(e) => {
+                                  e.currentTarget.parentElement.style.display = "none";
+                                }}
+                              />
+                              <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 hover:bg-black/85 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
+                                🔍 View Full Guide
+                              </span>
+                            </div>
                           )}
+
+                          {/* Exercise Details */}
+                          <div className="flex-1 min-w-0 space-y-2 w-full">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                                style={{ backgroundColor: badgeStyle.bg, color: badgeStyle.text }}
+                              >
+                                {ex.category}
+                              </span>
+                              <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
+                                {ex.duration || "15 mins"}
+                              </span>
+                              {ex.frequency && (
+                                <span className="text-[11px] text-[#5F5E5A] font-semibold">
+                                  • {ex.frequency}
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 className="text-[15px] font-bold text-[#2C2C2A]">{ex.name}</h4>
+                            <p className="text-[13px] text-[#5F5E5A] font-medium leading-relaxed">
+                              {ex.description}
+                            </p>
+
+                            {/* Collapsible Benefits */}
+                            <div className="pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedClinicBenefits((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
+                                className="text-[12px] text-[#5F5E5A] hover:text-[#185FA5] font-semibold flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>{isExpanded ? "Hide benefits ▲" : "Show benefits ▼"}</span>
+                              </button>
+
+                              {isExpanded && ex.benefits && (
+                                <ul className="mt-2 space-y-1 pl-4 list-disc text-[12px] text-[#5F5E5A] bg-[#F8F8F6] p-3 rounded-[8px] border border-[#D3D1C7]/60">
+                                  {ex.benefits.map((b, bIdx) => (
+                                    <li key={bIdx}>{b}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -783,82 +804,103 @@ export default function ChildProfile() {
                     const isBenExpanded = !!expandedHomeBenefits[ex.id || idx];
 
                     return (
-                      <div key={ex.id || idx} className="py-4 space-y-2 first:pt-0 last:pb-0">
-                        {(ex.image_url || ex.imageUrl) && (
-                          <div className="mb-3 rounded-[8px] overflow-hidden h-40 bg-gray-50 border border-[#D3D1C7]/60">
-                            <img
-                              src={ex.image_url || ex.imageUrl}
-                              alt={ex.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.parentElement.style.display = "none";
-                              }}
-                            />
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
-                            style={{ backgroundColor: badgeStyle.bg, color: badgeStyle.text }}
-                          >
-                            {ex.category}
-                          </span>
-                          <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
-                            {ex.duration || "10 mins"}
-                          </span>
-                        </div>
+                      <div key={ex.id || idx} className="py-4 first:pt-0 last:pb-0">
+                        <div className="flex flex-col sm:flex-row gap-4 items-start">
+                          {/* Exercise Guide Sheet Preview with proper scaling */}
+                          {(ex.image_url || ex.imageUrl) && (
+                            <div
+                              onClick={() => setPreviewExerciseModal(ex)}
+                              className="w-full sm:w-64 md:w-72 shrink-0 rounded-[10px] overflow-hidden bg-[#F8F9FA] border border-[#D3D1C7] shadow-2xs flex items-center justify-center p-2 cursor-pointer group relative hover:border-[#0F6E56] transition-all"
+                              title="Click to view full exercise guide sheet"
+                            >
+                              <img
+                                src={ex.image_url || ex.imageUrl}
+                                alt={ex.name}
+                                className="w-full h-44 sm:h-48 object-contain rounded-[6px] transition-transform duration-200 group-hover:scale-[1.02]"
+                                onError={(e) => {
+                                  e.currentTarget.parentElement.style.display = "none";
+                                }}
+                              />
+                              <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 hover:bg-black/85 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
+                                🔍 View Full Guide
+                              </span>
+                            </div>
+                          )}
 
-                        <h4 className="text-[15px] font-bold text-[#2C2C2A]">{ex.name}</h4>
-                        <p className="text-[13px] text-[#5F5E5A] font-medium line-clamp-2 leading-relaxed">
-                          {ex.home_description || ex.homeDescription || ex.description}
-                        </p>
+                          {/* Exercise Details */}
+                          <div className="flex-1 min-w-0 space-y-2 w-full">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                                style={{ backgroundColor: badgeStyle.bg, color: badgeStyle.text }}
+                              >
+                                {ex.category}
+                              </span>
+                              <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
+                                {ex.duration || "10 mins"}
+                              </span>
+                              {ex.frequency && (
+                                <span className="text-[11px] text-[#5F5E5A] font-semibold">
+                                  • {ex.frequency}
+                                </span>
+                              )}
+                            </div>
 
-                        <div className="flex items-center gap-4 text-[12px] font-semibold text-[#5F5E5A] pt-1">
-                          {/* Collapsible Instructions */}
-                          <button
-                            onClick={() => setExpandedHomeInstructions((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
-                            className="hover:text-[#0F6E56] cursor-pointer flex items-center gap-1"
-                          >
-                            <span>{isInstrExpanded ? "Hide instructions ▲" : "How to do this ▼"}</span>
-                          </button>
-
-                          {/* Collapsible Benefits */}
-                          <button
-                            onClick={() => setExpandedHomeBenefits((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
-                            className="hover:text-[#185FA5] cursor-pointer flex items-center gap-1"
-                          >
-                            <span>{isBenExpanded ? "Hide benefits ▲" : "Benefits ▼"}</span>
-                          </button>
-                        </div>
-
-                        {/* Collapsible Instructions Content */}
-                        {isInstrExpanded && (
-                          <div className="mt-2 p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 space-y-1">
-                            <h5 className="font-bold text-[#0F6E56] text-[11px] uppercase">Instructions & Home Technique</h5>
-                            <p className="text-[12px] text-[#2C2C2A] leading-relaxed">
-                              {ex.home_description || ex.description}
+                            <h4 className="text-[15px] font-bold text-[#2C2C2A]">{ex.name}</h4>
+                            <p className="text-[13px] text-[#5F5E5A] font-medium line-clamp-2 leading-relaxed">
+                              {ex.home_description || ex.homeDescription || ex.description}
                             </p>
-                            {ex.instructions && (
-                              <ol className="list-decimal list-inside text-[12px] text-[#2C2C2A] space-y-1 pt-1">
-                                {ex.instructions.map((step, sIdx) => (
-                                  <li key={sIdx}>{step}</li>
-                                ))}
-                              </ol>
+
+                            <div className="flex items-center gap-4 text-[12px] font-semibold text-[#5F5E5A] pt-1">
+                              {/* Collapsible Instructions */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedHomeInstructions((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
+                                className="hover:text-[#0F6E56] cursor-pointer flex items-center gap-1"
+                              >
+                                <span>{isInstrExpanded ? "Hide instructions ▲" : "How to do this ▼"}</span>
+                              </button>
+
+                              {/* Collapsible Benefits */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedHomeBenefits((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
+                                className="hover:text-[#185FA5] cursor-pointer flex items-center gap-1"
+                              >
+                                <span>{isBenExpanded ? "Hide benefits ▲" : "Benefits ▼"}</span>
+                              </button>
+                            </div>
+
+                            {/* Collapsible Instructions Content */}
+                            {isInstrExpanded && (
+                              <div className="mt-2 p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 space-y-1">
+                                <h5 className="font-bold text-[#0F6E56] text-[11px] uppercase">Instructions & Home Technique</h5>
+                                <p className="text-[12px] text-[#2C2C2A] leading-relaxed">
+                                  {ex.home_description || ex.description}
+                                </p>
+                                {ex.instructions && (
+                                  <ol className="list-decimal list-inside text-[12px] text-[#2C2C2A] space-y-1 pt-1">
+                                    {ex.instructions.map((step, sIdx) => (
+                                      <li key={sIdx}>{step}</li>
+                                    ))}
+                                  </ol>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Collapsible Benefits Content */}
+                            {isBenExpanded && ex.benefits && (
+                              <div className="mt-2 p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 space-y-1">
+                                <h5 className="font-bold text-[#185FA5] text-[11px] uppercase">Key Benefits</h5>
+                                <ul className="list-disc list-inside text-[12px] text-[#5F5E5A] space-y-1">
+                                  {ex.benefits.map((b, bIdx) => (
+                                    <li key={bIdx}>{b}</li>
+                                  ))}
+                                </ul>
+                              </div>
                             )}
                           </div>
-                        )}
-
-                        {/* Collapsible Benefits Content */}
-                        {isBenExpanded && ex.benefits && (
-                          <div className="mt-2 p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 space-y-1">
-                            <h5 className="font-bold text-[#185FA5] text-[11px] uppercase">Key Benefits</h5>
-                            <ul className="list-disc list-inside text-[12px] text-[#5F5E5A] space-y-1">
-                              {ex.benefits.map((b, bIdx) => (
-                                <li key={bIdx}>{b}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1154,6 +1196,62 @@ export default function ChildProfile() {
         }}
         childrenList={childrenForModal.length > 0 ? childrenForModal : (data ? [data] : [])}
       />
+
+      {/* Exercise Full Guide Sheet Modal */}
+      <Modal
+        isOpen={!!previewExerciseModal}
+        onClose={() => setPreviewExerciseModal(null)}
+        title={previewExerciseModal?.name || "Exercise Clinical Guide Sheet"}
+      >
+        <div className="space-y-4">
+          <div className="bg-[#F8F9FA] rounded-[10px] p-2 border border-[#D3D1C7] flex items-center justify-center overflow-hidden">
+            <img
+              src={previewExerciseModal?.image_url || previewExerciseModal?.imageUrl}
+              alt={previewExerciseModal?.name}
+              className="max-h-[65vh] max-w-full w-auto object-contain rounded"
+            />
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F1FB] text-[#185FA5]">
+                {previewExerciseModal?.category}
+              </span>
+              <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
+                ⏱ {previewExerciseModal?.duration || "15 mins"}
+              </span>
+              {previewExerciseModal?.frequency && (
+                <span className="px-2 py-0.5 bg-amber-50 text-[#854F0B] text-[11px] font-bold rounded border border-amber-200/60">
+                  🔄 {previewExerciseModal.frequency}
+                </span>
+              )}
+            </div>
+
+            <p className="text-[13px] text-[#2C2C2A] font-medium leading-relaxed">
+              {previewExerciseModal?.home_description || previewExerciseModal?.description}
+            </p>
+
+            {previewExerciseModal?.benefits && previewExerciseModal.benefits.length > 0 && (
+              <div className="pt-2 border-t border-[#D3D1C7]/60">
+                <span className="font-bold text-[#185FA5] uppercase text-[10px] block mb-1">
+                  Clinical & Developmental Benefits
+                </span>
+                <ul className="list-disc list-inside space-y-1 text-[#5F5E5A]">
+                  {previewExerciseModal.benefits.map((b, idx) => (
+                    <li key={idx}>{b}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-[#D3D1C7]">
+            <Button variant="outlined" onClick={() => setPreviewExerciseModal(null)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

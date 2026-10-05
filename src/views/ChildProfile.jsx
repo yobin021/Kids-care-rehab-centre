@@ -39,6 +39,7 @@ import { parentService } from "../services/parentService";
 import { assessmentService } from "../services/assessmentService";
 import { reportService } from "../services/reportService";
 import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
+import { MASTER_EXERCISES } from "../data/exercisesData";
 import { authService } from "../services/authService";
 import { appointmentService } from "../services/appointmentService";
 import { hashPassword } from "../services/passwordService";
@@ -128,16 +129,23 @@ export default function ChildProfile() {
     if (!id) return;
     setLoadingRecords(true);
     try {
-      const [assList, repList, iepReps] = await Promise.all([
+      const [assList, repList, iepReps, aptList] = await Promise.all([
         assessmentService.getByChildId(id),
         reportService.getByChildId(id),
-        import("../services/iepService").then((m) => m.iepService.getReportsByChildId(id)).catch(() => [])
+        import("../services/iepService").then((m) => m.iepService.getReportsByChildId(id)).catch(() => []),
+        appointmentService.getByChildId(id).catch(() => [])
       ]);
 
       if (assList && assList.length > 0) {
         setAssessments(assList);
       } else {
         setAssessments([]);
+      }
+
+      if (aptList && aptList.length > 0) {
+        setAppointments(aptList);
+      } else {
+        setAppointments([]);
       }
 
       const reportMap = new Map();
@@ -152,6 +160,23 @@ export default function ChildProfile() {
         (r) => r.status === "published" || r.review_status === "published"
       );
       setReports(publishedOnly);
+
+      // Eagerly resolve and populate exercises from the latest published report
+      const repWithExercises = publishedOnly.find(
+        (r) => (r.clinic_exercises?.length || r.home_exercises?.length || r.clinicExercises?.length || r.homeExercises?.length)
+      ) || publishedOnly[0] || uniqueReps[0];
+
+      if (repWithExercises) {
+        setLatestPublishedReport(repWithExercises);
+        const cIds = repWithExercises.clinic_exercises || repWithExercises.clinicExercises || [];
+        const hIds = repWithExercises.home_exercises || repWithExercises.homeExercises || [];
+        if (cIds.length > 0 || hIds.length > 0) {
+          const cList = cIds.map((item) => resolveExerciseItem(item, MASTER_EXERCISES)).filter(Boolean);
+          const hList = hIds.map((item) => resolveExerciseItem(item, MASTER_EXERCISES)).filter(Boolean);
+          setClinicExercisesList(cList);
+          setHomeExercisesList(hList);
+        }
+      }
     } catch (err) {
       console.warn("Fetch related records notice:", err.message);
       setAssessments([]);
@@ -162,10 +187,12 @@ export default function ChildProfile() {
   };
 
   // Fetch Exercises for Exercises Tab from latest published report, assessment, or pathway recommendation
-  const fetchExercisesForTab = async () => {
+  const fetchExercisesForTab = async (targetChild = data) => {
     if (!id) return;
     setLoadingExercises(true);
     try {
+      const childObj = targetChild || data || contextChildren.find((c) => c.id === id);
+
       let publishedRep = await reportService.getPublishedByChildId(id);
       if (!publishedRep) {
         const allReps = await reportService.getByChildId(id);
@@ -192,14 +219,14 @@ export default function ChildProfile() {
       }
 
       // If clinic or home exercises are empty and child is in a therapy pathway, provide default pathway exercises
-      if (clinicIds.length === 0 && data?.program_type !== 'iep') {
-        const defaultList = await exerciseService.getForChild(data);
+      if (clinicIds.length === 0 && childObj?.program_type !== 'iep') {
+        const defaultList = await exerciseService.getForChild(childObj);
         if (defaultList && defaultList.length > 0) {
           clinicIds = defaultList.map((e) => e.name);
         }
       }
-      if (homeIds.length === 0 && data?.program_type !== 'iep') {
-        const defaultList = await exerciseService.getForChild(data);
+      if (homeIds.length === 0 && childObj?.program_type !== 'iep') {
+        const defaultList = await exerciseService.getForChild(childObj);
         if (defaultList && defaultList.length > 0) {
           homeIds = defaultList.slice(0, 3).map((e) => e.name);
         }
@@ -224,13 +251,20 @@ export default function ChildProfile() {
   useEffect(() => {
     fetchProfile();
     fetchRelatedRecords();
+    fetchExercisesForTab();
   }, [id, contextChildren]);
 
   useEffect(() => {
-    if (activeTab === "exercises") {
-      fetchExercisesForTab();
+    if (id && data?.program_type !== "iep") {
+      fetchExercisesForTab(data);
     }
-  }, [activeTab, id]);
+  }, [id, data?.therapy_category, data?.diagnosis, data?.program_type]);
+
+  useEffect(() => {
+    if (activeTab === "exercises") {
+      fetchExercisesForTab(data);
+    }
+  }, [activeTab]);
 
   // Fetch Appointments when tab is active
   useEffect(() => {
@@ -473,10 +507,12 @@ export default function ChildProfile() {
           { id: "overview", label: "Overview" },
           { id: "assessments", label: `Assessments (${assessments.length})` },
           ...(data?.program_type !== "iep"
-            ? [{ id: "exercises", label: totalAssignedExercises > 0 ? `Exercises (${totalAssignedExercises})` : "Exercises" }]
+            ? [{ id: "exercises", label: `Exercises (${totalAssignedExercises})` }]
             : []),
           { id: "reports", label: `Reports (${reports.length})` },
-          ...(data?.program_type !== "iep" ? [{ id: "appointments", label: "Appointments" }] : []),
+          ...(data?.program_type !== "iep"
+            ? [{ id: "appointments", label: `Appointments (${appointments.length})` }]
+            : []),
           { id: "messages", label: parentMessages.length > 0 ? `Parent Messages (${parentMessages.length})` : "Parent Messages" },
           { id: "parent-access", label: "Parent Access" }
         ].map((t) => (

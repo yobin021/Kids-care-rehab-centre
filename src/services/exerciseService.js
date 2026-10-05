@@ -71,6 +71,10 @@ export function resolveExerciseItem(item, availableList = MASTER_EXERCISES) {
     const matched = availableList.find(e => e.id === 'ex-18') || availableList.find(e => e.id === 'ex-20')
     return { ...matched, name: typeof item === 'string' ? item : item.name, category: 'Cognitive & Visual Spatial' }
   }
+  if (searchStr.includes('social') || searchStr.includes('behaviour') || searchStr.includes('behavior')) {
+    const matched = availableList.find(e => e.id === 'ex-30') || availableList[0]
+    return { ...matched, name: typeof item === 'string' ? item : item.name, category: 'Behaviour & Social Skills' }
+  }
   if (searchStr.includes('bead') || searchStr.includes('button') || searchStr.includes('zip') || searchStr.includes('hand')) {
     const matched = availableList.find(e => e.id === 'ex-17') || availableList.find(e => e.id === 'ex-19')
     return { ...matched, name: typeof item === 'string' ? item : item.name, category: 'Fine Motor Coordination' }

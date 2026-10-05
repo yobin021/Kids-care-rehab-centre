@@ -27,7 +27,7 @@ import ErrorMessage from "../components/ui/ErrorMessage";
 import { reportService } from "../services/reportService";
 import { childrenService } from "../services/childrenService";
 import { assessmentService } from "../services/assessmentService";
-import { exerciseService } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
 import { MASTER_EXERCISES } from "../data/exercisesData";
 import { calculateISAAScore, calculateDomainScores } from "../utils/scoringEngine";
 import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
@@ -1023,13 +1023,12 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {assignedClinicExercises.map((ex, idx) => {
-                    const isObj = typeof ex === "object" && ex !== null;
-                    const name = isObj ? ex.name || ex.title : ex;
-                    const master = exerciseMap[name?.toLowerCase()] || (isObj ? ex : null);
-                    const imageUrl = master?.image_url || master?.imageUrl || (isObj ? (ex.image_url || ex.imageUrl) : null);
-                    const desc = master?.description || (isObj ? ex.description : null);
-                    const cat = master?.category || (isObj ? ex.category : null);
-                    const duration = master?.duration || (isObj ? ex.duration : "10–15 mins");
+                    const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                    const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                    const imageUrl = master.image_url || master.imageUrl;
+                    const desc = master.description || null;
+                    const cat = master.category || null;
+                    const duration = master.duration || "10–15 mins";
 
                     return (
                       <div key={idx} className="p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[10px] space-y-2">
@@ -1068,13 +1067,12 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {assignedHomeExercises.map((ex, idx) => {
-                    const isObj = typeof ex === "object" && ex !== null;
-                    const name = isObj ? ex.name || ex.title : ex;
-                    const master = exerciseMap[name?.toLowerCase()] || (isObj ? ex : null);
-                    const imageUrl = master?.image_url || master?.imageUrl || (isObj ? (ex.image_url || ex.imageUrl) : null);
-                    const desc = master?.home_description || master?.description || (isObj ? ex.description : null);
-                    const cat = master?.category || (isObj ? ex.category : null);
-                    const freq = master?.frequency || (isObj ? ex.frequency : "Daily");
+                    const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                    const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                    const imageUrl = master.image_url || master.imageUrl;
+                    const desc = master.home_description || master.description || null;
+                    const cat = master.category || null;
+                    const freq = master.frequency || "Daily";
 
                     return (
                       <div key={idx} className="p-3 bg-[#FEF6E7]/40 border border-[#854F0B]/30 rounded-[10px] space-y-2">

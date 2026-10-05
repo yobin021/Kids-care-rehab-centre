@@ -11,7 +11,7 @@ import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { parentService } from "../services/parentService";
 import { reportService } from "../services/reportService";
-import { exerciseService } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
 import { authService } from "../services/authService";
 import { isIepProgram } from "../utils/programHelpers";
 
@@ -54,7 +54,26 @@ export default function ParentExercises() {
         if (reps && reps.length > 0) report = reps[0];
       }
 
-      const homeExerciseIds = report?.home_exercises || report?.homeExercises || [];
+      let homeExerciseIds = report?.home_exercises || report?.homeExercises || [];
+
+      // Step 1b: If report has no exercises, check local assessment result
+      if ((!homeExerciseIds || homeExerciseIds.length === 0) && typeof window !== "undefined") {
+        const localAss = localStorage.getItem(`assessment_result_${childId}`);
+        if (localAss) {
+          try {
+            const parsedAss = JSON.parse(localAss);
+            homeExerciseIds = parsedAss.home_exercises || parsedAss.homeExercises || [];
+          } catch (_) {}
+        }
+      }
+
+      // Step 1c: If still empty and child is in therapy, provide default pathway recommendations
+      if ((!homeExerciseIds || homeExerciseIds.length === 0) && !isIep) {
+        const defaultList = await exerciseService.getForChild(child);
+        if (defaultList && defaultList.length > 0) {
+          homeExerciseIds = defaultList.slice(0, 4).map((e) => e.name);
+        }
+      }
 
       if (!homeExerciseIds || homeExerciseIds.length === 0) {
         setExercises([]);
@@ -65,12 +84,9 @@ export default function ParentExercises() {
       // Step 2: Get full exercise details
       const available = (await exerciseService.getAll()) || [];
 
-      // Step 3: Maintain order from report
+      // Step 3: Resolve every exercise to a full object with verified image & details
       const ordered = homeExerciseIds
-        .map((item) => {
-          if (typeof item === "object" && item.name) return item;
-          return available.find((e) => e.id === item || e.name === item);
-        })
+        .map((item) => resolveExerciseItem(item, available))
         .filter(Boolean);
 
       setExercises(ordered);
@@ -321,7 +337,7 @@ export default function ParentExercises() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed">{ex.homeDescription || ex.description}</p>
+                    <p className="text-xs text-[#5F5E5A] font-medium leading-relaxed">{ex.home_description || ex.homeDescription || ex.description}</p>
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#D3D1C7]/40">
@@ -353,17 +369,19 @@ export default function ParentExercises() {
 
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-2 border-t border-[#D3D1C7]/40 space-y-3 text-xs bg-[#F8F8F6]/50 rounded-b-[12px]">
-                    {ex.instructions && (
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-[#0F6E56] uppercase text-[10px]">How To Do This Exercise</h4>
-                        <ol className="list-decimal list-inside space-y-1 text-[#2C2C2A]">
-                          {ex.instructions.map((step, idx) => (
-                            <li key={idx}>{step}</li>
-                          ))}
-                        </ol>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-[#0F6E56] uppercase text-[10px]">How To Do This Exercise</h4>
+                      <p className="text-[#2C2C2A] leading-relaxed">
+                        {ex.home_description || ex.description}
+                      </p>
+                    </div>
+                    {(ex.duration || ex.frequency) && (
+                      <div className="flex items-center gap-4 text-[11px] text-[#5F5E5A] font-medium">
+                        {ex.duration && <span><strong>⏱ Duration:</strong> {ex.duration}</span>}
+                        {ex.frequency && <span><strong>🔄 Frequency:</strong> {ex.frequency}</span>}
                       </div>
                     )}
-                    {ex.benefits && (
+                    {ex.benefits && ex.benefits.length > 0 && (
                       <div className="space-y-1">
                         <h4 className="font-bold text-[#185FA5] uppercase text-[10px]">Benefits</h4>
                         <ul className="list-disc list-inside space-y-1 text-[#5F5E5A]">

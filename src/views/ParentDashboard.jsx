@@ -69,17 +69,27 @@ export default function ParentDashboard() {
         }
 
         // 2. Fetch today's completed exercise logs strictly for Therapy children
-        const [logs, allExercises] = await Promise.all([
-          parentService.getTodayLogs(child.id),
-          exerciseService.getHomeExercises()
-        ]);
+        let homeExercises = rep?.home_exercises || rep?.homeExercises || [];
+        if ((!homeExercises || homeExercises.length === 0) && typeof window !== "undefined") {
+          const localAss = localStorage.getItem(`assessment_result_${child.id}`);
+          if (localAss) {
+            try {
+              const p = JSON.parse(localAss);
+              homeExercises = p.home_exercises || p.homeExercises || [];
+            } catch (_) {}
+          }
+        }
+        if (!homeExercises || homeExercises.length === 0) {
+          const defaults = await exerciseService.getForChild(child);
+          homeExercises = (defaults || []).slice(0, 4);
+        }
 
-        const assignedHomeExercises = allExercises || [];
+        const logs = await parentService.getTodayLogs(child.id);
         const completedCount = logs ? logs.filter((l) => l.is_done).length : 0;
 
         setExerciseStats({
           completed: completedCount,
-          total: assignedHomeExercises.length
+          total: homeExercises.length
         });
       }
 

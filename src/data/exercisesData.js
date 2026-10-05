@@ -66,7 +66,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "3_crab_walk.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX003.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX003.png"
   },
   {
     id: "ex-04",
@@ -339,7 +339,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "16_pegboard_activity.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX016.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX016.png"
   },
   {
     id: "ex-17",
@@ -360,7 +360,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "17_bead_stringing.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX017.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX017.png"
   },
   {
     id: "ex-18",
@@ -381,7 +381,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "18_puzzle_activity.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX018.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX018.png"
   },
   {
     id: "ex-19",
@@ -402,7 +402,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "19_buttoning_zipping.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX019.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX019.png"
   },
   {
     id: "ex-20",
@@ -423,7 +423,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "20_shape_sorting.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX020.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX020.png"
   },
   {
     id: "ex-21",
@@ -444,7 +444,7 @@ export const MASTER_EXERCISES = [
     is_home_exercise: false,
     is_clinic_exercise: true,
     storage_file_name: "21_swing_therapy.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX021.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX0021.jpg"
   },
   {
     id: "ex-22",
@@ -696,6 +696,6 @@ export const MASTER_EXERCISES = [
     is_home_exercise: true,
     is_clinic_exercise: true,
     storage_file_name: "32_reflex_integration.jpg",
-    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX033.jpg"
+    image_url: "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX033.png"
   }
 ];

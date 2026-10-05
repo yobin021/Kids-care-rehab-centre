@@ -38,7 +38,7 @@ import { childrenService } from "../services/childrenService";
 import { parentService } from "../services/parentService";
 import { assessmentService } from "../services/assessmentService";
 import { reportService } from "../services/reportService";
-import { exerciseService } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
 import { authService } from "../services/authService";
 import { appointmentService } from "../services/appointmentService";
 import { hashPassword } from "../services/passwordService";
@@ -160,7 +160,7 @@ export default function ChildProfile() {
     }
   };
 
-  // Fetch Exercises for Exercises Tab from latest published report
+  // Fetch Exercises for Exercises Tab from latest published report, assessment, or pathway recommendation
   const fetchExercisesForTab = async () => {
     if (!id) return;
     setLoadingExercises(true);
@@ -173,20 +173,41 @@ export default function ChildProfile() {
 
       setLatestPublishedReport(publishedRep);
 
-      const clinicIds = publishedRep?.clinic_exercises || publishedRep?.clinicExercises || [];
-      const homeIds = publishedRep?.home_exercises || publishedRep?.homeExercises || [];
+      let clinicIds = publishedRep?.clinic_exercises || publishedRep?.clinicExercises || [];
+      let homeIds = publishedRep?.home_exercises || publishedRep?.homeExercises || [];
+
+      // If no exercises in report, check if child has assessment results in localStorage
+      if (clinicIds.length === 0 && homeIds.length === 0) {
+        if (typeof window !== "undefined") {
+          const localAss = localStorage.getItem(`assessment_result_${id}`);
+          if (localAss) {
+            try {
+              const parsedAss = JSON.parse(localAss);
+              clinicIds = parsedAss.clinic_exercises || parsedAss.clinicExercises || [];
+              homeIds = parsedAss.home_exercises || parsedAss.homeExercises || [];
+            } catch (_) {}
+          }
+        }
+      }
+
+      // If clinic or home exercises are empty and child is in a therapy pathway, provide default pathway exercises
+      if (clinicIds.length === 0 && data?.program_type !== 'iep') {
+        const defaultList = await exerciseService.getForChild(data);
+        if (defaultList && defaultList.length > 0) {
+          clinicIds = defaultList.map((e) => e.name);
+        }
+      }
+      if (homeIds.length === 0 && data?.program_type !== 'iep') {
+        const defaultList = await exerciseService.getForChild(data);
+        if (defaultList && defaultList.length > 0) {
+          homeIds = defaultList.slice(0, 3).map((e) => e.name);
+        }
+      }
 
       const available = (await exerciseService.getAll()) || [];
 
-      const clinicList = clinicIds.map((item) => {
-        if (typeof item === "object" && item.name) return item;
-        return available.find((e) => e.id === item || e.name === item);
-      }).filter(Boolean);
-
-      const homeList = homeIds.map((item) => {
-        if (typeof item === "object" && item.name) return item;
-        return available.find((e) => e.id === item || e.name === item);
-      }).filter(Boolean);
+      const clinicList = clinicIds.map(item => resolveExerciseItem(item, available)).filter(Boolean);
+      const homeList = homeIds.map(item => resolveExerciseItem(item, available)).filter(Boolean);
 
       setClinicExercisesList(clinicList);
       setHomeExercisesList(homeList);
@@ -789,7 +810,7 @@ export default function ChildProfile() {
 
                         <h4 className="text-[15px] font-bold text-[#2C2C2A]">{ex.name}</h4>
                         <p className="text-[13px] text-[#5F5E5A] font-medium line-clamp-2 leading-relaxed">
-                          {ex.homeDescription || ex.description}
+                          {ex.home_description || ex.homeDescription || ex.description}
                         </p>
 
                         <div className="flex items-center gap-4 text-[12px] font-semibold text-[#5F5E5A] pt-1">
@@ -811,14 +832,19 @@ export default function ChildProfile() {
                         </div>
 
                         {/* Collapsible Instructions Content */}
-                        {isInstrExpanded && ex.instructions && (
+                        {isInstrExpanded && (
                           <div className="mt-2 p-3 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 space-y-1">
-                            <h5 className="font-bold text-[#0F6E56] text-[11px] uppercase">Step-by-Step Instructions</h5>
-                            <ol className="list-decimal list-inside text-[12px] text-[#2C2C2A] space-y-1">
-                              {ex.instructions.map((step, sIdx) => (
-                                <li key={sIdx}>{step}</li>
-                              ))}
-                            </ol>
+                            <h5 className="font-bold text-[#0F6E56] text-[11px] uppercase">Instructions & Home Technique</h5>
+                            <p className="text-[12px] text-[#2C2C2A] leading-relaxed">
+                              {ex.home_description || ex.description}
+                            </p>
+                            {ex.instructions && (
+                              <ol className="list-decimal list-inside text-[12px] text-[#2C2C2A] space-y-1 pt-1">
+                                {ex.instructions.map((step, sIdx) => (
+                                  <li key={sIdx}>{step}</li>
+                                ))}
+                              </ol>
+                            )}
                           </div>
                         )}
 

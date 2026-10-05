@@ -26,7 +26,7 @@ import Badge from "../components/ui/Badge";
 import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
 import { reportService } from "../services/reportService";
-import { exerciseService } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
 import { childrenService } from "../services/childrenService";
 import { assessmentService } from "../services/assessmentService";
 import { printReportWithFilename } from "../utils/printHelpers";
@@ -81,16 +81,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       },
       exercises: {
         clinicExercises: [
-          "Sensory Motor Obstacle Course",
-          "Attention & Focus Drills",
-          "Impulse Control Stop-Go Games",
-          "Deep Pressure Proprioceptive Input",
-          "Executive Functioning Organization Tasks"
+          "Obstacle Course",
+          "Single Leg Stance",
+          "Trampoline Rebounding",
+          "Deep Pressure Sensory Roll",
+          "Puzzle Play"
         ],
         homeExercises: [
-          "Heavy Work Animal Walks",
-          "Visual Schedule Following",
-          "Deep Breathing Calm-Down Corner"
+          "Bear Walk",
+          "Jumping Jacks",
+          "Deep Pressure Sensory Roll"
         ],
         parentNotes: "Practice movement breaks and visual timer routines daily at home.",
         therapyDays: ["Mon", "Wed", "Fri"],
@@ -147,16 +147,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       },
       exercises: {
         clinicExercises: [
-          "Gross Motor Balance & Stepping Drills",
-          "Fine Motor Pincer Grasp Activities",
-          "Speech & Sound Imitation Games",
-          "Core Strengthening Therapy Ball Play",
-          "Sensory Tactile Exploration"
+          "Prone on Elbows & Tummy Reaching",
+          "Therapy Ball Reach",
+          "Step-Ups",
+          "Pegboard Activity",
+          "Sensory Tactile Bin Exploration"
         ],
         homeExercises: [
-          "Tummy Time & Floor Crawling Games",
-          "Stacking Cups & Pegboard Play",
-          "Interactive Action Rhymes"
+          "Prone on Elbows & Tummy Reaching",
+          "Pegboard Activity",
+          "Mirror Imitation & Facial Expressions"
         ],
         parentNotes: "Spend 20 minutes daily on floor-based developmental play.",
         therapyDays: ["Tue", "Thu", "Sat"],
@@ -214,16 +214,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       },
       exercises: {
         clinicExercises: [
-          "Multisensory Phonics & Sandpaper Letters",
-          "Fine Motor Pencil Grip Modification",
-          "Visual Memory Sequencing Drills",
-          "Number Sense & Math Manipulatives",
-          "Bilateral Coordination & Hand Gym Drills"
+          "Pegboard Activity",
+          "Bead Stringing",
+          "Cutting with Scissors",
+          "Playdough Clay Modeling",
+          "Bilateral Hand Clapping & Pat-a-Cake"
         ],
         homeExercises: [
-          "Paired Reading with Finger Tracking",
-          "Pencil Grip Hand Gym Exercises",
-          "Audiobook Listening & Story Narration"
+          "Bead Stringing",
+          "Playdough Clay Modeling",
+          "Finger Isolation / Pointing Games"
         ],
         parentNotes: "Practise 15 minutes of paired reading daily in a relaxed environment.",
         therapyDays: ["Mon", "Wed", "Fri"],
@@ -280,16 +280,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
     },
     exercises: {
       clinicExercises: [
-        "Brain Gym Exercises",
-        "Sensory Integration Activities",
-        "Speech Therapy Exercises",
-        "Communication Cards",
-        "Social Skills Training"
+        "Swing Therapy (Vestibular Stimulation)",
+        "Deep Pressure Sensory Roll",
+        "Sensory Tactile Bin Exploration",
+        "Oral Motor Straw Blowing & Bubbles",
+        "Obstacle Course"
       ],
       homeExercises: [
-        "Brain Gym Exercises",
-        "Communication Cards",
-        "Sensory Integration Activities"
+        "Deep Pressure Sensory Roll",
+        "Sensory Tactile Bin Exploration",
+        "Oral Motor Straw Blowing & Bubbles"
       ],
       parentNotes: "Practise 15 minutes daily before bedtime.",
       therapyDays: ["Mon", "Wed", "Fri"],
@@ -1132,7 +1132,7 @@ export default function ReportGenerationEditor() {
 
               <div className="space-y-2">
                 {formState.exercises.clinicExercises.map((exName, idx) => {
-                  const exObj = availableDbExercises.find((e) => e.name?.toLowerCase() === exName?.toLowerCase() || e.id === exName);
+                  const exObj = resolveExerciseItem(exName, availableDbExercises);
                   return (
                     <div key={idx} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -1193,7 +1193,7 @@ export default function ReportGenerationEditor() {
 
               <div className="space-y-2">
                 {formState.exercises.homeExercises.map((exName, idx) => {
-                  const exObj = availableDbExercises.find((e) => e.name?.toLowerCase() === exName?.toLowerCase() || e.id === exName);
+                  const exObj = resolveExerciseItem(exName, availableDbExercises);
                   return (
                     <div key={idx} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
                       <div className="flex items-center gap-2.5 min-w-0">

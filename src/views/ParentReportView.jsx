@@ -12,7 +12,7 @@ import IepDomainRadarGraph from "../components/assessment/IepDomainRadarGraph";
 import { useParams, useNavigate } from "react-router-dom";
 import { reportService } from "../services/reportService";
 import { iepService } from "../services/iepService";
-import { exerciseService } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
 import { assessmentService } from "../services/assessmentService";
 import { isIepProgram } from "../utils/programHelpers";
 import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
@@ -560,13 +560,12 @@ export default function ParentReportView() {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {assignedHomeExercises.map((ex, idx) => {
-                  const isObj = typeof ex === "object" && ex !== null;
-                  const name = isObj ? ex.name || ex.title || ex.exercise_name : ex;
-                  const master = exerciseMap[name?.toLowerCase()] || (isObj ? ex : null);
-                  const imageUrl = master?.image_url || master?.imageUrl || (isObj ? (ex.image_url || ex.imageUrl) : null);
-                  const freq = (master && master.frequency) || (isObj && (ex.frequency || ex.frequency_text || ex.schedule)) || "Daily (10-15 mins)";
-                  const desc = (master && (master.home_description || master.description)) || (isObj && (ex.description || ex.instructions || ex.tips)) || null;
-                  const cat = master?.category || (isObj && (ex.category || ex.domain)) || null;
+                  const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                  const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                  const imageUrl = master.image_url || master.imageUrl;
+                  const freq = master.frequency || "Daily (10-15 mins)";
+                  const desc = master.home_description || master.description || "Daily home therapeutic exercise routine.";
+                  const cat = master.category || "Home Routine";
 
                   return (
                     <div

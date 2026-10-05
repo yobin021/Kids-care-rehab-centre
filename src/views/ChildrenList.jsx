@@ -39,7 +39,7 @@ export default function ChildrenList() {
     setError(null);
     try {
       const res = await childrenService.getAll();
-      if (res && res.length > 0) {
+      if (Array.isArray(res)) {
         setData(res);
       } else {
         setData(childrenList || []);
@@ -57,7 +57,7 @@ export default function ChildrenList() {
   }, [childrenList]);
 
   const filteredChildren = useMemo(() => {
-    const list = data.length > 0 ? data : childrenList;
+    const list = Array.isArray(data) ? data : (childrenList || []);
     return list.filter((child) => {
       const q = searchQuery.toLowerCase();
       const matchesQuery =
@@ -147,57 +147,72 @@ export default function ChildrenList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#D3D1C7]/60 font-semibold">
-                {filteredChildren.map((c) => {
-                  const isIep = c.program_type === "iep";
+                {filteredChildren.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-12 text-center text-xs text-[#5F5E5A]">
+                      No children registered yet. Click &quot;+ Register Child&quot; to add a new record.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredChildren.map((c) => {
+                    const isIep = c.program_type === "iep";
 
-                  return (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-[#185FA5]">{c.id}</td>
-                      <td className="px-4 py-3 font-bold text-[#2C2C2A]">{c.name}</td>
-                      <td className="px-4 py-3 text-[#5F5E5A]">{c.age || "—"} / {c.gender || "—"}</td>
-                      <td className="px-4 py-3">
-                        {isIep ? (
-                          <Badge label="IEP Special School" variant="blue" size="sm" />
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <Badge label={c.therapy_category || "ASD"} variant="green" size="sm" />
-                            <span className="text-[10px] text-[#5F5E5A] font-semibold">Therapy</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-[#5F5E5A]">
-                        <div>{c.parent?.name || "Parent"}</div>
-                        <div className="text-[10px] font-mono text-[#9B9A96]">{c.parent?.phone || "—"}</div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {(() => {
-                          const childCat = detectChildCategory(c);
-                          return (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <Button variant="ghost" size="sm" icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
-                                Profile
-                              </Button>
-                              <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(childCat.assessmentRoute)}>
-                                + Assessment
-                              </Button>
-                              {!childCat.isIep && (
-                                <Button variant="ghost" size="sm" onClick={() => navigate(`/reports/new/${c.id}`)}>
-                                  + Report
-                                </Button>
-                              )}
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 font-mono text-xs text-[#185FA5]">{c.id}</td>
+                        <td className="px-4 py-3 font-bold text-[#2C2C2A]">{c.name}</td>
+                        <td className="px-4 py-3 text-[#5F5E5A]">{c.age || "—"} / {c.gender || "—"}</td>
+                        <td className="px-4 py-3">
+                          {isIep ? (
+                            <Badge label="IEP Special School" variant="blue" size="sm" />
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <Badge label={c.therapy_category || "ASD"} variant="green" size="sm" />
+                              <span className="text-[10px] text-[#5F5E5A] font-semibold">Therapy</span>
                             </div>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  );
-                })}
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-[#5F5E5A]">
+                          <div>{c.parent?.name || "Parent"}</div>
+                          <div className="text-[10px] font-mono text-[#9B9A96]">{c.parent?.phone || "—"}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {(() => {
+                            const childCat = detectChildCategory(c);
+                            return (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button variant="ghost" size="sm" icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
+                                  Profile
+                                </Button>
+                                <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(childCat.assessmentRoute)}>
+                                  + Assessment
+                                </Button>
+                                {!childCat.isIep && (
+                                  <Button variant="ghost" size="sm" onClick={() => navigate(`/reports/new/${c.id}`)}>
+                                    + Report
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:hidden">
-            {filteredChildren.map((c) => {
+            {filteredChildren.length === 0 ? (
+              <Card padding="p-8">
+                <p className="text-center text-xs text-[#5F5E5A]">
+                  No children registered yet. Click &quot;+ Register Child&quot; to add a new record.
+                </p>
+              </Card>
+            ) : (
+              filteredChildren.map((c) => {
               const childCat = detectChildCategory(c);
               return (
                 <Card key={c.id} padding="p-4" className="space-y-3">
@@ -228,7 +243,7 @@ export default function ChildrenList() {
                   </div>
                 </Card>
               );
-            })}
+            }))}
           </div>
         </>
       )}

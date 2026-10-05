@@ -168,6 +168,24 @@ export async function POST(req) {
         }
       }
 
+      if (table === 'children') {
+        const targetChildId = id || (match && match.id)
+        if (targetChildId) {
+          // Clean up related records across all tables so foreign keys don't block deletion
+          await Promise.allSettled([
+            supabase.from('appointments').delete().eq('child_id', targetChildId),
+            supabase.from('reports').delete().eq('child_id', targetChildId),
+            supabase.from('parent_accounts').delete().eq('child_id', targetChildId),
+            supabase.from('assessment_asd').delete().eq('child_id', targetChildId),
+            supabase.from('assessment_adhd').delete().eq('child_id', targetChildId),
+            supabase.from('assessment_developmental_delay').delete().eq('child_id', targetChildId),
+            supabase.from('assessment_learning_disability').delete().eq('child_id', targetChildId),
+            supabase.from('assessment_special_school').delete().eq('child_id', targetChildId),
+            supabase.from('parent_messages').delete().eq('child_id', targetChildId),
+          ])
+        }
+      }
+
       let query = supabase.from(table).delete()
       if (id) {
         query = query.eq('id', id)

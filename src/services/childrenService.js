@@ -115,9 +115,20 @@ export const childrenService = {
 
       if (Array.isArray(data)) {
         const dbChildren = data.map(normalizeChild)
-        const seen = new Set(dbChildren.map(c => c.id))
-        const extras = localChildren.filter(c => !seen.has(c.id)).map(normalizeChild)
-        return [...dbChildren, ...extras]
+        // Database is authoritative: purge deleted or stale records from local cache
+        if (typeof window !== 'undefined') {
+          try {
+            const dbIds = new Set(dbChildren.map(c => c.id))
+            const pendingOffline = localChildren.filter(c => c._offlinePending && !dbIds.has(c.id))
+            if (pendingOffline.length > 0) {
+              localStorage.setItem('kcr_registered_children', JSON.stringify(pendingOffline))
+              return [...dbChildren, ...pendingOffline.map(normalizeChild)]
+            } else {
+              localStorage.removeItem('kcr_registered_children')
+            }
+          } catch (_) {}
+        }
+        return dbChildren
       }
       return localChildren.map(normalizeChild)
     } catch (err) {
@@ -233,20 +244,23 @@ export const childrenService = {
     }
 
     let result = null
+    let isOffline = false
     try {
       const res = await db.insert('children', dbPayload)
       result = normalizeChild({ ...(res || dbPayload), program_type: programType, therapy_category: therapyCategory })
     } catch (err) {
       console.warn('childrenService.create DB insert notice:', err.message)
+      isOffline = true
       const fallbackObj = {
         ...dbPayload,
+        _offlinePending: true,
         program_type: programType,
         therapy_category: therapyCategory
       }
       result = normalizeChild(fallbackObj)
     }
 
-    if (result && typeof window !== 'undefined') {
+    if (result && isOffline && typeof window !== 'undefined') {
       try {
         const stored = JSON.parse(localStorage.getItem('kcr_registered_children') || '[]')
         const updated = [result, ...stored.filter(x => x.id !== result.id)]
@@ -302,6 +316,25 @@ export const childrenService = {
     } catch (err) {
       console.error('childrenService.search error:', err.message)
       return []
+    }
+  },
+
+  async delete(id) {
+    if (!id) return false
+    try {
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = JSON.parse(localStorage.getItem('kcr_registered_children') || '[]')
+          localStorage.setItem('kcr_registered_children', JSON.stringify(stored.filter(c => c.id !== id)))
+          localStorage.removeItem(`report_published_${id}`)
+          localStorage.removeItem(`report_draft_${id}`)
+          localStorage.removeItem(`assessment_result_${id}`)
+        } catch (_) {}
+      }
+      return await db.remove('children', { id })
+    } catch (err) {
+      console.warn('childrenService.delete error:', err.message)
+      throw err
     }
   }
 }

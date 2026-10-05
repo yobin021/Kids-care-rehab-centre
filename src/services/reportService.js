@@ -264,25 +264,7 @@ export const reportService = {
       // fallback below
     }
 
-    // Also check draft in localStorage as fallback
-    if (typeof window !== 'undefined') {
-      try {
-        const localDraft = localStorage.getItem(`report_draft_${childId}`)
-        if (localDraft) {
-          const parsed = JSON.parse(localDraft)
-          return {
-            id: parsed.id || `local-rep-${childId}`,
-            child_id: childId,
-            status: parsed.status || 'draft',
-            clinic_exercises: parsed.clinicEx || parsed.clinic_exercises || parsed.formState?.exercises?.clinicExercises || [],
-            home_exercises: parsed.homeEx || parsed.home_exercises || parsed.formState?.exercises?.homeExercises || [],
-            therapist_report: parsed.therapistReport || parsed.formState?.therapistReport || {},
-            parent_report: parsed.parentReport || parsed.formState?.parentReport || {}
-          }
-        }
-      } catch (_) {}
-    }
-
+    // No published report found — do NOT fall back to drafts
     return null
   },
 

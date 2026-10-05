@@ -161,10 +161,10 @@ export default function ChildProfile() {
       );
       setReports(publishedOnly);
 
-      // Eagerly resolve and populate exercises from the latest published report
+      // Eagerly resolve and populate exercises ONLY from published reports
       const repWithExercises = publishedOnly.find(
         (r) => (r.clinic_exercises?.length || r.home_exercises?.length || r.clinicExercises?.length || r.homeExercises?.length)
-      ) || publishedOnly[0] || uniqueReps[0];
+      ) || publishedOnly[0];
 
       if (repWithExercises) {
         setLatestPublishedReport(repWithExercises);
@@ -176,6 +176,11 @@ export default function ChildProfile() {
           setClinicExercisesList(cList);
           setHomeExercisesList(hList);
         }
+      } else {
+        // No published report — ensure exercises are cleared
+        setLatestPublishedReport(null);
+        setClinicExercisesList([]);
+        setHomeExercisesList([]);
       }
     } catch (err) {
       console.warn("Fetch related records notice:", err.message);
@@ -186,51 +191,34 @@ export default function ChildProfile() {
     }
   };
 
-  // Fetch Exercises for Exercises Tab from latest published report, assessment, or pathway recommendation
+  // Fetch Exercises for Exercises Tab ONLY from a published report
   const fetchExercisesForTab = async (targetChild = data) => {
     if (!id) return;
     setLoadingExercises(true);
     try {
-      const childObj = targetChild || data || contextChildren.find((c) => c.id === id);
-
-      let publishedRep = await reportService.getPublishedByChildId(id);
-      if (!publishedRep) {
+      // Only look for published reports — never fall back to drafts or assessments
+      let publishedRep = null;
+      try {
         const allReps = await reportService.getByChildId(id);
-        if (allReps && allReps.length > 0) publishedRep = allReps[0];
+        if (Array.isArray(allReps)) {
+          publishedRep = allReps.find(
+            (r) => r.status === 'published' || r.review_status === 'published'
+          ) || null;
+        }
+      } catch (_) {}
+
+      if (!publishedRep) {
+        // No published report exists — show empty state
+        setLatestPublishedReport(null);
+        setClinicExercisesList([]);
+        setHomeExercisesList([]);
+        return;
       }
 
       setLatestPublishedReport(publishedRep);
 
-      let clinicIds = publishedRep?.clinic_exercises || publishedRep?.clinicExercises || [];
-      let homeIds = publishedRep?.home_exercises || publishedRep?.homeExercises || [];
-
-      // If no exercises in report, check if child has assessment results in localStorage
-      if (clinicIds.length === 0 && homeIds.length === 0) {
-        if (typeof window !== "undefined") {
-          const localAss = localStorage.getItem(`assessment_result_${id}`);
-          if (localAss) {
-            try {
-              const parsedAss = JSON.parse(localAss);
-              clinicIds = parsedAss.clinic_exercises || parsedAss.clinicExercises || [];
-              homeIds = parsedAss.home_exercises || parsedAss.homeExercises || [];
-            } catch (_) {}
-          }
-        }
-      }
-
-      // If clinic or home exercises are empty and child is in a therapy pathway, provide default pathway exercises
-      if (clinicIds.length === 0 && childObj?.program_type !== 'iep') {
-        const defaultList = await exerciseService.getForChild(childObj);
-        if (defaultList && defaultList.length > 0) {
-          clinicIds = defaultList.map((e) => e.name);
-        }
-      }
-      if (homeIds.length === 0 && childObj?.program_type !== 'iep') {
-        const defaultList = await exerciseService.getForChild(childObj);
-        if (defaultList && defaultList.length > 0) {
-          homeIds = defaultList.slice(0, 3).map((e) => e.name);
-        }
-      }
+      const clinicIds = publishedRep.clinic_exercises || publishedRep.clinicExercises || [];
+      const homeIds = publishedRep.home_exercises || publishedRep.homeExercises || [];
 
       const available = (await exerciseService.getAll()) || [];
 

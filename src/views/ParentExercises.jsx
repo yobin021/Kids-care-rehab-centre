@@ -30,6 +30,16 @@ export default function ParentExercises() {
 
   const isIep = isIepProgram(child) || isIepProgram(user);
 
+  const [exercises, setExercises] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [doneLogs, setDoneLogs] = useState({});
+  const [weekDays, setWeekDays] = useState([]);
+  const [weekStatus, setWeekStatus] = useState({});
+  const [expandedId, setExpandedId] = useState(null);
+  const [message, setMessage] = useState("");
+  const [sentMessage, setSentMessage] = useState("");
+
   useEffect(() => {
     if (isIep) {
       navigate("/parent/home", { replace: true });

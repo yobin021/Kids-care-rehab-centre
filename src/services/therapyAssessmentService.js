@@ -26,17 +26,50 @@ function resolveTable(formType) {
 /**
  * Helper to ensure the child row exists in Postgres before inserting FK dependencies.
  */
-async function ensureChildExists(childId, fallbackData = {}) {
+export async function ensureChildExists(childId, fallbackData = {}) {
   if (!childId) return
   try {
     const existing = await db.select('children', { match: { id: childId }, single: true })
     if (!existing) {
+      let localChild = null
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('kcr_registered_children') || localStorage.getItem('children')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            if (Array.isArray(parsed)) localChild = parsed.find(c => c.id === childId)
+          }
+        } catch (_) {}
+      }
+
+      const category = (fallbackData.category || fallbackData.therapy_category || localChild?.therapy_category || '').toLowerCase()
+      let defaultDiagnosis = 'Developmental Delay'
+      let defaultProfile = 'Developmental Delay'
+      if (category.includes('delay') || category.includes('developmental')) {
+        defaultDiagnosis = 'Developmental Delay'
+        defaultProfile = 'Developmental Delay'
+      } else if (category.includes('adhd')) {
+        defaultDiagnosis = 'ADHD'
+        defaultProfile = 'ADHD'
+      } else if (category.includes('learn') || category.includes('ldst') || category.includes('sld')) {
+        defaultDiagnosis = 'Learning Disability'
+        defaultProfile = 'Learning Disability'
+      } else if (category.includes('asd') || category.includes('autism')) {
+        defaultDiagnosis = 'ASD'
+        defaultProfile = 'ASD'
+      } else if (category.includes('special') || category.includes('iep')) {
+        defaultDiagnosis = 'IEP Special School'
+        defaultProfile = 'IEP'
+      }
+
       await db.insert('children', {
         id: childId,
-        name: fallbackData.name || `Student ${childId}`,
-        gender: fallbackData.gender || 'Male',
-        diagnosis: fallbackData.diagnosis || 'IEP Special School',
-        profile: fallbackData.profile || 'IEP',
+        name: localChild?.name || fallbackData.name || `Child ${childId}`,
+        gender: localChild?.gender || fallbackData.gender || 'Male',
+        age: localChild?.age || fallbackData.age || null,
+        date_of_birth: localChild?.dob || localChild?.date_of_birth || fallbackData.dob || null,
+        diagnosis: localChild?.diagnosis || fallbackData.diagnosis || defaultDiagnosis,
+        profile: localChild?.profile || fallbackData.profile || defaultProfile,
         registered_date: new Date().toISOString().split('T')[0],
         is_active: true
       })

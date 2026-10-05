@@ -117,6 +117,10 @@ export const assessmentService = {
       }
     }
 
+    if (!toUUID(id)) {
+      return null
+    }
+
     const ASSESSMENT_TABLES = [
       'assessment_special_school',
       'assessment_asd',

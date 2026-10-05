@@ -24,6 +24,7 @@ import Badge from "../components/ui/Badge";
 import Input from "../components/ui/Input";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import { therapyService, THERAPY_CATEGORIES } from "../services/therapyService";
+import { detectChildCategory } from "../utils/categoryHelpers";
 
 const CATEGORY_ICONS = {
   ASD: Brain,
@@ -412,62 +413,25 @@ export default function TherapyPage() {
                   </div>
 
                   <div className="pt-2 border-t border-[#D3D1C7]/60 flex items-center justify-between gap-1.5 flex-wrap">
-                    {c.therapy_category === "Learning Disability" && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        icon={BookOpen}
-                        className="text-[11px] px-2.5 py-1 bg-[#2f6f5e] hover:bg-[#23584a] text-white"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/therapy/sld/assessment/${c.id}`);
-                        }}
-                      >
-                        LDST Screening
-                      </Button>
-                    )}
-                    {c.therapy_category === "Developmental Delay" && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        icon={Clock}
-                        className="text-[11px] px-2.5 py-1 bg-[#854F0B] hover:bg-[#683C07]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/therapy/delay/assessment/${c.id}`);
-                        }}
-                      >
-                        Delay Checklist
-                      </Button>
-                    )}
-                    {c.therapy_category === "ADHD" && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        icon={Zap}
-                        className="text-[11px] px-2.5 py-1 bg-[#0F6E56] hover:bg-[#08503E]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/therapy/adhd/assessment/${c.id}`);
-                        }}
-                      >
-                        Conners' Scale
-                      </Button>
-                    )}
-                    {(c.therapy_category === "ASD" || (!c.therapy_category && selectedCategory !== "ADHD" && selectedCategory !== "Developmental Delay" && selectedCategory !== "Learning Disability")) && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        icon={Brain}
-                        className="text-[11px] px-2.5 py-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/therapy/asd/assessment/${c.id}`);
-                        }}
-                      >
-                        ISAA Scale
-                      </Button>
-                    )}
+                    {(() => {
+                      const childCat = detectChildCategory(c);
+                      const CatIcon = childCat.icon || Activity;
+                      return (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          icon={CatIcon}
+                          className="text-[11px] px-2.5 py-1 text-white shadow-2xs font-semibold"
+                          style={{ backgroundColor: childCat.color }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(childCat.assessmentRoute);
+                          }}
+                        >
+                          {childCat.assessmentBtnShort}
+                        </Button>
+                      );
+                    })()}
                     <Button
                       size="sm"
                       variant="outlined"

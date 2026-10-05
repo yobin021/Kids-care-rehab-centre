@@ -44,6 +44,7 @@ import { appointmentService } from "../services/appointmentService";
 import { hashPassword } from "../services/passwordService";
 import { BookAppointmentModal, AppointmentDetailModal } from "./AppointmentsPage";
 import { formatAppointmentDate, formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel, getStatusLabel, isToday, isPast } from "../utils/appointmentHelpers";
+import { detectChildCategory } from "../utils/categoryHelpers";
 
 export default function ChildProfile() {
   const { id } = useParams();
@@ -51,6 +52,7 @@ export default function ChildProfile() {
   const { user, childrenList: contextChildren, showToast } = useAuth();
 
   const [data, setData] = useState(null);
+  const childCat = detectChildCategory(data);
   const [assessments, setAssessments] = useState([]);
   const [reports, setReports] = useState([]);
   const [parentMessages, setParentMessages] = useState([]);
@@ -414,57 +416,26 @@ export default function ChildProfile() {
           <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/children/${data?.id}/edit`)}>
             Edit Child
           </Button>
-          {data?.program_type === "iep" ? (
+          {childCat.isIep ? (
             <>
               <Button variant="outlined" size="sm" icon={ClipboardList} onClick={() => navigate(`/iep/${data?.id}`)}>
                 IEP History
               </Button>
-              <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
+              <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(childCat.assessmentRoute)}>
                 + New Assessment
               </Button>
             </>
           ) : (
             <>
-              {(data?.therapy_category === "ADHD" || data?.therapy_category === "ADHD Presentation" || data?.diagnosis?.toLowerCase().includes("adhd")) ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Zap}
-                  className="bg-[#0F6E56] hover:bg-[#08503E]"
-                  onClick={() => navigate(`/therapy/adhd/assessment/${data?.id}`)}
-                >
-                  Conners' ADHD Assessment
-                </Button>
-              ) : (data?.therapy_category === "Developmental Delay" || data?.diagnosis?.toLowerCase().includes("delay")) ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Clock}
-                  className="bg-[#854F0B] hover:bg-[#683C07]"
-                  onClick={() => navigate(`/therapy/delay/assessment/${data?.id}`)}
-                >
-                  Milestones Checklist
-                </Button>
-              ) : (data?.therapy_category === "Learning Disability" || data?.diagnosis?.toLowerCase().includes("learn") || data?.diagnosis?.toLowerCase().includes("sld")) ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={BookOpen}
-                  className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
-                  onClick={() => navigate(`/therapy/sld/assessment/${data?.id}`)}
-                >
-                  LDST Screening
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Brain}
-                  onClick={() => navigate(`/therapy/asd/assessment/${data?.id}`)}
-                >
-                  ISAA Assessment
-                </Button>
-              )}
+              <Button
+                variant="primary"
+                size="sm"
+                icon={childCat.category === 'developmental_delay' ? Clock : childCat.category === 'adhd' ? Zap : childCat.category === 'learning_disability' ? BookOpen : Brain}
+                style={{ backgroundColor: childCat.themeColor }}
+                onClick={() => navigate(childCat.assessmentRoute)}
+              >
+                {childCat.assessmentName}
+              </Button>
               <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
                 + New Report
               </Button>
@@ -532,34 +503,20 @@ export default function ChildProfile() {
       {/* Assessments Tab */}
       {activeTab === "assessments" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center justify-between flex-wrap gap-2 bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs">
             <div>
               <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical Assessment History</h3>
-              <p className="text-xs text-[#5F5E5A]">ISAA Autism, Conners' ADHD &amp; Developmental Delay evaluation records</p>
+              <p className="text-xs text-[#5F5E5A]">Evaluations and milestone progress records for {childCat.categoryLabel}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {(data?.therapy_category === "Learning Disability" || data?.diagnosis?.toLowerCase().includes("learning") || data?.diagnosis?.toLowerCase().includes("dyslexia")) && (
-                <Button size="sm" variant="primary" icon={BookOpen} className="bg-[#2f6f5e] hover:bg-[#23584a] text-white" onClick={() => navigate(`/therapy/sld/assessment/${data?.id}`)}>
-                  + LDST Screening
-                </Button>
-              )}
-              {(data?.therapy_category === "Developmental Delay" || data?.diagnosis?.toLowerCase().includes("delay")) && (
-                <Button size="sm" variant="primary" icon={Clock} className="bg-[#854F0B] hover:bg-[#683C07]" onClick={() => navigate(`/therapy/delay/assessment/${data?.id}`)}>
-                  + Delay Checklist
-                </Button>
-              )}
-              {(data?.therapy_category === "ADHD" || data?.diagnosis?.includes("ADHD")) && (
-                <Button size="sm" variant="primary" icon={Zap} className="bg-[#0F6E56] hover:bg-[#08503E]" onClick={() => navigate(`/therapy/adhd/assessment/${data?.id}`)}>
-                  + Conners' ADHD Scale
-                </Button>
-              )}
-              {(data?.therapy_category === "ASD" || data?.diagnosis?.includes("ASD") || (!data?.therapy_category && data?.program_type !== "iep")) && (
-                <Button size="sm" variant="primary" icon={Brain} onClick={() => navigate(`/therapy/asd/assessment/${data?.id}`)}>
-                  + ISAA Autism Scale
-                </Button>
-              )}
-              <Button size="sm" variant="outlined" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
-                + IEP Assessment
+              <Button
+                size="sm"
+                variant="primary"
+                icon={childCat.isIep ? ClipboardList : (childCat.category === 'developmental_delay' ? Clock : childCat.category === 'adhd' ? Zap : childCat.category === 'learning_disability' ? BookOpen : Brain)}
+                style={{ backgroundColor: childCat.themeColor }}
+                onClick={() => navigate(childCat.assessmentRoute)}
+              >
+                + {childCat.shortAssessmentName}
               </Button>
             </div>
           </div>
@@ -568,33 +525,73 @@ export default function ChildProfile() {
             <Card padding="p-8">
               <div className="text-center space-y-3">
                 <ClipboardList className="h-10 w-10 text-[#9B9A96] mx-auto" />
-                <h4 className="text-sm font-bold text-[#2C2C2A]">No IEP Assessments Recorded</h4>
+                <h4 className="text-sm font-bold text-[#2C2C2A]">{childCat.emptyAssessmentTitle}</h4>
                 <p className="text-xs text-[#5F5E5A] max-w-sm mx-auto">
-                  Perform a clinical assessment to generate ISAA ratings, profile classification, and domain goals.
+                  {childCat.emptyAssessmentDesc}
                 </p>
-                <Button size="sm" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
-                  + Perform Assessment
+                <Button
+                  size="sm"
+                  icon={PlusCircle}
+                  style={{ backgroundColor: childCat.themeColor }}
+                  onClick={() => navigate(childCat.assessmentRoute)}
+                >
+                  + Perform {childCat.shortAssessmentName}
                 </Button>
               </div>
             </Card>
           ) : (
             <div className="space-y-3">
-              {assessments.map((ass, idx) => (
-                <div key={ass.id || idx} className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-[#185FA5]" />
-                      <span className="text-xs font-bold text-[#2C2C2A]">
-                        Assessment Date: {ass.assessment_date || ass.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]}
-                      </span>
-                      <Badge label={ass.status || "completed"} variant={ass.status === "draft" ? "amber" : "green"} size="sm" />
+              {assessments.map((ass, idx) => {
+                const isDelayAss = ass.source_table === 'assessment_developmental_delay' || ass.delay_total_score !== undefined;
+                const isAdhdAss = ass.source_table === 'assessment_adhd' || ass.conners_total_score !== undefined;
+                const isLdstAss = ass.source_table === 'assessment_learning_disability' || ass.ldst_total_score !== undefined;
+                const isAsdAss = ass.source_table === 'assessment_asd' || (ass.isaa_score !== undefined && !isDelayAss);
+                const title = isDelayAss
+                  ? 'Developmental Delay Checklist'
+                  : isAdhdAss
+                  ? "Conners' ADHD Rating Assessment"
+                  : isLdstAss
+                  ? 'LDST Screening Assessment'
+                  : isAsdAss
+                  ? 'ISAA Autism Assessment'
+                  : 'IEP Special School Assessment';
+
+                return (
+                  <div key={ass.id || idx} className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-[#185FA5]" />
+                        <span className="text-xs font-bold text-[#2C2C2A]">
+                          Assessment Date: {ass.assessment_date || ass.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]}
+                        </span>
+                        <Badge label={ass.status || "completed"} variant={ass.status === "draft" ? "amber" : "green"} size="sm" />
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-[#5F5E5A]">
+                        <span className="font-semibold text-[#185FA5]">{title}</span>
+                        {ass.delay_total_score !== undefined && ass.delay_total_score !== null && (
+                          <span>Milestones: <strong>{ass.delay_total_score}</strong> ({ass.delay_severity || 'Completed'})</span>
+                        )}
+                        {ass.conners_total_score !== undefined && ass.conners_total_score !== null && (
+                          <span>Score: <strong>{ass.conners_total_score}</strong></span>
+                        )}
+                        {ass.isaa_score !== undefined && ass.isaa_score !== null && !isDelayAss && (
+                          <span>ISAA: <strong>{ass.isaa_score}</strong> ({ass.isaa_severity})</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-[#5F5E5A]">
-                      <span className="font-semibold text-[#185FA5]">IEP Assessment Record</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outlined"
+                        icon={FileText}
+                        onClick={() => navigate(`/reports/new/${data?.id}?assessmentId=${ass.id}`)}
+                      >
+                        Create / View Report
+                      </Button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -622,7 +619,7 @@ export default function ChildProfile() {
                 <p className="text-[14px] text-[#5F5E5A] leading-relaxed">
                   Complete an assessment and publish a report to assign exercises to this child.
                 </p>
-                <Button variant="outlined" icon={PlusCircle} onClick={() => navigate(`/assessment/new/${data?.id}`)}>
+                <Button variant="outlined" icon={PlusCircle} onClick={() => navigate(childCat.assessmentRoute)}>
                   + New Assessment
                 </Button>
               </div>

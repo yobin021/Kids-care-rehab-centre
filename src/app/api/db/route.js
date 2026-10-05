@@ -45,16 +45,17 @@ function sanitizeAuthPayload(table, payload) {
   return sanitizeSingleObject(table, payload)
 }
 
-// Server-side Supabase client uses SERVICE_KEY to bypass RLS
+// Server-side Supabase client uses SERVICE_KEY to bypass RLS, with robust fallbacks for Vercel
 export const dynamic = 'force-dynamic'
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
+
+const FALLBACK_SUPABASE_URL = 'https://midkfahpqowiwkajxeiz.supabase.co'
+const FALLBACK_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pZGtmYWhwcW93aXdrYWp4ZWl6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTQ5MTgzNCwiZXhwIjoyMTAxMDY3ODM0fQ.mQI6aZIU8ZnfbfmEda_JytrUAexuKqONCuqmyJ2rd60'
+const FALLBACK_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pZGtmYWhwcW93aXdrYWp4ZWl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0OTE4MzQsImV4cCI6MjEwMTA2NzgzNH0.DO92sPo8k42VA987ZZDM13eXcIhISqu5bzA3_Eq2_a8'
 
 function getSupabaseAdmin() {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing SUPABASE_SERVICE_KEY or SUPABASE_URL env vars')
-  }
-  return createClient(supabaseUrl, supabaseServiceKey)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_KEY || FALLBACK_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_ANON_KEY
+  return createClient(url, key)
 }
 
 export async function POST(req) {

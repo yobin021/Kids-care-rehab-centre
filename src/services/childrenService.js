@@ -98,6 +98,14 @@ export const DEFAULT_CHILDREN = [
 export const childrenService = {
 
   async getAll() {
+    let localChildren = []
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('kcr_registered_children')
+        if (stored) localChildren = JSON.parse(stored)
+      } catch (_) {}
+    }
+
     try {
       const data = await db.select('children', {
         select: '*, parent_accounts(id, parent_name, phone, email, portal_active, password_hash)',
@@ -106,12 +114,15 @@ export const childrenService = {
       })
 
       if (Array.isArray(data)) {
-        return data.map(normalizeChild)
+        const dbChildren = data.map(normalizeChild)
+        const seen = new Set(dbChildren.map(c => c.id))
+        const extras = localChildren.filter(c => !seen.has(c.id)).map(normalizeChild)
+        return [...dbChildren, ...extras]
       }
-      return []
+      return localChildren.map(normalizeChild)
     } catch (err) {
       console.warn('childrenService.getAll notice:', err.message)
-      return []
+      return localChildren.map(normalizeChild)
     }
   },
 
@@ -221,10 +232,10 @@ export const childrenService = {
       is_active: true
     }
 
+    let result = null
     try {
       const res = await db.insert('children', dbPayload)
-      const normalized = normalizeChild({ ...(res || dbPayload), program_type: programType, therapy_category: therapyCategory })
-      return normalized
+      result = normalizeChild({ ...(res || dbPayload), program_type: programType, therapy_category: therapyCategory })
     } catch (err) {
       console.warn('childrenService.create DB insert notice:', err.message)
       const fallbackObj = {
@@ -232,8 +243,18 @@ export const childrenService = {
         program_type: programType,
         therapy_category: therapyCategory
       }
-      return normalizeChild(fallbackObj)
+      result = normalizeChild(fallbackObj)
     }
+
+    if (result && typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('kcr_registered_children') || '[]')
+        const updated = [result, ...stored.filter(x => x.id !== result.id)]
+        localStorage.setItem('kcr_registered_children', JSON.stringify(updated))
+      } catch (_) {}
+    }
+
+    return result
   },
 
   async update(id, childData) {

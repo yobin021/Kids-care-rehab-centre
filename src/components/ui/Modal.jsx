@@ -1,10 +1,16 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 export default function Modal({ isOpen, open, onClose, title, children, size = "md" }) {
   const active = isOpen !== undefined ? isOpen : (open !== undefined ? open : false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -20,7 +26,7 @@ export default function Modal({ isOpen, open, onClose, title, children, size = "
     };
   }, [active, onClose]);
 
-  if (!active) return null;
+  if (!active || !mounted) return null;
 
   const sizes = {
     sm: "max-w-md",
@@ -29,15 +35,15 @@ export default function Modal({ isOpen, open, onClose, title, children, size = "
     xl: "max-w-4xl",
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in">
-      {/* Backdrop */}
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+      {/* Full Page Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={onClose}
       />
 
-      {/* Modal Card */}
+      {/* Modal Card Centered in Page */}
       <div
         className={`relative z-10 bg-white rounded-2xl ${sizes[size] || sizes.md} w-full max-h-[90dvh] border border-slate-200 shadow-[0_24px_64px_rgba(0,0,0,0.20)] animate-scale-in overflow-hidden flex flex-col`}
       >
@@ -65,4 +71,6 @@ export default function Modal({ isOpen, open, onClose, title, children, size = "
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : null;
 }

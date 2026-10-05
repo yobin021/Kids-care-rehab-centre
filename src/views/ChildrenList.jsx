@@ -22,6 +22,7 @@ import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { childrenService } from "../services/childrenService";
 import { THERAPY_CATEGORIES } from "../services/therapyService";
+import { detectChildCategory } from "../utils/categoryHelpers";
 
 export default function ChildrenList() {
   const navigate = useNavigate();
@@ -169,20 +170,24 @@ export default function ChildrenList() {
                         <div className="text-[10px] font-mono text-[#9B9A96]">{c.parent?.phone || "—"}</div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button variant="ghost" size="sm" icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
-                            Profile
-                          </Button>
-                          {isIep ? (
-                            <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(`/assessment/new/${c.id}`)}>
-                              + Assessment
-                            </Button>
-                          ) : (
-                            <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(`/reports/new/${c.id}`)}>
-                              + Report
-                            </Button>
-                          )}
-                        </div>
+                        {(() => {
+                          const childCat = detectChildCategory(c);
+                          return (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button variant="ghost" size="sm" icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
+                                Profile
+                              </Button>
+                              <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(childCat.assessmentRoute)}>
+                                + Assessment
+                              </Button>
+                              {!childCat.isIep && (
+                                <Button variant="ghost" size="sm" onClick={() => navigate(`/reports/new/${c.id}`)}>
+                                  + Report
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -192,35 +197,38 @@ export default function ChildrenList() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:hidden">
-            {filteredChildren.map((c) => (
-              <Card key={c.id} padding="p-4" className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-[#2C2C2A]">{c.name}</h3>
-                    <span className="font-mono text-xs text-[#185FA5]">{c.id}</span>
+            {filteredChildren.map((c) => {
+              const childCat = detectChildCategory(c);
+              return (
+                <Card key={c.id} padding="p-4" className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#2C2C2A]">{c.name}</h3>
+                      <span className="font-mono text-xs text-[#185FA5]">{c.id}</span>
+                    </div>
+                    {childCat.isIep ? (
+                      <Badge label="IEP Special School" variant="blue" size="sm" />
+                    ) : (
+                      <Badge label={childCat.categoryLabel} variant={childCat.badgeVariant} size="sm" />
+                    )}
                   </div>
-                  {c.program_type === "iep" ? (
-                    <Badge label="IEP Special School" variant="blue" size="sm" />
-                  ) : (
-                    <Badge label={c.therapy_category || "ASD"} variant="green" size="sm" />
-                  )}
-                </div>
 
-                <div className="flex items-center gap-2 pt-2 border-t border-[#D3D1C7]/60">
-                  <Button variant="outlined" size="sm" fullWidth icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
-                    Profile
-                  </Button>
-                  <Button
-                    size="sm"
-                    fullWidth
-                    icon={FilePlus}
-                    onClick={() => navigate(c.program_type === "iep" ? `/assessment/new/${c.id}` : `/reports/new/${c.id}`)}
-                  >
-                    + Action
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                  <div className="flex items-center gap-2 pt-2 border-t border-[#D3D1C7]/60">
+                    <Button variant="outlined" size="sm" fullWidth icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
+                      Profile
+                    </Button>
+                    <Button
+                      size="sm"
+                      fullWidth
+                      icon={FilePlus}
+                      onClick={() => navigate(childCat.assessmentRoute)}
+                    >
+                      + Assessment
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         </>
       )}

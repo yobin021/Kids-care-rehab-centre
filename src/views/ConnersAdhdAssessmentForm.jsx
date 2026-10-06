@@ -147,7 +147,10 @@ export default function ConnersAdhdAssessmentForm() {
         const targetId = routeChildId || (therapyOrAll.find(c => c.therapy_category === "ADHD" || c.diagnosis?.includes("ADHD"))?.id || therapyOrAll[0]?.id);
         if (targetId) {
           setSelectedChildId(targetId);
-          const found = therapyOrAll.find(c => c.id === targetId);
+          let found = therapyOrAll.find(c => c.id === targetId);
+          if (!found) {
+            found = await childrenService.getById(targetId);
+          }
           setChild(found || null);
           setParentName(found?.parent?.name || found?.parent_accounts?.parent_name || "");
           setSchoolGrade(found?.class || found?.school || "");

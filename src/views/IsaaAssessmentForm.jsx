@@ -158,7 +158,10 @@ export default function IsaaAssessmentForm() {
         const targetId = routeChildId || (asdOrAll.find(c => c.therapy_category === "ASD" || c.diagnosis?.includes("ASD"))?.id || asdOrAll[0]?.id);
         if (targetId) {
           setSelectedChildId(targetId);
-          const found = asdOrAll.find(c => c.id === targetId);
+          let found = asdOrAll.find(c => c.id === targetId);
+          if (!found) {
+            found = await childrenService.getById(targetId);
+          }
           setChild(found || null);
           loadDraft(targetId);
         }

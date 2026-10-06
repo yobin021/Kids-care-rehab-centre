@@ -572,7 +572,10 @@ export default function DevelopmentalDelayAssessmentForm() {
 
         if (targetId) {
           setSelectedChildId(targetId);
-          const found = delayOrAll.find((c) => c.id === targetId);
+          let found = delayOrAll.find((c) => c.id === targetId);
+          if (!found) {
+            found = await childrenService.getById(targetId);
+          }
           setChild(found || null);
           autoSelectTierForChild(found);
           loadDraft(targetId);

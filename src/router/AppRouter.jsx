@@ -116,6 +116,14 @@ export default function AppRouter() {
 
         {/* Phase 3 Assessment Routes */}
         <Route
+          path="/assessment/new"
+          element={
+            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+              <AssessmentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/assessment/new/:childId"
           element={
             <ProtectedRoute allowedRoles={["admin", "staff"]}>

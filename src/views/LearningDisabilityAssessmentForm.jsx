@@ -364,137 +364,6 @@ export default function LearningDisabilityAssessmentForm() {
     remedialGoals: ""
   });
 
-  // Load Children for quick selection
-  useEffect(() => {
-    async function loadKids() {
-      try {
-        const list = await childrenService.getAll();
-        setChildrenList(list || []);
-      } catch (e) {
-        console.warn("Child list load notice:", e.message);
-      }
-    }
-    loadKids();
-  }, []);
-
-  // Pre-fill selected child data if available & check for existing saved assessment in DB
-  useEffect(() => {
-    if (!selectedChildId) return;
-    const found = childrenList.find((c) => c.id === selectedChildId);
-    if (found) {
-      setCaseInfo((prev) => ({
-        ...prev,
-        name: found.name || prev.name,
-        age: found.age ? String(found.age) : prev.age,
-        sex: found.gender || prev.sex,
-        school: found.school || prev.school,
-        classGrade: found.grade || found.class || prev.classGrade,
-        fatherOccupation: found.parent?.occupation || prev.fatherOccupation
-      }));
-    }
-
-    // Check database first: if a completed assessment exists in the DB, load it; otherwise clean stale local data
-    async function checkDbAssessment() {
-      try {
-        const records = await therapyAssessmentService.getByChildId(selectedChildId, 'learning_disability');
-        if (Array.isArray(records) && records.length > 0) {
-          const latest = records[0];
-          setSavedAssessmentId(latest.id);
-          if (latest.form_data) {
-            if (latest.form_data.caseInfo) setCaseInfo(latest.form_data.caseInfo);
-            if (latest.form_data.level1Data) setLevel1Data(latest.form_data.level1Data);
-            if (latest.form_data.level2Data) setLevel2Data(latest.form_data.level2Data);
-            if (latest.form_data.memoryData) setMemoryData(latest.form_data.memoryData);
-            if (latest.form_data.diagnosticSummary) setDiagnosticSummary(latest.form_data.diagnosticSummary);
-          }
-          return;
-        }
-      } catch (e) {
-        console.warn("Check DB assessment notice:", e.message);
-      }
-
-      // If no DB assessment, child has NOT completed assessment
-      setSavedAssessmentId("");
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(`assessment_result_${selectedChildId}`);
-      }
-
-      // Try restore draft from localStorage only if present and legitimately administered
-      const draftKey = `ldst_draft_${selectedChildId}`;
-      const savedDraft = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
-      if (savedDraft) {
-        try {
-          const parsed = JSON.parse(savedDraft);
-          // Check if the saved draft actually contains any administered sub-test data
-          const hasAnyInDraft =
-            Boolean(parsed.level1Data && (
-              Object.keys(parsed.level1Data.discrimRows || {}).length > 0 ||
-              parsed.level1Data.totalDiscrimErrors ||
-              Object.keys(parsed.level1Data.auditoryPairs || {}).length > 0 ||
-              parsed.level1Data.totalAuditoryErrors ||
-              (parsed.level1Data.fineMotorGrip && parsed.level1Data.fineMotorGrip !== "Normal Tripod")
-            )) ||
-            Boolean(parsed.level2Data && (
-              Object.keys(parsed.level2Data.spellingChecked || {}).length > 0 ||
-              Object.keys(parsed.level2Data.arithmeticAnswers || {}).length > 0 ||
-              parsed.level2Data.p1ReadingTime ||
-              parsed.level2Data.p2ReadingTime ||
-              parsed.level2Data.writtenCompositionScore
-            )) ||
-            Boolean(parsed.memoryData && (
-              Object.keys(parsed.memoryData.digitSpanForwardPassed || {}).length > 0 ||
-              Object.keys(parsed.memoryData.digitSpanBackwardPassed || {}).length > 0 ||
-              Object.keys(parsed.memoryData.sentenceMemoryAnswers || {}).length > 0 ||
-              parsed.memoryData.pairedAssociatesScores?.trial1
-            ));
-
-          // If the draft was merely an empty template with no administered items, purge it to prevent stale state
-          if (!hasAnyInDraft) {
-            if (typeof window !== "undefined") {
-              localStorage.removeItem(draftKey);
-            }
-            return;
-          }
-
-          if (parsed.caseInfo) setCaseInfo(parsed.caseInfo);
-          if (parsed.level1Data) setLevel1Data(parsed.level1Data);
-          if (parsed.level2Data) setLevel2Data(parsed.level2Data);
-          if (parsed.memoryData) setMemoryData(parsed.memoryData);
-          if (parsed.diagnosticSummary) setDiagnosticSummary(parsed.diagnosticSummary);
-          setAutoSavedTime("Restored from draft");
-        } catch (e) {
-          console.warn("Draft restore notice:", e.message);
-        }
-      }
-    }
-
-    checkDbAssessment();
-  }, [selectedChildId, childrenList]);
-
-  // Auto-save draft on changes (ONLY if at least one sub-test has actually been administered)
-  useEffect(() => {
-    if (!selectedChildId) return;
-    // Do not auto-save an un-administered blank form as a draft
-    if (!computedScores.hasAnyAdministered) return;
-
-    const timer = setTimeout(() => {
-      const draftKey = `ldst_draft_${selectedChildId}`;
-      const payload = {
-        caseInfo,
-        level1Data,
-        level2Data,
-        memoryData,
-        diagnosticSummary,
-        savedAt: new Date().toISOString()
-      };
-      localStorage.setItem(draftKey, JSON.stringify(payload));
-      const now = new Date();
-      setAutoSavedTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    }, 1200);
-
-    return () => clearTimeout(timer);
-  }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId, computedScores.hasAnyAdministered]);
-
   // ════════════ COMPUTED SCORES & SLD INDICES ════════════
   const computedScores = useMemo(() => {
     // 1. Level 1 Visual Discrimination Errors
@@ -630,6 +499,159 @@ export default function LearningDisabilityAssessmentForm() {
       hasAnyAdministered
     };
   }, [level1Data, level2Data, memoryData]);
+
+  // Sync route param childId if available
+  useEffect(() => {
+    if (routeChildId) {
+      setSelectedChildId(routeChildId);
+    }
+  }, [routeChildId]);
+
+  // Load Children for quick selection
+  useEffect(() => {
+    async function loadKids() {
+      try {
+        const list = await childrenService.getAll();
+        setChildrenList(list || []);
+      } catch (e) {
+        console.warn("Child list load notice:", e.message);
+      }
+    }
+    loadKids();
+  }, []);
+
+  // Pre-fill selected child data if available & check for existing saved assessment in DB
+  useEffect(() => {
+    if (!selectedChildId) return;
+    const found = childrenList.find((c) => c.id === selectedChildId);
+    if (found) {
+      setCaseInfo((prev) => ({
+        ...prev,
+        name: found.name || prev.name,
+        age: found.age ? String(found.age) : prev.age,
+        sex: found.gender || prev.sex,
+        school: found.school || prev.school,
+        classGrade: found.grade || found.class || prev.classGrade,
+        fatherOccupation: found.parent?.occupation || prev.fatherOccupation
+      }));
+    } else {
+      // Direct URL route fallback: fetch child directly from DB/service
+      childrenService.getById(selectedChildId).then((c) => {
+        if (c) {
+          setCaseInfo((prev) => ({
+            ...prev,
+            name: c.name || prev.name,
+            age: c.age ? String(c.age) : prev.age,
+            sex: c.gender || prev.sex,
+            school: c.school || prev.school,
+            classGrade: c.grade || c.class || prev.classGrade,
+            fatherOccupation: c.parent?.occupation || c.parent_accounts?.parent_name || prev.fatherOccupation
+          }));
+        }
+      }).catch(() => {});
+    }
+
+    // Check database first: if a completed assessment exists in the DB, load it; otherwise clean stale local data
+    async function checkDbAssessment() {
+      try {
+        const records = await therapyAssessmentService.getByChildId(selectedChildId, 'learning_disability');
+        if (Array.isArray(records) && records.length > 0) {
+          const latest = records[0];
+          setSavedAssessmentId(latest.id);
+          if (latest.form_data) {
+            if (latest.form_data.caseInfo) setCaseInfo(latest.form_data.caseInfo);
+            if (latest.form_data.level1Data) setLevel1Data(latest.form_data.level1Data);
+            if (latest.form_data.level2Data) setLevel2Data(latest.form_data.level2Data);
+            if (latest.form_data.memoryData) setMemoryData(latest.form_data.memoryData);
+            if (latest.form_data.diagnosticSummary) setDiagnosticSummary(latest.form_data.diagnosticSummary);
+          }
+          return;
+        }
+      } catch (e) {
+        console.warn("Check DB assessment notice:", e.message);
+      }
+
+      // If no DB assessment, child has NOT completed assessment
+      setSavedAssessmentId("");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`assessment_result_${selectedChildId}`);
+      }
+
+      // Try restore draft from localStorage only if present and legitimately administered
+      const draftKey = `ldst_draft_${selectedChildId}`;
+      const savedDraft = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft);
+          // Check if the saved draft actually contains any administered sub-test data
+          const hasAnyInDraft =
+            Boolean(parsed.level1Data && (
+              Object.keys(parsed.level1Data.discrimRows || {}).length > 0 ||
+              parsed.level1Data.totalDiscrimErrors ||
+              Object.keys(parsed.level1Data.auditoryPairs || {}).length > 0 ||
+              parsed.level1Data.totalAuditoryErrors ||
+              (parsed.level1Data.fineMotorGrip && parsed.level1Data.fineMotorGrip !== "Normal Tripod")
+            )) ||
+            Boolean(parsed.level2Data && (
+              Object.keys(parsed.level2Data.spellingChecked || {}).length > 0 ||
+              Object.keys(parsed.level2Data.arithmeticAnswers || {}).length > 0 ||
+              parsed.level2Data.p1ReadingTime ||
+              parsed.level2Data.p2ReadingTime ||
+              parsed.level2Data.writtenCompositionScore
+            )) ||
+            Boolean(parsed.memoryData && (
+              Object.keys(parsed.memoryData.digitSpanForwardPassed || {}).length > 0 ||
+              Object.keys(parsed.memoryData.digitSpanBackwardPassed || {}).length > 0 ||
+              Object.keys(parsed.memoryData.sentenceMemoryAnswers || {}).length > 0 ||
+              parsed.memoryData.pairedAssociatesScores?.trial1
+            ));
+
+          // If the draft was merely an empty template with no administered items, purge it to prevent stale state
+          if (!hasAnyInDraft) {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem(draftKey);
+            }
+            return;
+          }
+
+          if (parsed.caseInfo) setCaseInfo(parsed.caseInfo);
+          if (parsed.level1Data) setLevel1Data(parsed.level1Data);
+          if (parsed.level2Data) setLevel2Data(parsed.level2Data);
+          if (parsed.memoryData) setMemoryData(parsed.memoryData);
+          if (parsed.diagnosticSummary) setDiagnosticSummary(parsed.diagnosticSummary);
+          setAutoSavedTime("Restored from draft");
+        } catch (e) {
+          console.warn("Draft restore notice:", e.message);
+        }
+      }
+    }
+
+    checkDbAssessment();
+  }, [selectedChildId, childrenList]);
+
+  // Auto-save draft on changes (ONLY if at least one sub-test has actually been administered)
+  useEffect(() => {
+    if (!selectedChildId) return;
+    // Do not auto-save an un-administered blank form as a draft
+    if (!computedScores.hasAnyAdministered) return;
+
+    const timer = setTimeout(() => {
+      const draftKey = `ldst_draft_${selectedChildId}`;
+      const payload = {
+        caseInfo,
+        level1Data,
+        level2Data,
+        memoryData,
+        diagnosticSummary,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+      const now = new Date();
+      setAutoSavedTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId, computedScores.hasAnyAdministered]);
 
   // Handle Submit / Save
   const handleSaveAssessment = async () => {

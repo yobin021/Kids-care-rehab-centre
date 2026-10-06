@@ -258,6 +258,24 @@ export default function AssessmentForm() {
   });
 
   useEffect(() => {
+    if (child) {
+      setFormData((prev) => ({
+        ...prev,
+        childName: prev.childName || child.name || "",
+        dobAge: prev.dobAge || child.dob || child.date_of_birth || child.age || "",
+        gender: child.gender || prev.gender,
+        diagnosis: prev.diagnosis || child.diagnosis || "",
+        parentName: prev.parentName || child.parent?.name || child.parent_accounts?.parent_name || "",
+        phone: prev.phone || child.parent?.phone || child.parent_accounts?.phone || "",
+        address: prev.address || child.address || "",
+        schoolClass: prev.schoolClass || (child.school ? `${child.school} / ${child.class || ""}` : ""),
+        udidNumber: prev.udidNumber || child.udid_number || "",
+        reasonForReferral: prev.reasonForReferral || child.primaryConcern || child.primary_concern || ""
+      }));
+    }
+  }, [child]);
+
+  useEffect(() => {
     const draftKey = `iep_assessment_draft_${targetChildId}`;
     const saved = localStorage.getItem(draftKey);
     if (saved) setShowRestoreBanner(true);

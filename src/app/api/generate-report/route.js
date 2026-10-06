@@ -157,7 +157,20 @@ Total Score: ${assessmentData?.ldst_total_score ?? ldstResults?.totalScore ?? "E
 Classification: ${assessmentData?.ldst_classification || ldstResults?.classification || "Dyslexia & Dysgraphia Risk"}
 Subtest Staging: ${JSON.stringify(assessmentData?.ldst_subtest_scores || ldstResults || { dyslexiaRisk: "Moderate", dysgraphiaRisk: "Mild", dyscalculiaRisk: "Low" }, null, 2)}
 
-Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" and "parentReport". Focus on phonological decoding, multisensory reading, pencil grip/writing endurance, and school accommodations.`;
+Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" (background, assessmentFindings, currentStatus, recommendations, reviewPlan) and "parentReport" (aboutYourChild, whatWeFound, strengths, workingOn, focusAreas, therapyPlan, homeAdvice, encouragement). Focus on dyslexia decoding, phonics strategies, dysgraphia fine motor ergonomics, working memory, and school accommodations.`;
+      } else if (resolvedCategory === "special_school" || resolvedCategory === "iep") {
+        userPrompt = `Generate a comprehensive Individualized Education Program (IEP) and multi-domain clinical evaluation report for Kids Care Rehab Centre, Chennai.
+Child Info:
+Name: ${childData?.name || "Child"}
+Age: ${childData?.age || "5y"}
+Diagnosis: ${childData?.diagnosis || "Special Education / Multi-Domain Developmental Needs"}
+Primary Concern: ${childData?.primaryConcern || "Academic readiness, adaptive living, and communication"}
+
+Assessment Data: 14-Domain IEP Assessment Battery
+Profile: ${assessmentData?.profile || "Profile 2"}
+Domain Scores: ${JSON.stringify(assessmentData?.domain_scores || domainScores || {}, null, 2)}
+
+Please generate both therapist and parent reports in valid JSON format with keys "therapistReport" (background, assessmentFindings, currentStatus, recommendations, reviewPlan) and "parentReport" (aboutYourChild, whatWeFound, strengths, workingOn, focusAreas, therapyPlan, homeAdvice, encouragement). Focus on adaptive life skills, educational baselines, social communication, and 3-month IEP milestone targets.`;
       } else {
         // ASD / ISAA (Default)
         userPrompt = `Generate a clinical Autism Spectrum Disorder (ASD) evaluation report for Kids Care Rehab Centre, Chennai.
@@ -385,6 +398,33 @@ function getFallbackSectionText(sectionKey, childData, category = "asd", assessm
     }
   }
 
+  if (category === "special_school" || category === "iep") {
+    switch (sectionKey) {
+      case "background":
+        return `${name} is a ${age} student receiving specialized education and multidisciplinary developmental intervention at Kids Care Rehab Centre.`;
+      case "assessmentFindings":
+      case "findings":
+        return `Comprehensive 14-domain assessment indicates ${assessmentData?.profile || 'Profile 2'} functional status, with emerging competencies across communication, self-help, and motor baselines.`;
+      case "currentStatus":
+      case "status":
+        return `${name} demonstrates good engagement in classroom routines, follows visual schedules, and continues to develop independent life skills and functional communication.`;
+      case "recommendations":
+        return `Individualized special education program 5 days/week, speech & communication training, activities of daily living (ADL) coaching, and quarterly IEP progress review.`;
+      case "reviewPlan":
+        return `Comprehensive IEP multidisciplinary review scheduled in 12 weeks to benchmark progress across the 14 functional developmental domains.`;
+      case "aboutYourChild":
+        return `${name} is a delightful and cooperative student who brings enthusiasm and positive energy to our special education classroom!`;
+      case "whatWeFound":
+        return `${name} shows wonderful progress in routine comprehension and imitation, with targeted instruction supporting functional independence.`;
+      case "workingOn":
+        return `Enhancing independent daily living skills (eating, dressing), receptive communication, and classroom sitting endurance.`;
+      case "homeAdvice":
+        return `Maintain structured visual routines at home. Involve ${name} in simple household tasks like putting away toys and eating independently.`;
+      default:
+        return `Individualized special education program for ${name} supporting multi-domain growth.`;
+    }
+  }
+
   // Default: ASD
   switch (sectionKey) {
     case "background":
@@ -547,6 +587,50 @@ function getFallbackFullReport(childData, category = "asd", assessmentData = nul
           "Break homework into short, focused intervals with breaks"
         ],
         encouragement: `With the right multisensory tools and school accommodations, ${name}'s unique strengths and intellect will shine brightly.`
+      }
+    };
+  }
+
+  if (category === "special_school" || category === "iep") {
+    const profile = assessmentData?.profile || "Profile 2";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} student receiving specialized education and multidisciplinary intervention. Assessed using the 14-domain special education assessment protocol.`,
+        assessmentFindings: `Evaluation establishes current developmental status as ${profile}. Functional baselines indicate foundational strengths in receptive comprehension and routine compliance, with targeted support required in self-help and motor coordination.`,
+        currentStatus: `${name} actively participates in structured classroom tasks, responds warmly to verbal guidance, and demonstrates emerging independence during guided mealtime and activity transitions.`,
+        recommendations: "Full-day Special Education curriculum, Daily Activities of Daily Living (ADL) coaching, Multi-sensory communication support, Quarterly IEP milestone reviews.",
+        reviewPlan: "Multidisciplinary IEP progress review in 12 weeks to benchmark progress across functional developmental domains.",
+        preparedBy: "Senior Special Educator",
+        designation: "Head of Special Education & Rehabilitation",
+        date: new Date().toISOString().split("T")[0]
+      },
+      parentReport: {
+        aboutYourChild: `${name} is an enthusiastic and cheerful student who brings wonderful warmth to our special education classroom!`,
+        whatWeFound: `${name} responds well to visual schedules and interactive routines. With structured repetition, their functional independence and communication are making steady gains.`,
+        strengths: [
+          "Follows predictable classroom routines happily",
+          "Warm, affectionate relationship with teachers",
+          "Eager to try table-top learning tasks",
+          "Shows steady progress in understanding visual cues"
+        ],
+        workingOn: "Mastering independent eating and dressing, expanding functional communication requests, and sustained attention during group circles.",
+        focusAreas: [
+          "Activities of daily living & self-care skills",
+          "Functional communication for expressing choices",
+          "Gross motor balance and fine motor classroom grasp"
+        ],
+        therapyPlan: "Individualized Special Education Program & Functional Skills Coaching, 5 days/week.",
+        therapyType: "Special Education & Multidisciplinary IEP",
+        sessionsPerWeek: 5,
+        duration: "3 months (Cycle 1)",
+        nextReviewDate: "12 weeks",
+        homeAdvice: "Maintain predictable routines at home using visual charts. Provide opportunities for independent self-help like spoon feeding and putting on shoes.",
+        homeSuggestions: [
+          "Use a visual schedule chart for morning and bedtime routines",
+          "Encourage independent self-feeding with child-safe utensils",
+          "Praise each completed step with smiles and high-fives"
+        ],
+        encouragement: `Every milestone, no matter how small, is a victory. With consistent school and home teamwork, ${name} will continue to thrive and grow.`
       }
     };
   }

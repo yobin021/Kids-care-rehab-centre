@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { CheckCircle2, Target, Printer, Phone, School, FileText, AlertTriangle, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Target, Printer, Phone, School, FileText, AlertTriangle, ArrowLeft, Activity, Dumbbell } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
@@ -16,6 +16,8 @@ import { exerciseService, resolveExerciseItem } from "../services/exerciseServic
 import { assessmentService } from "../services/assessmentService";
 import { isIepProgram } from "../utils/programHelpers";
 import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
+import AssessmentReportTableRouter from "../components/assessment/AssessmentReportTables";
+import { CATEGORY_CONFIG } from "./TherapistReportView";
 
 export default function ParentReportView() {
   const { id } = useParams();
@@ -101,6 +103,18 @@ export default function ParentReportView() {
       const hasContent = result && (result.iep_report || result.iepReport || result.therapist_report || result.therapistReport || result.parent_report || result.parentReport);
 
       if (isApproved && hasContent) {
+        if (!result.assessments && result.assessment_id) {
+          try {
+            const assObj = await assessmentService.getById(result.assessment_id);
+            if (assObj) result.assessments = assObj;
+          } catch (_) {}
+        }
+        if (!result.assessments && activeChildId) {
+          try {
+            const assList = await assessmentService.getByChildId(activeChildId);
+            if (Array.isArray(assList) && assList.length > 0) result.assessments = assList[0];
+          } catch (_) {}
+        }
         setData(result);
       } else {
         setData(null);
@@ -360,6 +374,13 @@ export default function ParentReportView() {
     data?.formState?.therapistReport ||
     report;
 
+  const assignedClinicExercises =
+    data?.clinic_exercises ||
+    data?.clinicExercises ||
+    data?.formState?.exercises?.clinicExercises ||
+    data?.clinicEx ||
+    [];
+
   const assignedHomeExercises =
     data?.home_exercises ||
     data?.homeExercises ||
@@ -367,11 +388,44 @@ export default function ParentReportView() {
     data?.homeEx ||
     [];
 
+  const detectedCategory = useMemo(() => {
+    const raw = (
+      data?.assessment_type ||
+      child?.therapy_category ||
+      child?.diagnosis ||
+      ""
+    ).toLowerCase();
+
+    if (raw.includes("adhd") || raw.includes("conner")) return "adhd";
+    if (raw.includes("delay") || raw.includes("developmental")) return "developmental_delay";
+    if (raw.includes("learn") || raw.includes("ldst") || raw.includes("sld") || raw.includes("dyslex")) return "learning_disability";
+    if (raw.includes("special") || raw.includes("iep")) return "special_school";
+    return "asd";
+  }, [data, child]);
+
+  const currentTheme = useMemo(() => {
+    return CATEGORY_CONFIG[detectedCategory] || CATEGORY_CONFIG.asd;
+  }, [detectedCategory]);
+
+  const activeClinicExercises = useMemo(() => {
+    if (Array.isArray(assignedClinicExercises) && assignedClinicExercises.length > 0) {
+      return assignedClinicExercises;
+    }
+    return currentTheme.defaultClinicExercises;
+  }, [assignedClinicExercises, currentTheme]);
+
+  const activeHomeExercises = useMemo(() => {
+    if (Array.isArray(assignedHomeExercises) && assignedHomeExercises.length > 0) {
+      return assignedHomeExercises;
+    }
+    return currentTheme.defaultHomeExercises;
+  }, [assignedHomeExercises, currentTheme]);
+
   const therapyPlanInfo =
     data?.therapy_details ||
     data?.therapyDetails ||
     parentRep?.therapyDetails || {
-      therapyType: parentRep?.therapyType || child?.therapy_category || "Pediatric Rehabilitation",
+      therapyType: parentRep?.therapyType || child?.therapy_category || currentTheme.name,
       sessionsPerWeek: parentRep?.sessionsPerWeek || "2 sessions/week",
       duration: parentRep?.duration || "6 months",
       nextReviewDate: parentRep?.nextReviewDate || "12 weeks"
@@ -381,16 +435,19 @@ export default function ParentReportView() {
     data?.assessment_type ||
     child?.therapy_category ||
     child?.diagnosis ||
-    "Clinical Therapy";
+    currentTheme.name;
 
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 print:p-0 max-w-4xl mx-auto">
-      {/* Header Banner */}
-      <div className="bg-[#185FA5] text-white p-4 sm:p-6 rounded-[14px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header Banner Tailored to Assessment */}
+      <div
+        className="text-white p-4 sm:p-6 rounded-[14px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        style={{ backgroundColor: currentTheme.themeColor }}
+      >
         <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
           <img
             src="/kids_care_rehab_center_logo.jpg"
-            alt="KIDS CARE 360 Logo"
+            alt="Kids Care Logo"
             className="h-10 w-10 sm:h-12 sm:w-12 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
             onError={(e) => {
               e.target.style.display = "none";
@@ -398,17 +455,17 @@ export default function ParentReportView() {
           />
           <div className="space-y-0.5 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-bold text-blue-100 uppercase tracking-widest block truncate">
-                KIDS CARE REHAB CENTRE — Progress Report
+              <span className="text-[10px] font-bold text-white/80 uppercase tracking-widest block truncate">
+                KIDS CARE REHAB CENTRE — {currentTheme.protocolTitle}
               </span>
-              <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                {therapyCategory}
+              <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border border-white/30">
+                {currentTheme.badgeLabel}
               </span>
             </div>
             <h2 className="text-lg sm:text-2xl font-black truncate">
               {child?.name || data?.childName || "Child"}
             </h2>
-            <p className="text-xs text-blue-100">
+            <p className="text-xs text-white/80">
               Published: {data?.published_at?.split("T")[0] || data?.created_at?.split("T")[0] || data?.publishedDate || "Recently Published"}
             </p>
           </div>
@@ -532,8 +589,8 @@ export default function ParentReportView() {
             )}
           </Card>
 
-          {/* Assigned Home Exercises (Therapy children only; NEVER for IEP) */}
-          {assignedHomeExercises && assignedHomeExercises.length > 0 && !isIep && (
+          {/* Assigned Home Exercises (Prescribed for Home Routine) */}
+          {activeHomeExercises && activeHomeExercises.length > 0 && (
             <Card
               title="🏠 Prescribed Home Exercises & Daily Routines"
               padding="p-5"
@@ -542,8 +599,8 @@ export default function ParentReportView() {
               <p className="text-xs text-[#5F5E5A] mb-3 leading-relaxed">
                 Consistent practice at home reinforces the neuro-developmental gains achieved in our therapy sessions:
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {assignedHomeExercises.map((ex, idx) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeHomeExercises.map((ex, idx) => {
                   const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
                   const name = master.name || (typeof ex === "string" ? ex : "Exercise");
                   const imageUrl = master.image_url || master.imageUrl;
@@ -554,32 +611,42 @@ export default function ParentReportView() {
                   return (
                     <div
                       key={idx}
-                      className="p-3.5 bg-white border border-[#EBEAE4] rounded-[10px] shadow-2xs space-y-2 overflow-hidden"
+                      className="p-3.5 bg-white border border-[#EBEAE4] rounded-[10px] shadow-2xs space-y-2 overflow-hidden flex flex-col justify-between"
                     >
-                      {imageUrl && (
-                        <div className="h-32 w-full rounded-[8px] overflow-hidden bg-slate-100 border border-slate-200">
-                          <img
-                            src={imageUrl}
-                            alt={name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
-                          />
+                      <div>
+                        {imageUrl ? (
+                          <div className="relative h-36 w-full rounded-[8px] overflow-hidden bg-slate-100 border border-slate-200 mb-2">
+                            <img
+                              src={imageUrl}
+                              alt={name}
+                              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fb = e.currentTarget.nextElementSibling;
+                                if (fb) fb.style.display = 'flex';
+                              }}
+                            />
+                            <div style={{ display: 'none' }} className="w-full h-full flex flex-col items-center justify-center bg-amber-50 text-amber-800 p-2 text-center">
+                              <Activity className="h-6 w-6 text-amber-600 mb-1" />
+                              <span className="text-xs font-bold">{name}</span>
+                            </div>
+                          </div>
+                        ) : null}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="h-4 w-4 text-[#0F6E56] shrink-0" />
+                            <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                          </div>
+                          {cat && (
+                            <span className="text-[9px] font-bold px-2 py-0.5 bg-[#EEF4FB] text-[#185FA5] rounded-full uppercase shrink-0">
+                              {cat}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-[#0F6E56] shrink-0" />
-                          <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
-                        </div>
-                        {cat && (
-                          <span className="text-[9px] font-bold px-2 py-0.5 bg-[#EEF4FB] text-[#185FA5] rounded-full uppercase shrink-0">
-                            {cat}
-                          </span>
-                        )}
+                        {desc && <p className="text-[11px] text-[#5F5E5A] leading-relaxed mt-1">{desc}</p>}
                       </div>
-                      {desc && <p className="text-[11px] text-[#5F5E5A] leading-relaxed">{desc}</p>}
                       {freq && (
-                        <p className="text-[10px] font-semibold text-[#854F0B] flex items-center gap-1">
+                        <p className="text-[10px] font-semibold text-[#854F0B] flex items-center gap-1 pt-1 border-t border-slate-100 mt-2">
                           <span>⏱ Frequency:</span> {freq}
                         </p>
                       )}
@@ -635,6 +702,29 @@ export default function ParentReportView() {
             />
           )}
 
+          {/* Standardized Assessment Evaluation Table */}
+          <div className="bg-white rounded-[12px] border border-[#185FA5]/30 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-[#185FA5]/20 pb-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#185FA5]">
+                Standardized Clinical Assessment Table
+              </h3>
+              <span className="text-[10px] font-bold text-[#5F5E5A] bg-[#F1F3F5] px-2 py-0.5 rounded-full">
+                Protocol: {therapyCategory.toUpperCase().replace('_', ' ')}
+              </span>
+            </div>
+            <AssessmentReportTableRouter
+              assessmentType={data?.assessment_type || therapyCategory}
+              assessment={data?.assessments || data}
+              domainScores={data?.domain_scores}
+              isaaInfo={data?.isaa_score ? {
+                score: data.isaa_score,
+                severity: data.isaa_severity,
+                sectionScores: data.isaa_section_scores
+              } : null}
+              formState={therapistRep}
+            />
+          </div>
+
           {/* Background Info */}
           {therapistRep.background && (
             <Card title="1. Background & Referral Information" padding="p-5">
@@ -670,12 +760,115 @@ export default function ParentReportView() {
             </Card>
           )}
 
+          {/* 6. Prescribed Clinical & Home Exercises (With Visual Guides) */}
+          {(activeClinicExercises.length > 0 || activeHomeExercises.length > 0) && (
+            <div className="space-y-4 bg-white rounded-[12px] border border-[#D3D1C7] p-5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-2">
+                <div className="flex items-center gap-2">
+                  <Dumbbell className="h-4 w-4 text-[#185FA5]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#185FA5]">
+                    6. Prescribed Therapy Exercises & Visual Guides
+                  </h3>
+                </div>
+                <span className="text-[10px] font-bold text-[#5F5E5A] bg-[#F1F3F5] px-2 py-0.5 rounded-full">
+                  {activeClinicExercises.length + activeHomeExercises.length} Activities Prescribed
+                </span>
+              </div>
+
+              {/* In-Clinic Exercises */}
+              {activeClinicExercises.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-[11px] font-bold uppercase text-[#0F6E56] flex items-center gap-1.5">
+                    <span>🏥 In-Clinic Therapeutic Exercises</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {activeClinicExercises.map((ex, idx) => {
+                      const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                      const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                      const imageUrl = master.image_url || master.imageUrl;
+                      const desc = master.description || "Structured therapeutic activity performed under therapist guidance.";
+                      const cat = master.category || "Clinical Physiotherapy";
+                      const duration = master.duration || "10–15 mins";
+                      return (
+                        <div key={idx} className="p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[10px] space-y-2 flex flex-col justify-between">
+                          <div>
+                            {imageUrl && (
+                              <div className="relative h-32 w-full rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200 mb-2">
+                                <img
+                                  src={imageUrl}
+                                  alt={name}
+                                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                  onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-start justify-between gap-1">
+                              <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-100 text-[#185FA5] rounded-full uppercase shrink-0">
+                                {cat}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3 mt-1">{desc}</p>
+                          </div>
+                          <p className="text-[10px] font-semibold text-[#0F6E56] pt-1 border-t border-slate-200 mt-2">⏱ Duration: {duration}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Home Routine Exercises */}
+              {activeHomeExercises.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <h4 className="text-[11px] font-bold uppercase text-[#854F0B] flex items-center gap-1.5">
+                    <span>🏠 Prescribed Home Exercise Routine</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {activeHomeExercises.map((ex, idx) => {
+                      const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                      const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                      const imageUrl = master.image_url || master.imageUrl;
+                      const desc = master.home_description || master.description || "Daily home therapeutic exercise routine.";
+                      const cat = master.category || "Home Care";
+                      const freq = master.frequency || "Daily";
+                      return (
+                        <div key={idx} className="p-3 bg-[#FEF6E7]/40 border border-[#854F0B]/30 rounded-[10px] space-y-2 flex flex-col justify-between">
+                          <div>
+                            {imageUrl && (
+                              <div className="relative h-32 w-full rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200 mb-2">
+                                <img
+                                  src={imageUrl}
+                                  alt={name}
+                                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                  onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-start justify-between gap-1">
+                              <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-[#854F0B] rounded-full uppercase shrink-0">
+                                {cat}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3 mt-1">{desc}</p>
+                          </div>
+                          <p className="text-[10px] font-semibold text-[#854F0B] pt-1 border-t border-amber-200/40 mt-2">📅 Frequency: {freq}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Signoff details */}
           {(therapistRep.preparedBy || data?.prepared_by) && (
             <div className="p-4 bg-white border border-[#D3D1C7] rounded-[10px] text-xs flex items-center justify-between text-[#5F5E5A]">
               <div>
                 <p className="font-bold text-[#2C2C2A]">Evaluated By: {therapistRep.preparedBy || data?.prepared_by}</p>
-                <p className="text-[11px] text-[#868E96]">{therapistRep.designation || "Clinical Specialist"}</p>
+                <p className="text-[11px] text-[#868E96]">{therapistRep.designation || currentTheme.defaultAssessorRole}</p>
               </div>
               <p className="font-mono text-[11px]">Kids Care Rehab Centre, Chennai</p>
             </div>

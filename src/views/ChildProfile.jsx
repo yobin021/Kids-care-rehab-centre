@@ -1002,8 +1002,17 @@ export default function ChildProfile() {
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-[#0F6E56]" />
                       <span className="text-xs font-bold text-[#2C2C2A]">
-                        {rep.iep_report ? `IEP Progress Report — Cycle ${rep.iep_cycle || 1}` : `Clinical Assessment Report`}
+                        {rep.assessment_type
+                          ? `${rep.assessment_type.toUpperCase().replace('_', ' ')} Assessment Report`
+                          : rep.iep_report
+                          ? `IEP Progress Report — Cycle ${rep.iep_cycle || 1}`
+                          : `Clinical Assessment Report`}
                       </span>
+                      {rep.assessment_type && (
+                        <span className="text-[10px] font-bold text-[#185FA5] bg-[#EBF4FE] px-2 py-0.5 rounded-full uppercase">
+                          {rep.assessment_type.replace('_', ' ')}
+                        </span>
+                      )}
                       <Badge label="Published" variant="green" size="sm" />
                     </div>
                     <p className="text-xs text-[#5F5E5A]">

@@ -30,6 +30,7 @@ import { exerciseService, resolveExerciseItem } from "../services/exerciseServic
 import { childrenService } from "../services/childrenService";
 import { assessmentService } from "../services/assessmentService";
 import { printReportWithFilename } from "../utils/printHelpers";
+import AssessmentReportTableRouter from "../components/assessment/AssessmentReportTables";
 
 function getDefaultFormState(child, category = "asd", assessment = null) {
   const name = child?.name || "Child";
@@ -37,6 +38,71 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
   const gender = child?.gender || "Male";
   const concern = child?.primaryConcern || "developmental challenges";
   const today = new Date().toISOString().split("T")[0];
+
+  if (category === "special_school" || category === "iep") {
+    const profile = assessment?.profile_classification || "Profile 2: Moderate Functional Support";
+    return {
+      therapistReport: {
+        background: `${name} is a ${age} student enrolled in specialized education program. Evaluated using the Multidisciplinary Special School Functional IEP Checklist.`,
+        assessmentFindings: `Comprehensive functional assessment indicates placement in ${profile}. Core baseline priorities identified in self-help skills (dressing, hygiene), expressive communication, functional academic readiness, and classroom sitting endurance.`,
+        currentStatus: `${name} displays cooperative demeanor in structured 1:1 environments. Shows emerging ability to follow visual picture activity schedules and request basic needs.`,
+        recommendations: "Comprehensive Special Education 5 days/week, Pediatric Occupational Therapy 2x/week for fine motor and sensory processing, Speech & Language Pathology 2x/week for augmentative and functional communication.",
+        reviewPlan: "Quarterly Individualized Education Program (IEP) review in 12 weeks with multidisciplinary case conference and parents.",
+        preparedBy: "Senior Clinical Specialist",
+        designation: "Special Educator & IEP Coordinator",
+        date: today
+      },
+      parentReport: {
+        aboutYourChild: `${name} is a wonderful, hardworking learner who brings positivity and effort to their specialized classroom routines.`,
+        whatWeFound: `${name} thrives with consistent routines, visual cues, and positive encouragement. They are developing functional communication and gaining independence in daily self-care tasks.`,
+        strengths: [
+          "Cooperative during familiar, structured routines",
+          "Responds well to visual picture activity cards",
+          "Shows warm connection with familiar caregivers",
+          "Enjoys sensory, musical, and hands-on learning tasks"
+        ],
+        workingOn: "Mastering independent dressing and eating skills, expanding functional requesting, and extending seated attention during circle time.",
+        focusAreas: [
+          "Daily living self-care routines (buttons, shoes, handwashing)",
+          "Expressive communication and requesting wants/needs",
+          "Classroom group participation and sitting tolerance"
+        ],
+        therapyPlan: "Specialized Education Program & Multidisciplinary Therapy, full weekly schedule with 12-week IEP goals.",
+        therapyType: "Specialized Education & Multidisciplinary Therapy",
+        sessionsPerWeek: 5,
+        duration: "Academic Term (6 months)",
+        nextReviewDate: "12 weeks",
+        homeAdvice: `Reinforce school visual schedules at home. Allow extra time for ${name} to complete self-help tasks independently rather than doing it for them, and celebrate every small achievement.`,
+        homeSuggestions: [
+          "Use a 3-step morning picture schedule for dressing and grooming",
+          "Give choices between two items using visual cards or objects",
+          "Incorporate 10-minute daily table tasks with immediate positive reinforcement"
+        ],
+        encouragement: `Every milestone ${name} achieves builds a foundation for greater independence and confidence. We are honored to partner with your family on this journey.`
+      },
+      exercises: {
+        clinicExercises: [
+          "Communication Cards",
+          "Behaviour Cards",
+          "Balance Beam Walking",
+          "Tunnel Crawl",
+          "Obstacle Course"
+        ],
+        homeExercises: [
+          "Behaviour Cards",
+          "Communication Cards",
+          "Stretching Exercises"
+        ],
+        parentNotes: "Reinforce daily living skills and visual picture schedules at home.",
+        therapyDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        sessionTime: "09:30",
+        sessionDuration: "60",
+        frequencyPerWeek: 5,
+        startDate: today,
+        nextReviewDate: "12 weeks"
+      }
+    };
+  }
 
   if (category === "adhd") {
     const presentation = assessment?.adhd_presentation || "Combined Presentation";
@@ -81,16 +147,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       },
       exercises: {
         clinicExercises: [
+          "Brain Gym Exercises",
+          "Trampoline Bouncing",
           "Obstacle Course",
           "Single Leg Stance",
-          "Trampoline Rebounding",
-          "Deep Pressure Sensory Roll",
-          "Puzzle Play"
+          "Ball Catching & Throwing"
         ],
         homeExercises: [
-          "Bear Walk",
+          "Brain Gym Exercises",
           "Jumping Jacks",
-          "Deep Pressure Sensory Roll"
+          "Frog Jumps"
         ],
         parentNotes: "Practice movement breaks and visual timer routines daily at home.",
         therapyDays: ["Mon", "Wed", "Fri"],
@@ -147,16 +213,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       },
       exercises: {
         clinicExercises: [
-          "Prone on Elbows & Tummy Reaching",
-          "Therapy Ball Reach",
+          "Reflex Integration Exercises",
+          "Wedge Exercises",
+          "Standing Frame Activities",
           "Step-Ups",
-          "Pegboard Activity",
-          "Sensory Tactile Bin Exploration"
+          "Swiss Ball Exercises"
         ],
         homeExercises: [
-          "Prone on Elbows & Tummy Reaching",
-          "Pegboard Activity",
-          "Mirror Imitation & Facial Expressions"
+          "Wedge Exercises",
+          "Stretching Exercises",
+          "Crab Walk"
         ],
         parentNotes: "Spend 20 minutes daily on floor-based developmental play.",
         therapyDays: ["Tue", "Thu", "Sat"],
@@ -214,16 +280,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       },
       exercises: {
         clinicExercises: [
-          "Pegboard Activity",
-          "Bead Stringing",
-          "Cutting with Scissors",
-          "Playdough Clay Modeling",
-          "Bilateral Hand Clapping & Pat-a-Cake"
+          "Brain Gym Exercises",
+          "Theraband Exercises",
+          "Ball Catching & Throwing",
+          "Obstacle Course",
+          "Balloon Volleyball"
         ],
         homeExercises: [
-          "Bead Stringing",
-          "Playdough Clay Modeling",
-          "Finger Isolation / Pointing Games"
+          "Brain Gym Exercises",
+          "Balloon Volleyball",
+          "Wall Push-Ups"
         ],
         parentNotes: "Practise 15 minutes of paired reading daily in a relaxed environment.",
         therapyDays: ["Mon", "Wed", "Fri"],
@@ -280,16 +346,16 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
     },
     exercises: {
       clinicExercises: [
-        "Swing Therapy (Vestibular Stimulation)",
-        "Deep Pressure Sensory Roll",
-        "Sensory Tactile Bin Exploration",
-        "Oral Motor Straw Blowing & Bubbles",
-        "Obstacle Course"
+        "Sensory Integration Activities",
+        "Behaviour Cards",
+        "Obstacle Course",
+        "Balance Board Exercises",
+        "Speech Therapy Exercises"
       ],
       homeExercises: [
-        "Deep Pressure Sensory Roll",
-        "Sensory Tactile Bin Exploration",
-        "Oral Motor Straw Blowing & Bubbles"
+        "Communication Cards",
+        "Bear Walk",
+        "Sensory Integration Activities"
       ],
       parentNotes: "Practise 15 minutes daily before bedtime.",
       therapyDays: ["Mon", "Wed", "Fri"],
@@ -393,6 +459,7 @@ export default function ReportGenerationEditor() {
         if (cat.includes("adhd") || cat.includes("conner")) pathway = "adhd";
         else if (cat.includes("delay") || cat.includes("developmental")) pathway = "developmental_delay";
         else if (cat.includes("learn") || cat.includes("ldst") || cat.includes("sld") || cat.includes("dyslex")) pathway = "learning_disability";
+        else if (cat.includes("special") || cat.includes("iep")) pathway = "special_school";
 
         if (isMounted) setDetectedCategory(pathway);
 
@@ -677,6 +744,8 @@ export default function ReportGenerationEditor() {
           ? "Early Intervention & Physical Therapy"
           : detectedCategory === "learning_disability"
           ? "Remedial Education & Occupational Therapy"
+          : detectedCategory === "special_school"
+          ? "Specialized Education & Multidisciplinary Therapy"
           : "Speech + Occupational Therapy";
 
       // Step 1: Build complete report object
@@ -1015,6 +1084,37 @@ export default function ReportGenerationEditor() {
             </Button>
           </div>
 
+          {/* DEDICATED ASSESSMENT REPORT FINDINGS REFERENCE TABLE */}
+          <div className="bg-white rounded-[12px] border border-[#185FA5]/30 p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#185FA5]/20 pb-3">
+              <div>
+                <span className="text-[10px] font-black text-[#185FA5] uppercase tracking-wider block">
+                  Standardized Assessment Protocol Findings
+                </span>
+                <h3 className="text-sm font-bold text-[#2C2C2A]">
+                  Administered Assessment: {detectedCategory.toUpperCase().replace('_', ' ')}
+                </h3>
+              </div>
+              <Badge
+                label={`Protocol: ${detectedCategory.toUpperCase()}`}
+                variant="blue"
+                size="sm"
+              />
+            </div>
+
+            <AssessmentReportTableRouter
+              assessmentType={detectedCategory}
+              assessment={assessmentRecord}
+              domainScores={assessmentRecord?.domain_scores}
+              isaaInfo={assessmentRecord?.isaa_score ? {
+                score: assessmentRecord.isaa_score,
+                severity: assessmentRecord.isaa_severity,
+                sectionScores: assessmentRecord.isaa_section_scores
+              } : null}
+              formState={formState}
+            />
+          </div>
+
           {/* FIVE SECTION CARDS */}
           {[
             {
@@ -1032,6 +1132,8 @@ export default function ReportGenerationEditor() {
                   ? `Write the developmental delay assessment findings for ${activeChild?.name || child?.name}. Severity: ${assessmentRecord?.delay_severity || "Mild-to-Moderate"}, delay areas: ${assessmentRecord?.delay_areas?.join(", ") || "Motor and speech"}. Clinical language.`
                   : detectedCategory === "learning_disability"
                   ? `Write the specific learning disability (LDST) assessment findings for ${activeChild?.name || child?.name}. Screening classification: ${assessmentRecord?.ldst_classification || "Elevated Risk"}, Dyslexia: ${assessmentRecord?.ldst_subtest_scores?.dyslexiaRisk || "Moderate"}. Clinical language.`
+                  : detectedCategory === "special_school"
+                  ? `Write the multidisciplinary functional IEP assessment findings for ${activeChild?.name || child?.name}. Profile: ${assessmentRecord?.profile_classification || "Profile 2"}, functional baseline areas: ${assessmentRecord?.functional_areas?.join(", ") || "Self-Help, Communication, Academics"}. Clinical language.`
                   : `Write the ISAA autism assessment findings section for ${activeChild?.name || child?.name}. ISAA total score: ${assessmentRecord?.isaa_score ?? "88"}/200, severity: ${assessmentRecord?.isaa_severity || "Mild Autism"}. Clinical language.`
             },
             {

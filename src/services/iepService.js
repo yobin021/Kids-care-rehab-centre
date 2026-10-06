@@ -13,16 +13,27 @@ export const iepService = {
    */
   async getIepHistory(childId) {
     try {
-      const [assessments, reports] = await Promise.all([
-        db.select('assessment_special_school', {
-          match: { child_id: childId },
-          order: { column: 'created_at', ascending: false }
-        }),
-        db.select('reports', {
+      const assessments = await db.select('assessment_special_school', {
+        match: { child_id: childId },
+        order: { column: 'created_at', ascending: false }
+      })
+
+      let reports = []
+      try {
+        reports = await db.select('reports_special_school', {
           match: { child_id: childId },
           order: { column: 'created_at', ascending: false }
         })
-      ])
+      } catch (_) {}
+
+      if (!reports || reports.length === 0) {
+        try {
+          reports = await db.select('reports', {
+            match: { child_id: childId },
+            order: { column: 'created_at', ascending: false }
+          })
+        } catch (_) {}
+      }
 
       const apts = Array.isArray(assessments) ? assessments : []
       const rpts = Array.isArray(reports) ? reports : []
@@ -77,10 +88,22 @@ export const iepService = {
    */
   async getPendingReviewCount() {
     try {
-      const data = await db.select('reports', {
-        select: 'id, review_status',
-        match: { review_status: 'pending_review' }
-      }) || []
+      let data = []
+      try {
+        data = await db.select('reports_special_school', {
+          select: 'id, review_status',
+          match: { review_status: 'pending_review' }
+        })
+      } catch (_) {}
+
+      if (!data || data.length === 0) {
+        try {
+          data = await db.select('reports', {
+            select: 'id, review_status',
+            match: { review_status: 'pending_review' }
+          })
+        } catch (_) {}
+      }
       return Array.isArray(data) ? data.length : 0
     } catch (err) {
       console.warn('iepService.getPendingReviewCount:', err.message)
@@ -93,10 +116,22 @@ export const iepService = {
    */
   async getPendingReview() {
     try {
-      const reports = await db.select('reports', {
-        match: { review_status: 'pending_review' },
-        order: { column: 'created_at', ascending: false }
-      }) || []
+      let reports = []
+      try {
+        reports = await db.select('reports_special_school', {
+          match: { review_status: 'pending_review' },
+          order: { column: 'created_at', ascending: false }
+        })
+      } catch (_) {}
+
+      if (!reports || reports.length === 0) {
+        try {
+          reports = await db.select('reports', {
+            match: { review_status: 'pending_review' },
+            order: { column: 'created_at', ascending: false }
+          })
+        } catch (_) {}
+      }
 
       if (Array.isArray(reports) && reports.length > 0) {
         try {
@@ -107,7 +142,7 @@ export const iepService = {
           }))
         } catch (_) {}
       }
-      return reports
+      return reports || []
     } catch (err) {
       console.warn('iepService.getPendingReview:', err.message)
       return []
@@ -123,6 +158,7 @@ export const iepService = {
     const payload = {
       child_id: childId,
       assessment_id: toUUID(assessmentId),
+      assessment_type: 'special_school',
       iep_report: iepReport,
       iep_cycle: cycle || 1,
       review_status: 'pending_review',
@@ -139,25 +175,46 @@ export const iepService = {
     }
 
     try {
-      // Check if a report already exists for this assessment
-      const existing = await db.select('reports', {
-        match: { assessment_id: assessmentId },
-        single: true
-      })
-
       let res = null
-      if (existing && existing.id) {
-        res = await db.update('reports', payload, { id: existing.id })
-      } else {
-        res = await db.insert('reports', payload)
+
+      // 1. Save to dedicated reports_special_school
+      try {
+        const existing = await db.select('reports_special_school', {
+          match: { assessment_id: assessmentId },
+          single: true
+        })
+
+        if (existing && existing.id) {
+          res = await db.update('reports_special_school', payload, { id: existing.id })
+        } else {
+          res = await db.insert('reports_special_school', payload)
+        }
+      } catch (specErr) {
+        console.warn('iepService.saveIepDraft reports_special_school notice:', specErr.message)
       }
+
+      // 2. Optional sync to reports if table exists
+      try {
+        const existing = await db.select('reports', {
+          match: { assessment_id: assessmentId },
+          single: true
+        })
+
+        if (existing && existing.id) {
+          const syncRes = await db.update('reports', payload, { id: existing.id })
+          if (!res) res = syncRes
+        } else {
+          const syncRes = await db.insert('reports', payload)
+          if (!res) res = syncRes
+        }
+      } catch (_) {}
 
       if (res && res.id) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`iep_report_${res.id}`, JSON.stringify(res))
         }
       }
-      return res
+      return res || { id: `local-${Date.now()}`, ...payload }
     } catch (err) {
       console.warn('iepService.saveIepDraft fallback:', err.message)
       const fallbackId = `local-${Date.now()}`
@@ -186,15 +243,26 @@ export const iepService = {
    */
   async updateIepReport(reportId, iepReport) {
     try {
-      const res = await db.update('reports', {
-        iep_report: iepReport,
-        last_edited_at: new Date().toISOString()
-      }, { id: reportId })
+      let res = null
+      try {
+        res = await db.update('reports_special_school', {
+          iep_report: iepReport,
+          last_edited_at: new Date().toISOString()
+        }, { id: reportId })
+      } catch (_) {}
+
+      try {
+        const syncRes = await db.update('reports', {
+          iep_report: iepReport,
+          last_edited_at: new Date().toISOString()
+        }, { id: reportId })
+        if (!res) res = syncRes
+      } catch (_) {}
 
       if (typeof window !== 'undefined') {
         localStorage.setItem(`iep_report_${reportId}`, JSON.stringify(res || { id: reportId, iep_report: iepReport }))
       }
-      return res
+      return res || { id: reportId, iep_report: iepReport }
     } catch (err) {
       console.warn('iepService.updateIepReport local save:', err.message)
       if (typeof window !== 'undefined') {
@@ -225,14 +293,23 @@ export const iepService = {
     }
 
     try {
-      const res = await db.update('reports', payload, { id: reportId })
+      let res = null
+      try {
+        res = await db.update('reports_special_school', payload, { id: reportId })
+      } catch (_) {}
+
+      try {
+        const syncRes = await db.update('reports', payload, { id: reportId })
+        if (!res) res = syncRes
+      } catch (_) {}
+
       if (typeof window !== 'undefined') {
         localStorage.setItem(`iep_report_${reportId}`, JSON.stringify(res || { id: reportId, ...payload }))
         if (res?.child_id) {
           localStorage.setItem(`report_published_${res.child_id}`, JSON.stringify(res))
         }
       }
-      return res
+      return res || { id: reportId, ...payload }
     } catch (err) {
       console.warn('iepService.publishIepReport local fallback:', err.message)
       if (typeof window !== 'undefined') {
@@ -250,10 +327,22 @@ export const iepService = {
    */
   async getReportById(reportId) {
     try {
-      let rep = await db.select('reports', {
-        match: { id: reportId },
-        single: true
-      })
+      let rep = null
+      try {
+        rep = await db.select('reports_special_school', {
+          match: { id: reportId },
+          single: true
+        })
+      } catch (_) {}
+
+      if (!rep) {
+        try {
+          rep = await db.select('reports', {
+            match: { id: reportId },
+            single: true
+          })
+        } catch (_) {}
+      }
 
       if (!rep && typeof window !== 'undefined') {
         const saved = localStorage.getItem(`iep_report_${reportId}`) || localStorage.getItem(`report_draft_${reportId}`)
@@ -290,11 +379,25 @@ export const iepService = {
    */
   async getPublishedForChild(childId) {
     try {
-      const data = await db.select('reports', {
-        match: { child_id: childId, status: 'published' },
-        order: { column: 'published_at', ascending: false },
-        limit: 1
-      })
+      let data = null
+      try {
+        data = await db.select('reports_special_school', {
+          match: { child_id: childId, status: 'published' },
+          order: { column: 'published_at', ascending: false },
+          limit: 1
+        })
+      } catch (_) {}
+
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        try {
+          data = await db.select('reports', {
+            match: { child_id: childId, status: 'published' },
+            order: { column: 'published_at', ascending: false },
+            limit: 1
+          })
+        } catch (_) {}
+      }
+
       const arr = Array.isArray(data) ? data : []
       if (arr[0]) return arr[0]
 
@@ -310,10 +413,24 @@ export const iepService = {
    */
   async getReportsByChildId(childId) {
     try {
-      return await db.select('reports', {
-        match: { child_id: childId },
-        order: { column: 'created_at', ascending: false }
-      }) || []
+      let list = []
+      try {
+        list = await db.select('reports_special_school', {
+          match: { child_id: childId },
+          order: { column: 'created_at', ascending: false }
+        }) || []
+      } catch (_) {}
+
+      if (!list || list.length === 0) {
+        try {
+          list = await db.select('reports', {
+            match: { child_id: childId },
+            order: { column: 'created_at', ascending: false }
+          }) || []
+        } catch (_) {}
+      }
+
+      return list
     } catch (err) {
       console.warn('iepService.getReportsByChildId:', err.message)
       return []

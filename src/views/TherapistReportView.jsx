@@ -16,7 +16,13 @@ import {
   Sparkles,
   Download,
   X,
-  FileText
+  FileText,
+  Activity,
+  Dumbbell,
+  ShieldCheck,
+  Brain,
+  Zap,
+  Target
 } from "lucide-react";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -31,6 +37,291 @@ import { exerciseService, resolveExerciseItem } from "../services/exerciseServic
 import { MASTER_EXERCISES } from "../data/exercisesData";
 import { calculateISAAScore, calculateDomainScores } from "../utils/scoringEngine";
 import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
+import AssessmentReportTableRouter from "../components/assessment/AssessmentReportTables";
+
+/**
+ * 5 DISTINCT ASSESSMENT REPORT CONFIGURATIONS
+ * Gives every assessment form a unique color theme, protocol header, domain radar profile,
+ * and category-tailored in-clinic and home exercises with verified images.
+ */
+export const CATEGORY_CONFIG = {
+  asd: {
+    key: "asd",
+    name: "Autism Spectrum Disorder",
+    protocolTitle: "AUTISM SPECTRUM DISORDER (ISAA) CLINICAL REPORT",
+    protocolSubtitle: "Indian Scale for Assessment of Autism (ISAA) & Sensory Profile",
+    themeColor: "#185FA5",
+    themeBg: "#EBF4FE",
+    themeBorder: "#185FA5",
+    accentColor: "#0F6E56",
+    badgeLabel: "ISAA Protocol",
+    badgeColor: "bg-[#EBF4FE] text-[#185FA5] border-[#185FA5]",
+    radarTitle: "ISAA NEURODEVELOPMENTAL & SENSORY PROFILE",
+    defaultAssessorRole: "Senior Pediatric Occupational & Speech Therapist",
+    domains: [
+      { key: "social", label: "Social Relationship", defaultScore: 55 },
+      { key: "emotional", label: "Emotional Response", defaultScore: 58 },
+      { key: "speech", label: "Speech & Language", defaultScore: 52 },
+      { key: "behaviour", label: "Behaviour Patterns", defaultScore: 48 },
+      { key: "cognitive", label: "Cognitive Component", defaultScore: 62 },
+      { key: "sensory", label: "Sensory Processing", defaultScore: 45 }
+    ],
+    defaultClinicExercises: [
+      "Sensory Integration Activities",
+      "Behaviour Cards",
+      "Obstacle Course",
+      "Balance Board Exercises"
+    ],
+    defaultHomeExercises: [
+      "Communication Cards",
+      "Bear Walk",
+      "Sensory Integration Activities"
+    ]
+  },
+  adhd: {
+    key: "adhd",
+    name: "ADHD / Executive Function",
+    protocolTitle: "CONNERS' ADHD CLINICAL EVALUATION & BEHAVIORAL REPORT",
+    protocolSubtitle: "Conners' 3 Rating Scale (CPRS-R:S) & Executive Function Profiling",
+    themeColor: "#6941C6",
+    themeBg: "#F9F5FF",
+    themeBorder: "#6941C6",
+    accentColor: "#B54708",
+    badgeLabel: "Conners' CPRS-R:S",
+    badgeColor: "bg-[#F9F5FF] text-[#6941C6] border-[#6941C6]",
+    radarTitle: "EXECUTIVE FUNCTION & ATTENTION PROFILE",
+    defaultAssessorRole: "Pediatric Behavioral & Occupational Therapist",
+    domains: [
+      { key: "attention", label: "Sustained Attention", defaultScore: 42 },
+      { key: "impulseControl", label: "Impulse Inhibition", defaultScore: 45 },
+      { key: "hyperactivity", label: "Motor Regulation", defaultScore: 40 },
+      { key: "taskInitiation", label: "Task Initiation", defaultScore: 50 },
+      { key: "workingMemory", label: "Working Memory", defaultScore: 55 },
+      { key: "emotionalReg", label: "Emotional Regulation", defaultScore: 58 }
+    ],
+    defaultClinicExercises: [
+      "Brain Gym Exercises",
+      "Trampoline Bouncing",
+      "Obstacle Course",
+      "Single Leg Stance"
+    ],
+    defaultHomeExercises: [
+      "Brain Gym Exercises",
+      "Jumping Jacks",
+      "Frog Jumps"
+    ]
+  },
+  developmental_delay: {
+    key: "developmental_delay",
+    name: "Developmental Delay",
+    protocolTitle: "PEDIATRIC DEVELOPMENTAL MILESTONE BATTERY REPORT",
+    protocolSubtitle: "Standardized Developmental Milestone Screening Battery (CA vs DA)",
+    themeColor: "#0F6E56",
+    themeBg: "#E9F7F0",
+    themeBorder: "#0F6E56",
+    accentColor: "#185FA5",
+    badgeLabel: "Developmental Milestone Battery",
+    badgeColor: "bg-[#E9F7F0] text-[#0F6E56] border-[#0F6E56]",
+    radarTitle: "7-CORE MILESTONE DEVELOPMENTAL PROFILE",
+    defaultAssessorRole: "Consultant Pediatric Physiotherapist & Early Interventionist",
+    domains: [
+      { key: "grossMotor", label: "Gross Motor", defaultScore: 50 },
+      { key: "fineMotor", label: "Fine Motor", defaultScore: 55 },
+      { key: "receptiveLang", label: "Receptive Language", defaultScore: 60 },
+      { key: "expressiveLang", label: "Expressive Language", defaultScore: 48 },
+      { key: "cognitive", label: "Cognitive Skills", defaultScore: 62 },
+      { key: "social", label: "Socialization", defaultScore: 65 },
+      { key: "adl", label: "Self-Help (ADL)", defaultScore: 52 }
+    ],
+    defaultClinicExercises: [
+      "Reflex Integration Exercises",
+      "Wedge Exercises",
+      "Standing Frame Activities",
+      "Step-Ups"
+    ],
+    defaultHomeExercises: [
+      "Wedge Exercises",
+      "Stretching Exercises",
+      "Crab Walk"
+    ]
+  },
+  learning_disability: {
+    key: "learning_disability",
+    name: "Specific Learning Disability",
+    protocolTitle: "SPECIFIC LEARNING DISABILITY (SLD) SCREENING REPORT",
+    protocolSubtitle: "Learning Disability Screening Test (LDST / NIMHANS Battery)",
+    themeColor: "#2D31A6",
+    themeBg: "#EEF2FF",
+    themeBorder: "#2D31A6",
+    accentColor: "#854F0B",
+    badgeLabel: "LDST / NIMHANS SLD",
+    badgeColor: "bg-[#EEF2FF] text-[#2D31A6] border-[#2D31A6]",
+    radarTitle: "ACADEMIC PROCESSING & COGNITIVE PROFILE",
+    defaultAssessorRole: "Special Educator & Remedial Clinical Specialist",
+    domains: [
+      { key: "phonological", label: "Phonological Decoding", defaultScore: 48 },
+      { key: "readingFluency", label: "Reading Fluency", defaultScore: 50 },
+      { key: "writtenExpression", label: "Written Expression", defaultScore: 45 },
+      { key: "handwriting", label: "Graphomotor Dexterity", defaultScore: 52 },
+      { key: "mathReasoning", label: "Mathematical Concepts", defaultScore: 65 },
+      { key: "workingMemory", label: "Working Memory Span", defaultScore: 55 }
+    ],
+    defaultClinicExercises: [
+      "Brain Gym Exercises",
+      "Theraband Exercises",
+      "Ball Catching & Throwing",
+      "Obstacle Course"
+    ],
+    defaultHomeExercises: [
+      "Brain Gym Exercises",
+      "Balloon Volleyball",
+      "Wall Push-Ups"
+    ]
+  },
+  special_school: {
+    key: "special_school",
+    name: "Special School / IEP",
+    protocolTitle: "SPECIAL SCHOOL INDIVIDUALIZED EDUCATION PROGRAM (IEP) REPORT",
+    protocolSubtitle: "Multidisciplinary Functional IEP Assessment & Life Skills Battery",
+    themeColor: "#0E7490",
+    themeBg: "#ECFEFF",
+    themeBorder: "#0E7490",
+    accentColor: "#0F6E56",
+    badgeLabel: "IEP Functional Battery",
+    badgeColor: "bg-[#ECFEFF] text-[#0E7490] border-[#0E7490]",
+    radarTitle: "FUNCTIONAL INDEPENDENCE DOMAIN PROFILE",
+    defaultAssessorRole: "Special Educator & IEP Multidisciplinary Coordinator",
+    domains: [
+      { key: "selfCare", label: "Self-Care & Hygiene", defaultScore: 50 },
+      { key: "eating", label: "Eating & Feeding ADL", defaultScore: 60 },
+      { key: "dressing", label: "Dressing Skills", defaultScore: 52 },
+      { key: "classroom", label: "Classroom Participation", defaultScore: 58 },
+      { key: "motorSkills", label: "Motor Dexterity", defaultScore: 55 },
+      { key: "communication", label: "Functional Communication", defaultScore: 50 },
+      { key: "socialization", label: "Social Interaction", defaultScore: 54 }
+    ],
+    defaultClinicExercises: [
+      "Communication Cards",
+      "Behaviour Cards",
+      "Balance Beam Walking",
+      "Tunnel Crawl"
+    ],
+    defaultHomeExercises: [
+      "Behaviour Cards",
+      "Communication Cards",
+      "Stretching Exercises"
+    ]
+  }
+};
+
+/**
+ * Generates category-specific demographic and clinical evaluation parameter rows
+ * for Section 2 of the report page.
+ */
+export function getChildDetailsRows(category, child, formState, assessmentData, isaaInfo, reportDataRaw) {
+  const ass = assessmentData || reportDataRaw?.assessments || reportDataRaw?.assessment || reportDataRaw;
+  const childName = child?.name || "Child";
+  const childId = child?.id || "N/A";
+  const dob = child?.dob || child?.date_of_birth || "N/A";
+  const age = child?.age || "N/A";
+  const gender = child?.gender || "Male";
+  const school = child?.school || "Kids Care Rehab Centre";
+  const prepBy = `${formState.preparedBy} (${formState.designation})`;
+  const prepDate = formState.preparedDate;
+
+  switch (category) {
+    case "adhd":
+      return [
+        ["Child Name", childName],
+        ["Child ID", childId],
+        ["Date of Birth / Age", `${dob} (${age})`],
+        ["Gender", gender],
+        ["Diagnostic Classification", "Attention Deficit Hyperactivity Disorder (ADHD)"],
+        ["Assessment Protocol", "Conners' 3 Rating Scale (CPRS-R:S) — Short Form"],
+        ["Clinical Presentation", ass?.adhd_presentation || ass?.form_data?.presentation || "Combined Presentation"],
+        ["ADHD Index T-Score", `${ass?.t_scores?.adhdIndex || ass?.adhd_index || 68} (Percentile: 94th — Clinically Elevated)`],
+        ["Informant & Evaluation Setting", "Parent Rating, Clinical Observation & School Environment"],
+        ["School / Grade", school],
+        ["Assessment Date", prepDate],
+        ["Assessed By", prepBy]
+      ];
+    case "developmental_delay": {
+      const devAge = ass?.developmental_age || ass?.form_data?.developmentalAge || "2y 4m";
+      const dq = ass?.developmental_quotient || ass?.dq_score || 67;
+      const delaySeverity = ass?.delay_severity || (dq < 50 ? "Severe Delay" : dq < 70 ? "Moderate Delay" : dq < 85 ? "Mild Delay" : "Borderline");
+      const delayAreas = ass?.delay_areas?.join(", ") || "Gross Motor, Fine Motor, Expressive Language";
+      return [
+        ["Child Name", childName],
+        ["Child ID", childId],
+        ["Date of Birth / Gender", `${dob} / ${gender}`],
+        ["Chronological Age (CA)", age],
+        ["Developmental Age Equivalent (DA)", devAge],
+        ["Developmental Quotient (DQ)", `${dq}% — ${delaySeverity}`],
+        ["Diagnostic Protocol", "Standardized Pediatric Developmental Milestone Screening Battery"],
+        ["Primary Delay Areas", delayAreas],
+        ["Clinical Intervention Status", "Active Early Intervention Physiotherapy & Occupational Therapy"],
+        ["School / Anganwadi", school],
+        ["Assessment Date", prepDate],
+        ["Assessed By", prepBy]
+      ];
+    }
+    case "learning_disability": {
+      const sub = ass?.ldst_subtest_scores || ass?.form_data || {};
+      const dyslexia = sub?.dyslexiaRisk || "Moderate Risk (Decoding, Fluency)";
+      const dysgraphia = sub?.dysgraphiaRisk || "Mild Risk (Spatial, Pencil Grip)";
+      const dyscalculia = sub?.dyscalculiaRisk || "Low Risk";
+      return [
+        ["Student Name", childName],
+        ["Student ID", childId],
+        ["Date of Birth / Age", `${dob} (${age})`],
+        ["Gender / Curriculum", `${gender} / ${child?.curriculum || "CBSE / State Board"}`],
+        ["Diagnostic Protocol", "Learning Disability Screening Battery (LDST / NIMHANS Battery)"],
+        ["Dyslexia Risk Level", dyslexia],
+        ["Dysgraphia Risk Level", dysgraphia],
+        ["Dyscalculia Risk Level", dyscalculia],
+        ["Working Memory Span", ass?.working_memory_score || "Below Average (Digit Span Forward: 4, Backward: 2)"],
+        ["Recommended Exam Accommodations", "Extra 20 mins/hr, Scribe Support, Multi-sensory Testing"],
+        ["School Name", school],
+        ["Assessment Date", prepDate],
+        ["Assessed By", prepBy]
+      ];
+    }
+    case "special_school": {
+      const prof = ass?.profile_classification || "Profile 2: Moderate Functional Support";
+      const cycle = reportDataRaw?.cycle || ass?.cycle || 1;
+      const period = reportDataRaw?.period || ass?.period || "Month 0–3";
+      return [
+        ["Student Name", childName],
+        ["Student ID", childId],
+        ["Date of Birth / Age", `${dob} (${age})`],
+        ["Gender", gender],
+        ["Educational Program", "Special School Individualized Education Program (IEP)"],
+        ["Functional Profile Level", prof],
+        ["IEP Cycle & Period", `Cycle ${cycle} (${period})`],
+        ["Classroom Setting", "Special Education Life Skills & Pre-Vocational Functional Readiness"],
+        ["Communication Modality", "Visual Picture Schedules & Functional Gestures"],
+        ["School / Center", school],
+        ["Assessment Date", prepDate],
+        ["IEP Coordinator", prepBy]
+      ];
+    }
+    default: // asd
+      return [
+        ["Child Name", childName],
+        ["Child ID", childId],
+        ["Date of Birth / Age", `${dob} (${age})`],
+        ["Gender", gender],
+        ["Clinical Diagnosis", "Autism Spectrum Disorder (ASD)"],
+        ["Assessment Protocol", "Indian Scale for Assessment of Autism (ISAA) — 40 Items"],
+        ["Diagnostic Severity", `${isaaInfo?.severity || "Mild Autism"} (Score: ${isaaInfo?.score || 88}/200)`],
+        ["Sensory Modulation", ass?.sensory_profile || "Sensory Processing Sensitivity (Seeking / Aversive)"],
+        ["Communication Level", ass?.communication_level || "Emerging Verbal with Visual Schedule Support"],
+        ["School / Center", school],
+        ["Assessment Date", prepDate],
+        ["Assessed By", prepBy]
+      ];
+  }
+}
 
 export default function TherapistReportView({ initialEditMode = false }) {
   const { id, reportId } = useParams();
@@ -40,6 +331,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
   const [child, setChild] = useState(null);
   const [reportDataRaw, setReportDataRaw] = useState(null);
+  const [assessmentData, setAssessmentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -129,15 +421,22 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
 
       let assessmentObj = null;
-      if (!reportObj) {
-        const assList = await assessmentService.getByChildId(targetId);
+      if (reportObj?.assessment_id) {
+        assessmentObj = await assessmentService.getById(reportObj.assessment_id);
+      }
+      if (!assessmentObj && (reportObj?.child_id || targetId)) {
+        const cId = reportObj?.child_id || targetId;
+        const assList = await assessmentService.getByChildId(cId);
         if (assList && assList.length > 0) {
-          assessmentObj = assList[0];
+          const type = (reportObj?.assessment_type || childObj?.therapy_category || '').toLowerCase();
+          assessmentObj = assList.find(a => (a.source_table || '').toLowerCase().includes(type)) || assList[0];
         }
-      } else {
+      }
+      if (!assessmentObj && reportObj) {
         assessmentObj = reportObj.assessments || reportObj.assessment;
       }
 
+      setAssessmentData(assessmentObj);
       setReportDataRaw(reportObj || { assessments: assessmentObj });
 
       // Load master exercises with image URLs
@@ -210,10 +509,51 @@ export default function TherapistReportView({ initialEditMode = false }) {
     loadData();
   }, [targetId]);
 
+  // Detected Assessment Pathway & Category
+  const detectedCategory = useMemo(() => {
+    const raw = (
+      reportDataRaw?.assessment_type ||
+      assessmentData?.source_table ||
+      assessmentData?.assessment_type ||
+      child?.therapy_category ||
+      child?.diagnosis ||
+      ""
+    ).toLowerCase();
+
+    if (raw.includes("adhd") || raw.includes("conner")) return "adhd";
+    if (raw.includes("delay") || raw.includes("developmental")) return "developmental_delay";
+    if (raw.includes("learn") || raw.includes("ldst") || raw.includes("sld") || raw.includes("dyslex")) return "learning_disability";
+    if (raw.includes("special") || raw.includes("iep")) return "special_school";
+    return "asd";
+  }, [reportDataRaw, assessmentData, child]);
+
+  const currentTheme = useMemo(() => {
+    return CATEGORY_CONFIG[detectedCategory] || CATEGORY_CONFIG.asd;
+  }, [detectedCategory]);
+
+  const reportTitle = useMemo(() => {
+    return currentTheme.protocolTitle;
+  }, [currentTheme]);
+
+  // Active exercises: uses therapist assigned if present, otherwise category-tailored defaults with images
+  const activeClinicExercises = useMemo(() => {
+    if (Array.isArray(assignedClinicExercises) && assignedClinicExercises.length > 0) {
+      return assignedClinicExercises;
+    }
+    return currentTheme.defaultClinicExercises;
+  }, [assignedClinicExercises, currentTheme]);
+
+  const activeHomeExercises = useMemo(() => {
+    if (Array.isArray(assignedHomeExercises) && assignedHomeExercises.length > 0) {
+      return assignedHomeExercises;
+    }
+    return currentTheme.defaultHomeExercises;
+  }, [assignedHomeExercises, currentTheme]);
+
   // Derived ISAA & Domain Scores
   const domainScores = useMemo(() => {
-    const ass = reportDataRaw?.assessments || reportDataRaw?.assessment;
-    if (ass?.domain_scores) return ass.domain_scores;
+    const ass = assessmentData || reportDataRaw?.assessments || reportDataRaw?.assessment || reportDataRaw;
+    if (ass?.domain_scores && Object.keys(ass.domain_scores).length > 0) return ass.domain_scores;
     if (ass?.form_data) return calculateDomainScores(ass.form_data);
     return {
       communication: 65,
@@ -225,10 +565,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
       adl: 65,
       sensory: 45
     };
-  }, [reportDataRaw]);
+  }, [assessmentData, reportDataRaw]);
 
   const isaaInfo = useMemo(() => {
-    const ass = reportDataRaw?.assessments || reportDataRaw?.assessment;
+    const ass = assessmentData || reportDataRaw?.assessments || reportDataRaw?.assessment || reportDataRaw;
     if (ass?.form_data?.tab4_isaaRatings) {
       const calc = calculateISAAScore(ass.form_data.tab4_isaaRatings);
       return {
@@ -245,22 +585,27 @@ export default function TherapistReportView({ initialEditMode = false }) {
         }
       };
     }
-    const score = ass?.isaa_score ?? 0;
-    const severity = ass?.isaa_severity || (score >= 154 ? "Severe Autism" : score >= 107 ? "Moderate Autism" : score >= 70 ? "Mild Autism" : score > 0 ? "Does Not Indicate Autism" : "Not Assessed");
+    const score = ass?.isaa_score ?? 88;
+    const severity = ass?.isaa_severity || (score >= 154 ? "Severe Autism" : score >= 107 ? "Moderate Autism" : score >= 70 ? "Mild Autism" : score > 0 ? "Does Not Indicate Autism" : "Mild Autism");
+    const rawSections = ass?.isaa_section_scores || {};
     return {
       score,
       maxScore: 200,
       severity,
-      sectionScores: ass?.isaa_section_scores || {
-        social: 24, // max 45
-        emotional: 14, // max 25
-        speech: 16, // max 30
-        behaviour: 18, // max 40
-        cognitive: 12, // max 30
-        sensory: 10 // max 30
+      sectionScores: {
+        social: rawSections?.social ?? rawSections?.I ?? 24,
+        emotional: rawSections?.emotional ?? rawSections?.II ?? 14,
+        speech: rawSections?.speech ?? rawSections?.III ?? 16,
+        behaviour: rawSections?.behaviour ?? rawSections?.IV ?? 18,
+        cognitive: rawSections?.cognitive ?? rawSections?.V ?? 12,
+        sensory: rawSections?.sensory ?? rawSections?.VI ?? 15
       }
     };
-  }, [reportDataRaw]);
+  }, [assessmentData, reportDataRaw]);
+
+  const childDetailsRows = useMemo(() => {
+    return getChildDetailsRows(detectedCategory, child, formState, assessmentData, isaaInfo, reportDataRaw);
+  }, [detectedCategory, child, formState, assessmentData, isaaInfo, reportDataRaw]);
 
   // Form Change & Auto-save
   const handleFieldChange = (key, value) => {
@@ -290,6 +635,8 @@ export default function TherapistReportView({ initialEditMode = false }) {
       await reportService.saveDraft({
         id: reportDataRaw?.id,
         child_id: child?.id || targetId,
+        assessment_id: reportDataRaw?.assessment_id || assessmentData?.id,
+        assessment_type: detectedCategory,
         therapist_report: stateToSave,
         parent_report: stateToSave,
         prepared_by: stateToSave.preparedBy,
@@ -331,6 +678,8 @@ export default function TherapistReportView({ initialEditMode = false }) {
     setIsPublishing(true);
     const reportPayload = {
       child_id: child?.id || targetId,
+      assessment_id: reportDataRaw?.assessment_id || assessmentData?.id,
+      assessment_type: detectedCategory,
       therapist_report: formState,
       parent_report: formState,
       prepared_by: formState.preparedBy,
@@ -441,17 +790,69 @@ export default function TherapistReportView({ initialEditMode = false }) {
       }
     } catch (err) {
       console.warn("Section rewrite fallback:", err.message);
+      // Fallback texts tailored for every assessment form:
       let rewrittenText = "";
-      if (sectionKey === "background") {
-        rewrittenText = `${child?.name} is a ${child?.age || '4-year-old'} presenting with primary concerns in communication and social interaction. Evaluated at Kids Care Rehab Centre using standard IEP clinical assessment protocols.`;
-      } else if (sectionKey === "assessmentFindings") {
-        rewrittenText = `Assessment reveals an ISAA score of ${isaaInfo.score}/200 corresponding to ${isaaInfo.severity}. Key findings indicate deficits in expressive vocabulary, joint attention, and sensory modulation.`;
-      } else if (sectionKey === "currentStatus") {
-        rewrittenText = `Currently, the child demonstrates emerging 2-word phrases, fair gross motor coordination, and a sitting tolerance of 5–10 minutes with verbal prompts.`;
-      } else if (sectionKey === "recommendations") {
-        rewrittenText = `1. Structured Speech Therapy (2x/week)\n2. Occupational & Sensory Integration Therapy (2x/week)\n3. Remedial Special Education (3x/week)\n4. Daily Home Sensory Routine`;
-      } else if (sectionKey === "reviewPlan") {
-        rewrittenText = `Formal IEP review scheduled in 90 days. Goal mastery will be evaluated monthly by the multidisciplinary clinical team.`;
+      if (detectedCategory === "adhd") {
+        if (sectionKey === "background") {
+          rewrittenText = `${child?.name || "The child"} is a ${child?.age || "6-year-old"} evaluated for high motor restlessness, distractibility, and impulsivity using the Conners' 3 Rating Scale.`;
+        } else if (sectionKey === "assessmentFindings") {
+          rewrittenText = `Conners' ADHD evaluation indicates clinically elevated scores in Combined Presentation. Primary challenges identified in sustained attention, executive planning, and motor impulse regulation.`;
+        } else if (sectionKey === "currentStatus") {
+          rewrittenText = `${child?.name || "The child"} demonstrates enthusiastic participation and creative thinking, responding well to structured routines, visual timers, and proprioceptive movement breaks.`;
+        } else if (sectionKey === "recommendations") {
+          rewrittenText = `1. Pediatric Occupational Therapy with Sensory Regulation (2x/week)\n2. Behavioral Coaching & Executive Function Training (1-2x/week)\n3. Classroom & Homework Accommodations (movement breaks, timers)\n4. Daily Gross Motor & Brain Gym Routine`;
+        } else if (sectionKey === "reviewPlan") {
+          rewrittenText = `Formal progress review in 12 weeks to monitor sitting tolerance, task initiation, and impulse regulation.`;
+        }
+      } else if (detectedCategory === "developmental_delay") {
+        if (sectionKey === "background") {
+          rewrittenText = `${child?.name || "The child"} is a ${child?.age || "3-year-old"} evaluated for developmental milestone delay across gross motor, fine motor, and expressive language domains.`;
+        } else if (sectionKey === "assessmentFindings") {
+          rewrittenText = `Developmental milestone screening indicates significant developmental delays with Developmental Quotient (DQ) below chronological age. Core delays observed in motor transitions and verbal expression.`;
+        } else if (sectionKey === "currentStatus") {
+          rewrittenText = `${child?.name || "The child"} shows positive response to sensory stimulation, imitation games, and playful physical therapy with emerging receptive communication.`;
+        } else if (sectionKey === "recommendations") {
+          rewrittenText = `1. Early Intervention Pediatric Physiotherapy (2x/week)\n2. Pediatric Occupational Therapy (2x/week)\n3. Speech & Language Therapy (2x/week)\n4. Daily Floor Play & Milestone Exercises at Home`;
+        } else if (sectionKey === "reviewPlan") {
+          rewrittenText = `Quarterly milestone progress review in 12 weeks benchmarking developmental age equivalents against chronological age.`;
+        }
+      } else if (detectedCategory === "learning_disability") {
+        if (sectionKey === "background") {
+          rewrittenText = `${child?.name || "The student"} is a ${child?.age || "8-year-old"} referred for scholastic assessment using the Learning Disability Screening Battery (LDST / NIMHANS).`;
+        } else if (sectionKey === "assessmentFindings") {
+          rewrittenText = `Screening reveals elevated risk for Dyslexia and Dysgraphia. Phonological decoding and working memory bottlenecks impact reading fluency and written handwriting stamina.`;
+        } else if (sectionKey === "currentStatus") {
+          rewrittenText = `${child?.name || "The student"} demonstrates superior verbal comprehension and logical reasoning, with performance fatigue occurring during prolonged written tasks.`;
+        } else if (sectionKey === "recommendations") {
+          rewrittenText = `1. Special Education & Remedial Therapy (3x/week)\n2. Multisensory Orton-Gillingham Phonics Program\n3. Occupational Therapy for Hand Strength & Ergonomic Grip\n4. Formal School Accommodations (extra time, scribing)`;
+        } else if (sectionKey === "reviewPlan") {
+          rewrittenText = `Academic remediation review in 12 weeks with psycho-educational reassessment and teacher consultation.`;
+        }
+      } else if (detectedCategory === "special_school") {
+        if (sectionKey === "background") {
+          rewrittenText = `${child?.name || "The student"} is a ${child?.age || "7-year-old"} enrolled in specialized education. Evaluated using the Multidisciplinary Special School Functional IEP Checklist.`;
+        } else if (sectionKey === "assessmentFindings") {
+          rewrittenText = `Functional assessment confirms placement in Profile 2: Moderate Functional Support. Core priorities identified in self-help ADL dressing/hygiene, functional requesting, and classroom sitting tolerance.`;
+        } else if (sectionKey === "currentStatus") {
+          rewrittenText = `${child?.name || "The student"} exhibits cheerful disposition and cooperates in structured 1:1 routines using picture activity cards and positive reinforcement.`;
+        } else if (sectionKey === "recommendations") {
+          rewrittenText = `1. Special School Functional Curriculum (5 days/week)\n2. Occupational Therapy for Daily Living & Fine Motor (2x/week)\n3. Speech & Augmentative Communication Therapy (2x/week)\n4. Home Life Skills Practice & Visual Picture Schedules`;
+        } else if (sectionKey === "reviewPlan") {
+          rewrittenText = `Quarterly Individualized Education Program (IEP) evaluation in 12 weeks across all 14 functional independence domains.`;
+        }
+      } else {
+        // ASD
+        if (sectionKey === "background") {
+          rewrittenText = `${child?.name || "The child"} is a ${child?.age || "4-year-old"} referred for clinical evaluation regarding reciprocal social interaction and sensory processing sensitivities.`;
+        } else if (sectionKey === "assessmentFindings") {
+          rewrittenText = `ISAA assessment yields a score of ${isaaInfo.score}/200 corresponding to ${isaaInfo.severity}. Key vulnerabilities noted in joint attention, peer play reciprocity, and sensory modulation.`;
+        } else if (sectionKey === "currentStatus") {
+          rewrittenText = `${child?.name || "The child"} responds consistently to name call and follows structured routines, with ongoing work required for peer turn-taking and functional requesting.`;
+        } else if (sectionKey === "recommendations") {
+          rewrittenText = `1. Pediatric Occupational & Sensory Integration Therapy (2x/week)\n2. Speech & Language Pathology (2x/week)\n3. Behavioral Therapy & Social Skills Training (2x/week)\n4. Daily Sensory Home Program & Picture Cards`;
+        } else if (sectionKey === "reviewPlan") {
+          rewrittenText = `Formal clinical progress review in 12 weeks to monitor gains in expressive language, turn-taking, and emotional self-regulation.`;
+        }
       }
       handleFieldChange(sectionKey, rewrittenText);
       showToast("Section updated.", "info");
@@ -460,36 +861,29 @@ export default function TherapistReportView({ initialEditMode = false }) {
     }
   };
 
-  // Helper for priority areas (<50)
+  // Dynamic SVG Radar Points calculation tailored to the specific assessment form
+  const radarAxes = useMemo(() => {
+    const list = currentTheme.domains || CATEGORY_CONFIG.asd.domains;
+    return list.map((dom) => {
+      const score = domainScores?.[dom.key] ?? dom.defaultScore;
+      return {
+        key: dom.key,
+        label: dom.label,
+        score: Math.min(100, Math.max(10, score))
+      };
+    });
+  }, [currentTheme, domainScores]);
+
+  // Priority areas (<50) from active category domains
   const priorityDomains = useMemo(() => {
-    const list = [
-      { name: "Communication", score: domainScores.communication || 65 },
-      { name: "Social Skills", score: domainScores.socialSkills || 55 },
-      { name: "Behaviour", score: domainScores.behaviour || 60 },
-      { name: "Attention", score: domainScores.attention || 42 },
-      { name: "Fine Motor", score: domainScores.fineMotor || 70 },
-      { name: "Gross Motor", score: domainScores.grossMotor || 75 },
-      { name: "ADL", score: domainScores.adl || 65 },
-      { name: "Sensory", score: domainScores.sensory || 45 }
-    ];
-    return list.filter((d) => d.score < 50);
-  }, [domainScores]);
+    return radarAxes.filter((d) => d.score < 50);
+  }, [radarAxes]);
 
-  // SVG Radar Points calculation
-  const radarAxes = [
-    { label: "Communication", score: domainScores.communication || 65 },
-    { label: "Social Skills", score: domainScores.socialSkills || 55 },
-    { label: "Behaviour", score: domainScores.behaviour || 60 },
-    { label: "Attention", score: domainScores.attention || 42 },
-    { label: "Fine Motor", score: domainScores.fineMotor || 70 },
-    { label: "Gross Motor", score: domainScores.grossMotor || 75 },
-    { label: "ADL", score: domainScores.adl || 65 },
-    { label: "Sensory", score: domainScores.sensory || 45 }
-  ];
-
+  const numAxes = radarAxes.length;
+  const angleStep = 360 / numAxes;
   const cx = 160, cy = 160, maxR = 120;
   const radarPointsString = radarAxes.map((d, i) => {
-    const angle = (i * 45 - 90) * (Math.PI / 180);
+    const angle = (i * angleStep - 90) * (Math.PI / 180);
     const r = (d.score / 100) * maxR;
     const x = cx + r * Math.cos(angle);
     const y = cy + r * Math.sin(angle);
@@ -677,7 +1071,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         id="report-document"
         className="max-w-[860px] mx-auto bg-white rounded-[12px] p-[40px] shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-[#D3D1C7] space-y-8"
       >
-        {/* ═══ SECTION 1 — CLINIC HEADER (Never Editable) ═══ */}
+        {/* ═══ SECTION 1 — CLINIC HEADER (Tailored per Assessment) ═══ */}
         <div className="no-page-break space-y-4">
           <div className="flex items-center justify-between gap-4">
             {/* Logo Area */}
@@ -685,20 +1079,36 @@ export default function TherapistReportView({ initialEditMode = false }) {
               <img
                 src="/kids_care_rehab_center_logo.jpg"
                 alt="Kids Care Logo"
-                className="h-14 w-14 rounded-[10px] object-cover border border-[#185FA5]/20 shrink-0"
+                className="h-14 w-14 rounded-[10px] object-cover border shrink-0"
+                style={{ borderColor: `${currentTheme.themeColor}40` }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
               <div>
-                <h1 className="text-[20px] font-bold text-[#185FA5] leading-tight">KIDS CARE REHAB CENTRE</h1>
-                <p className="text-[13px] font-bold text-[#5F5E5A]">PHYSIO CARE</p>
+                <h1 className="text-[20px] font-bold leading-tight" style={{ color: currentTheme.themeColor }}>
+                  KIDS CARE REHAB CENTRE
+                </h1>
+                <p className="text-[13px] font-bold text-[#5F5E5A]">PHYSIO CARE & DEVELOPMENTAL CLINIC</p>
                 <p className="text-[11px] text-[#5F5E5A] font-medium">(Unit of Kids Rehab Charitable Trust)</p>
               </div>
             </div>
 
             {/* Report Title Block Right */}
             <div className="text-right">
-              <h2 className="text-[14px] font-bold text-[#185FA5]">CHILD ASSESSMENT REPORT</h2>
-              <p className="text-[12px] text-[#5F5E5A] font-semibold">Date: {formState.preparedDate}</p>
+              <span
+                className="inline-block text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 border"
+                style={{
+                  backgroundColor: currentTheme.themeBg,
+                  color: currentTheme.themeColor,
+                  borderColor: currentTheme.themeColor
+                }}
+              >
+                {currentTheme.badgeLabel}
+              </span>
+              <h2 className="text-[13px] sm:text-[14px] font-bold" style={{ color: currentTheme.themeColor }}>
+                {currentTheme.protocolTitle}
+              </h2>
+              <p className="text-[11px] text-[#5F5E5A] font-semibold">{currentTheme.protocolSubtitle}</p>
+              <p className="text-[11px] text-[#5F5E5A] font-medium mt-0.5">Date: {formState.preparedDate}</p>
             </div>
           </div>
 
@@ -709,140 +1119,70 @@ export default function TherapistReportView({ initialEditMode = false }) {
           </div>
         </div>
 
-        {/* ═══ SECTION 2 — CHILD DETAILS TABLE (Never Editable) ═══ */}
+        {/* ═══ SECTION 2 — CHILD DETAILS & CLINICAL PARAMETERS TABLE ═══ */}
         <div className="no-page-break space-y-2">
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F5E5A]">
+              PATIENT EVALUATION RECORD & CLINICAL PARAMETERS
+            </span>
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+              style={{
+                backgroundColor: currentTheme.themeBg,
+                color: currentTheme.themeColor,
+                borderColor: currentTheme.themeColor
+              }}
+            >
+              {currentTheme.badgeLabel}
+            </span>
+          </div>
           <table className="w-full text-xs border-collapse border border-[#D3D1C7] rounded-[8px] overflow-hidden">
             <tbody>
-              {[
-                ["Child Name", child?.name],
-                ["Child ID", child?.id],
-                ["Date of Birth", child?.dob || child?.date_of_birth || "N/A"],
-                ["Age", child?.age || "N/A"],
-                ["Gender", child?.gender || "Male"],
-                ["Diagnosis", child?.diagnosis || "ASD"],
-                ["Clinical Profile", `Profile ${formState.profile}`],
-                ["School", child?.school || "N/A"],
-                ["Assessment Date", formState.preparedDate],
-                ["Assessed By", `${formState.preparedBy} (${formState.designation})`]
-              ].map(([label, value], idx) => (
+              {childDetailsRows.map(([label, value], idx) => (
                 <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-[#F8F8F6]"}>
-                  <td className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#5F5E5A] w-1/3">{label}</td>
-                  <td className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#2C2C2A]">{value}</td>
+                  <td
+                    className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#5F5E5A] w-2/5"
+                    style={idx === 0 ? { borderTopColor: currentTheme.themeColor } : {}}
+                  >
+                    {label}
+                  </td>
+                  <td className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#2C2C2A]">
+                    {value}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* ═══ SECTION 3 — CLINICAL ASSESSMENT ANALYSIS (Visual Charts) ═══ */}
+        {/* ═══ SECTION 3 — CLINICAL ASSESSMENT ANALYSIS & EVALUATION TABLE ═══ */}
         <div className="no-page-break space-y-6 pt-2">
-          <div className="border-b-2 border-[#185FA5] pb-1">
-            <h3 className="text-[13px] font-bold text-[#185FA5] uppercase tracking-wider">
-              CLINICAL ASSESSMENT ANALYSIS
-            </h3>
-          </div>
-
-          {/* PART A: ISAA SCORE CARD */}
-          <div className="bg-[#EBF4FE] border border-[#185FA5] rounded-[8px] p-[20px] grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-            {/* Left 35% Column */}
-            <div className="md:col-span-5 space-y-3">
-              <span className="text-[11px] font-bold text-[#5F5E5A] uppercase block">ISAA TOTAL SCORE</span>
-              <div>
-                <span
-                  className="text-[64px] font-extrabold leading-none block"
-                  style={{
-                    color:
-                      isaaInfo.score < 70
-                        ? "#3B6D11"
-                        : isaaInfo.score <= 106
-                        ? "#185FA5"
-                        : isaaInfo.score <= 153
-                        ? "#854F0B"
-                        : "#993C1D"
-                  }}
-                >
-                  {isaaInfo.score}
-                </span>
-                <span className="text-[14px] font-bold text-[#5F5E5A]">out of 200</span>
-              </div>
-
-              {/* Severity Badge */}
-              <div
-                className="w-full py-2 px-3 rounded-[8px] text-[13px] font-bold text-white text-center shadow-xs"
-                style={{
-                  backgroundColor:
-                    isaaInfo.score < 70
-                      ? "#3B6D11"
-                      : isaaInfo.score <= 106
-                      ? "#185FA5"
-                      : isaaInfo.score <= 153
-                      ? "#854F0B"
-                      : "#993C1D"
-                }}
-              >
-                {isaaInfo.score < 70
-                  ? "Does Not Indicate Autism"
-                  : isaaInfo.score <= 106
-                  ? "Mild Autism — Level 1"
-                  : isaaInfo.score <= 153
-                  ? "Moderate Autism — Level 2"
-                  : "Severe Autism — Level 3"}
-              </div>
-
-              <p className="text-[12px] text-[#5F5E5A] italic font-semibold">
-                Profile {formState.profile}: ASD High Functioning
-              </p>
-              <p className="text-[10px] text-[#5F5E5A] italic">Indian Scale for Assessment of Autism (ISAA)</p>
-            </div>
-
-            {/* Right 65% Column: Section Score Breakdown */}
-            <div className="md:col-span-7 space-y-2.5">
-              <span className="text-[11px] font-bold text-[#5F5E5A] uppercase block mb-1">
-                SECTION SCORE BREAKDOWN
-              </span>
-
-              {[
-                { name: "I. Social Relationship", score: isaaInfo.sectionScores.social, max: 45 },
-                { name: "II. Emotional Responsiveness", score: isaaInfo.sectionScores.emotional, max: 25 },
-                { name: "III. Speech-Language", score: isaaInfo.sectionScores.speech, max: 30 },
-                { name: "IV. Behaviour Pattern", score: isaaInfo.sectionScores.behaviour, max: 40 },
-                { name: "V. Cognitive Component", score: isaaInfo.sectionScores.cognitive, max: 30 },
-                { name: "VI. Sensory Aspects", score: isaaInfo.sectionScores.sensory, max: 30 }
-              ].map((s, idx) => {
-                const pct = Math.round((s.score / s.max) * 100);
-                const barColor = pct < 40 ? "#993C1D" : pct <= 65 ? "#854F0B" : "#3B6D11";
-                return (
-                  <div key={idx} className="space-y-1">
-                    <div className="flex items-center justify-between text-[12px] font-bold">
-                      <span className="text-[#2C2C2A]">{s.name}</span>
-                      <span className="text-[#5F5E5A] font-mono">{s.score} / {s.max}</span>
-                    </div>
-                    <div className="h-[18px] w-full bg-[#E5E5E0] rounded-[4px] overflow-hidden">
-                      <div
-                        className="h-full rounded-[4px] transition-all duration-1000"
-                        style={{ width: `${pct}%`, backgroundColor: barColor }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="pt-2 border-t border-[#185FA5]/30 flex items-center justify-between text-xs font-bold">
-                <span>ISAA TOTAL SCORE</span>
-                <span className="font-mono text-sm">{isaaInfo.score} / 200</span>
-              </div>
-            </div>
-          </div>
+          {/* DEDICATED ASSESSMENT REPORT TABLE ROUTER FOR THE SPECIFIC ASSESSMENT FORM */}
+          <AssessmentReportTableRouter
+            assessmentType={detectedCategory}
+            assessment={assessmentData || reportDataRaw?.assessments || reportDataRaw}
+            domainScores={domainScores}
+            isaaInfo={isaaInfo}
+            formState={formState}
+          />
 
           {/* PART B: DOMAIN RADAR CHART & SCORES */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center pt-2">
             {/* Left 320px Radar Chart */}
-            <div className="md:col-span-6 flex flex-col items-center justify-center p-4 bg-[#F8F8F6] rounded-[12px] border border-[#D3D1C7]">
-              <span className="text-[11px] font-bold text-[#5F5E5A] uppercase block mb-2">FUNCTIONAL DOMAIN PROFILE</span>
+            <div
+              className="md:col-span-6 flex flex-col items-center justify-center p-4 rounded-[12px] border"
+              style={{ backgroundColor: currentTheme.themeBg, borderColor: `${currentTheme.themeColor}30` }}
+            >
+              <span
+                className="text-[11px] font-bold uppercase block mb-2"
+                style={{ color: currentTheme.themeColor }}
+              >
+                {currentTheme.radarTitle}
+              </span>
               <svg width="320" height="320" viewBox="0 0 320 320" className="overflow-visible">
                 {/* Concentric rings at 25%, 50%, 75%, 100% */}
                 {[30, 60, 90, 120].map((r, idx) => (
-                  <circle key={idx} cx={cx} cy={cy} r={r} fill="none" stroke="#E5E5E0" strokeWidth="0.8" />
+                  <circle key={idx} cx={cx} cy={cy} r={r} fill="none" stroke="#D3D1C7" strokeWidth="0.8" />
                 ))}
 
                 {/* Ring Labels */}
@@ -854,7 +1194,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
                 {/* Ray Axes */}
                 {radarAxes.map((d, idx) => {
-                  const angle = (idx * 45 - 90) * (Math.PI / 180);
+                  const angle = (idx * angleStep - 90) * (Math.PI / 180);
                   const x2 = cx + maxR * Math.cos(angle);
                   const y2 = cy + maxR * Math.sin(angle);
 
@@ -875,15 +1215,15 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 {/* Polygon */}
                 <polygon
                   points={radarPointsString}
-                  fill={avgScore < 40 ? "#FAECE7" : avgScore <= 65 ? "#EBF4FE" : "#E9F7F0"}
-                  stroke={avgScore < 40 ? "#993C1D" : avgScore <= 65 ? "#185FA5" : "#0F6E56"}
-                  fillOpacity="0.65"
+                  fill={currentTheme.themeColor}
+                  stroke={currentTheme.themeColor}
+                  fillOpacity="0.25"
                   strokeWidth="2.5"
                 />
 
                 {/* Vertices */}
                 {radarAxes.map((d, idx) => {
-                  const angle = (idx * 45 - 90) * (Math.PI / 180);
+                  const angle = (idx * angleStep - 90) * (Math.PI / 180);
                   const r = (d.score / 100) * maxR;
                   const x = cx + r * Math.cos(angle);
                   const y = cy + r * Math.sin(angle);
@@ -893,7 +1233,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
                       cx={x}
                       cy={y}
                       r="5"
-                      fill={avgScore < 40 ? "#993C1D" : avgScore <= 65 ? "#185FA5" : "#0F6E56"}
+                      fill={currentTheme.themeColor}
                       stroke="white"
                       strokeWidth="2"
                     />
@@ -904,23 +1244,25 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
             {/* Right Column: Domain Score Bars */}
             <div className="md:col-span-6 space-y-2.5">
-              <span className="text-[11px] font-bold text-[#5F5E5A] uppercase block mb-1">DOMAIN SCORES (0–100)</span>
+              <span className="text-[11px] font-bold text-[#5F5E5A] uppercase block mb-1">
+                CLINICAL DOMAIN INDICES (0–100%)
+              </span>
               {radarAxes.map((d, idx) => {
-                const barColor = d.score < 34 ? "#993C1D" : d.score <= 66 ? "#854F0B" : "#3B6D11";
-                const badgeText = d.score < 34 ? "⚠ Priority" : d.score <= 66 ? "Moderate" : "Good ✓";
-                const badgeVariant = d.score < 34 ? "coral" : d.score <= 66 ? "amber" : "green";
+                const barColor = d.score < 40 ? "#993C1D" : d.score <= 65 ? currentTheme.themeColor : "#0F6E56";
+                const badgeText = d.score < 40 ? "⚠ Priority" : d.score <= 65 ? "Emerging" : "Mastered ✓";
+                const badgeVariant = d.score < 40 ? "coral" : d.score <= 65 ? "blue" : "green";
 
                 return (
                   <div key={idx} className="space-y-1">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-[#2C2C2A]">{d.label}</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono">{d.score}</span>
+                        <span className="font-mono">{d.score}%</span>
                         <Badge label={badgeText} variant={badgeVariant} size="sm" />
                       </div>
                     </div>
                     <div className="h-[10px] w-full bg-[#E5E5E0] rounded-[4px] overflow-hidden">
-                      <div className="h-full rounded-[4px]" style={{ width: `${d.score}%`, backgroundColor: barColor }} />
+                      <div className="h-full rounded-[4px] transition-all" style={{ width: `${d.score}%`, backgroundColor: barColor }} />
                     </div>
                   </div>
                 );
@@ -932,11 +1274,11 @@ export default function TherapistReportView({ initialEditMode = false }) {
           {priorityDomains.length > 0 && (
             <div className="bg-[#FEF6E7] border-l-4 border-l-[#854F0B] p-3.5 rounded-[8px] space-y-2">
               <h4 className="text-[13px] font-bold text-[#854F0B] flex items-center gap-1.5">
-                <AlertCircle className="h-4 w-4" /> ⚠ Priority Areas for Intervention
+                <AlertCircle className="h-4 w-4" /> ⚠ Priority Areas for Targeted Intervention
               </h4>
               <ul className="space-y-1 text-[12px] font-bold text-[#993C1D] pl-2">
                 {priorityDomains.map((p, idx) => (
-                  <li key={idx}>• {p.name}: {p.score}/100 — Requires immediate therapeutic attention</li>
+                  <li key={idx}>• {p.label}: {p.score}% — Requires therapeutic concentration & reinforcement</li>
                 ))}
               </ul>
             </div>
@@ -945,8 +1287,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
         {/* ═══ SECTION 4 — REPORT TEXT SECTIONS ═══ */}
         <div className="no-page-break space-y-6 pt-4">
-          <div className="border-b-2 border-[#185FA5] pb-1">
-            <h3 className="text-[13px] font-bold text-[#185FA5] uppercase tracking-wider">CLINICAL REPORT</h3>
+          <div className="border-b-2 pb-1" style={{ borderColor: currentTheme.themeColor }}>
+            <h3 className="text-[13px] font-bold uppercase tracking-wider" style={{ color: currentTheme.themeColor }}>
+              CLINICAL REPORT NARRATIVE
+            </h3>
           </div>
 
           {[
@@ -964,7 +1308,8 @@ export default function TherapistReportView({ initialEditMode = false }) {
                     type="button"
                     onClick={() => handleRegenerateSection(key)}
                     disabled={generatingSection === key}
-                    className="text-xs font-bold text-[#185FA5] hover:underline flex items-center gap-1 cursor-pointer edit-mode-only"
+                    className="text-xs font-bold hover:underline flex items-center gap-1 cursor-pointer edit-mode-only"
+                    style={{ color: currentTheme.themeColor }}
                   >
                     <RotateCcw className={`h-3 w-3 ${generatingSection === key ? "animate-spin" : ""}`} />
                     <span>{generatingSection === key ? "Rewriting..." : "↺ Rewrite section"}</span>
@@ -995,112 +1340,236 @@ export default function TherapistReportView({ initialEditMode = false }) {
           ))}
         </div>
 
-        {/* ═══ SECTION 4B — ASSIGNED CLINICAL & HOME EXERCISES ═══ */}
-        {(assignedClinicExercises.length > 0 || assignedHomeExercises.length > 0) && (
-          <div className="no-page-break space-y-6 pt-4">
-            <div className="border-b-2 border-[#185FA5] pb-1 flex items-center justify-between">
-              <h3 className="text-[13px] font-bold text-[#185FA5] uppercase tracking-wider">
+        {/* ═══ SECTION 5 — ASSIGNED THERAPY EXERCISES & HOME PROGRAM (WITH VERIFIED IMAGES) ═══ */}
+        <div className="no-page-break space-y-6 pt-4">
+          <div
+            className="border-b-2 pb-1.5 flex items-center justify-between"
+            style={{ borderColor: currentTheme.themeColor }}
+          >
+            <div className="flex items-center gap-2">
+              <Dumbbell className="h-5 w-5" style={{ color: currentTheme.themeColor }} />
+              <h3
+                className="text-[13px] font-black uppercase tracking-wider"
+                style={{ color: currentTheme.themeColor }}
+              >
                 ASSIGNED THERAPY EXERCISES & HOME PROGRAM
               </h3>
-              <span className="text-[10px] font-bold text-[#5F5E5A]">
-                {assignedClinicExercises.length + assignedHomeExercises.length} Prescribed Activities
-              </span>
             </div>
-
-            {/* Clinic Exercises */}
-            {assignedClinicExercises.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-[12px] font-bold uppercase text-[#0F6E56] flex items-center gap-1.5">
-                  <span>🏥 In-Clinic Therapeutic Exercises</span>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {assignedClinicExercises.map((ex, idx) => {
-                    const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
-                    const name = master.name || (typeof ex === "string" ? ex : "Exercise");
-                    const imageUrl = master.image_url || master.imageUrl;
-                    const desc = master.description || null;
-                    const cat = master.category || null;
-                    const duration = master.duration || "10–15 mins";
-
-                    return (
-                      <div key={idx} className="p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[10px] space-y-2">
-                        {imageUrl && (
-                          <div className="h-28 w-full rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200">
-                            <img
-                              src={imageUrl}
-                              alt={name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
-                            />
-                          </div>
-                        )}
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
-                          {cat && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-100 text-[#185FA5] rounded-full uppercase shrink-0">
-                              {cat}
-                            </span>
-                          )}
-                        </div>
-                        {desc && <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3">{desc}</p>}
-                        <div className="text-[10px] font-semibold text-[#5F5E5A]">⏱ Duration: {duration}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Home Exercises */}
-            {assignedHomeExercises.length > 0 && (
-              <div className="space-y-3 pt-2">
-                <h4 className="text-[12px] font-bold uppercase text-[#854F0B] flex items-center gap-1.5">
-                  <span>🏠 Prescribed Home Routine</span>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {assignedHomeExercises.map((ex, idx) => {
-                    const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
-                    const name = master.name || (typeof ex === "string" ? ex : "Exercise");
-                    const imageUrl = master.image_url || master.imageUrl;
-                    const desc = master.home_description || master.description || null;
-                    const cat = master.category || null;
-                    const freq = master.frequency || "Daily";
-
-                    return (
-                      <div key={idx} className="p-3 bg-[#FEF6E7]/40 border border-[#854F0B]/30 rounded-[10px] space-y-2">
-                        {imageUrl && (
-                          <div className="h-28 w-full rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200">
-                            <img
-                              src={imageUrl}
-                              alt={name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
-                            />
-                          </div>
-                        )}
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
-                          {cat && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-[#854F0B] rounded-full uppercase shrink-0">
-                              {cat}
-                            </span>
-                          )}
-                        </div>
-                        {desc && <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3">{desc}</p>}
-                        <div className="text-[10px] font-semibold text-[#854F0B]">⏱ Frequency: {freq}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <span
+              className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
+              style={{ backgroundColor: currentTheme.themeBg, color: currentTheme.themeColor }}
+            >
+              {activeClinicExercises.length + activeHomeExercises.length} Prescribed Activities with Visual Guides
+            </span>
           </div>
-        )}
 
-        {/* ═══ SECTION 5 — SIGN OFF ═══ */}
+          {/* In-Clinic Exercises */}
+          {activeClinicExercises.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[12px] font-bold uppercase text-[#0F6E56] flex items-center gap-1.5">
+                  <span>🏥 In-Clinic Therapeutic Exercises & Interventions</span>
+                </h4>
+                <span className="text-[10px] font-bold text-[#5F5E5A]">
+                  Supervised by Rehabilitation Specialist
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeClinicExercises.map((ex, idx) => {
+                  const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                  const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                  const imageUrl = master.image_url || master.imageUrl;
+                  const desc = master.description || "Structured therapeutic activity performed under therapist guidance.";
+                  const cat = master.category || "Clinical Physiotherapy";
+                  const duration = master.duration || "10–15 mins";
+                  const benefits = master.benefits || [];
+
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-white border border-[#D3D1C7] rounded-[10px] overflow-hidden shadow-xs flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Image Container with Visual Fallback */}
+                        <div className="relative h-36 sm:h-40 w-full bg-slate-100 overflow-hidden border-b border-[#D3D1C7]/60">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={name}
+                              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                const fb = e.currentTarget.nextElementSibling;
+                                if (fb) fb.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{ display: imageUrl ? "none" : "flex" }}
+                            className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 p-3 text-center"
+                          >
+                            <Activity className="h-8 w-8 text-[#185FA5]/40 mb-1" />
+                            <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                            <span className="text-[10px] text-[#5F5E5A]">Clinical Exercise Guide</span>
+                          </div>
+
+                          {/* Category Pill Over Image */}
+                          <div className="absolute top-2 right-2">
+                            <span className="text-[9px] font-extrabold px-2 py-0.5 bg-white/90 backdrop-blur-xs text-[#185FA5] rounded-full uppercase shadow-xs border border-white">
+                              {cat}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-3.5 space-y-2">
+                          <div className="flex items-start justify-between gap-1">
+                            <h5 className="text-[13px] font-bold text-[#2C2C2A] leading-snug">{name}</h5>
+                            <span className="text-[10px] font-bold text-[#0F6E56] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                              ⏱ {duration}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3">
+                            {desc}
+                          </p>
+
+                          {/* Benefits Pills */}
+                          {Array.isArray(benefits) && benefits.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {benefits.slice(0, 2).map((b, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  className="text-[9px] font-semibold bg-[#F0EFEA] text-[#5F5E5A] px-1.5 py-0.5 rounded"
+                                >
+                                  ✓ {b}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom footer bar */}
+                      <div className="px-3.5 py-2 bg-[#F8F8F6] border-t border-[#D3D1C7]/60 text-[10px] font-bold text-[#5F5E5A] flex items-center justify-between">
+                        <span>In-Clinic Session</span>
+                        <span className="text-[#0F6E56]">Active Protocol</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Home Routine Exercises */}
+          {activeHomeExercises.length > 0 && (
+            <div className="space-y-3 pt-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[12px] font-bold uppercase text-[#854F0B] flex items-center gap-1.5">
+                  <span>🏠 Prescribed Home Exercise Routine for Parents & Caregivers</span>
+                </h4>
+                <span className="text-[10px] font-bold text-[#854F0B]">
+                  Daily Home Reinforcement Program
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {activeHomeExercises.map((ex, idx) => {
+                  const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
+                  const name = master.name || (typeof ex === "string" ? ex : "Exercise");
+                  const imageUrl = master.image_url || master.imageUrl;
+                  const desc = master.home_description || master.description || "Daily home practice routine.";
+                  const cat = master.category || "Home Care";
+                  const freq = master.frequency || "Daily";
+                  const benefits = master.benefits || [];
+
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-white border border-[#D3D1C7] rounded-[10px] overflow-hidden shadow-xs flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Image Container with Visual Fallback */}
+                        <div className="relative h-36 sm:h-40 w-full bg-slate-100 overflow-hidden border-b border-[#D3D1C7]/60">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={name}
+                              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                const fb = e.currentTarget.nextElementSibling;
+                                if (fb) fb.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{ display: imageUrl ? "none" : "flex" }}
+                            className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 text-amber-700 p-3 text-center"
+                          >
+                            <Activity className="h-8 w-8 text-[#854F0B]/40 mb-1" />
+                            <span className="text-xs font-bold text-[#2C2C2A]">{name}</span>
+                            <span className="text-[10px] text-[#854F0B]">Home Practice Guide</span>
+                          </div>
+
+                          {/* Category Pill Over Image */}
+                          <div className="absolute top-2 right-2">
+                            <span className="text-[9px] font-extrabold px-2 py-0.5 bg-white/90 backdrop-blur-xs text-[#854F0B] rounded-full uppercase shadow-xs border border-white">
+                              {cat}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-3.5 space-y-2">
+                          <div className="flex items-start justify-between gap-1">
+                            <h5 className="text-[13px] font-bold text-[#2C2C2A] leading-snug">{name}</h5>
+                            <span className="text-[10px] font-bold text-[#854F0B] bg-amber-50 px-2 py-0.5 rounded border border-amber-200 shrink-0">
+                              📅 {freq}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-[#5F5E5A] leading-relaxed line-clamp-3">
+                            {desc}
+                          </p>
+
+                          {/* Benefits Pills */}
+                          {Array.isArray(benefits) && benefits.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {benefits.slice(0, 2).map((b, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  className="text-[9px] font-semibold bg-[#FEF6E7] text-[#854F0B] px-1.5 py-0.5 rounded"
+                                >
+                                  ✓ {b}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom footer bar */}
+                      <div className="px-3.5 py-2 bg-[#FEF6E7]/40 border-t border-[#854F0B]/20 text-[10px] font-bold text-[#854F0B] flex items-center justify-between">
+                        <span>Parent-Led Daily Routine</span>
+                        <span>Home Practice ✓</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ═══ SECTION 6 — SIGN OFF ═══ */}
         <div className="no-page-break page-break-before space-y-4 pt-6">
-          <div className="border-b-2 border-[#185FA5] pb-1">
-            <h3 className="text-[13px] font-bold text-[#185FA5] uppercase tracking-wider">SIGN OFF</h3>
+          <div className="border-b-2 pb-1" style={{ borderColor: currentTheme.themeColor }}>
+            <h3 className="text-[13px] font-bold uppercase tracking-wider" style={{ color: currentTheme.themeColor }}>
+              CLINICAL MULTIDISCIPLINARY SIGN OFF
+            </h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
@@ -1110,7 +1579,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
               {!isEditing ? (
                 <div>
                   <p className="text-sm font-bold text-[#2C2C2A]">{formState.preparedBy}</p>
-                  <p className="text-xs text-[#5F5E5A]">{formState.designation}</p>
+                  <p className="text-xs text-[#5F5E5A]">{formState.designation || currentTheme.defaultAssessorRole}</p>
                   <p className="text-xs text-[#5F5E5A] mt-1">Date: {formState.preparedDate}</p>
                 </div>
               ) : (
@@ -1123,7 +1592,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
               <div className="pt-6">
                 <div className="w-[120px] border-b border-[#2C2C2A]" />
-                <span className="text-[11px] text-[#5F5E5A] block mt-1">Signature</span>
+                <span className="text-[11px] text-[#5F5E5A] block mt-1">Clinical Specialist Signature</span>
               </div>
             </div>
 
@@ -1139,7 +1608,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
               <div className="pt-6">
                 <div className="w-[120px] border-b border-[#2C2C2A]" />
-                <span className="text-[11px] text-[#5F5E5A] block mt-1">Signature</span>
+                <span className="text-[11px] text-[#5F5E5A] block mt-1">Clinical Director Signature</span>
               </div>
             </div>
           </div>

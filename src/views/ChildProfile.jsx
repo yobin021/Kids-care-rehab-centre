@@ -99,8 +99,13 @@ export default function ChildProfile() {
         const pPhone = result.parent_accounts?.phone || result.parent?.phone || "";
         const pPass = result.parent?.portalPassword || result.parent_accounts?.password_hash || "";
         setPortalPhone(pPhone);
-        setPortalPass(pPass);
-        if (result.assessments) setAssessments(Array.isArray(result.assessments) ? result.assessments : [result.assessments]);
+        if (result.assessments && Array.isArray(result.assessments)) {
+          setAssessments(result.assessments);
+        } else if (result.assessments) {
+          setAssessments([result.assessments]);
+        } else {
+          setAssessments([]);
+        }
         if (result.reports) {
           const publishedReps = (Array.isArray(result.reports) ? result.reports : [result.reports]).filter(
             (r) => r.status === "published" || r.review_status === "published"
@@ -615,12 +620,16 @@ export default function ChildProfile() {
                         <span className="text-xs font-bold text-[#2C2C2A]">
                           Assessment Date: {ass.assessment_date || ass.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]}
                         </span>
-                        <Badge label={ass.status || "completed"} variant={ass.status === "draft" ? "amber" : "green"} size="sm" />
+                        <Badge
+                          label={ass.status === "completed" ? "Completed" : ass.status === "draft" ? "Draft / In Progress" : ass.status || "In Progress"}
+                          variant={ass.status === "completed" ? "green" : ass.status === "draft" ? "amber" : "blue"}
+                          size="sm"
+                        />
                       </div>
                       <div className="flex items-center gap-3 text-xs text-[#5F5E5A]">
                         <span className="font-semibold text-[#185FA5]">{title}</span>
                         {ass.delay_total_score !== undefined && ass.delay_total_score !== null && (
-                          <span>Milestones: <strong>{ass.delay_total_score}</strong> ({ass.delay_severity || 'Completed'})</span>
+                          <span>Milestones: <strong>{ass.delay_total_score}</strong> {ass.delay_severity ? `(${ass.delay_severity})` : ''}</span>
                         )}
                         {ass.conners_total_score !== undefined && ass.conners_total_score !== null && (
                           <span>Score: <strong>{ass.conners_total_score}</strong></span>

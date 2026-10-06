@@ -107,19 +107,7 @@ export const assessmentService = {
   },
 
   async getById(id) {
-    // Check local storage first
-    if (typeof window !== 'undefined') {
-      const local = localStorage.getItem(`assessment_result_${id}`)
-      if (local) {
-        try {
-          return JSON.parse(local)
-        } catch (e) {}
-      }
-    }
-
-    if (!toUUID(id)) {
-      return null
-    }
+    if (!id) return null
 
     const ASSESSMENT_TABLES = [
       'assessment_special_school',
@@ -148,26 +136,23 @@ export const assessmentService = {
         single: true
       })
       if (res) return res
-    } catch (err) {
-      console.warn('assessmentService.getById notice:', err.message)
-    }
+    } catch (_) {}
 
-    // Secondary fallback from local storage
-    if (typeof window !== 'undefined') {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('assessment_result_')) {
-          try {
-            const data = JSON.parse(localStorage.getItem(key))
-            if (data?.id === id || data?.child_id === id) return data
-          } catch (e) {}
-        }
+    // Only fallback if explicitly an unsynced offline temporary ID
+    if (typeof window !== 'undefined' && String(id).startsWith('local-')) {
+      const local = localStorage.getItem(`assessment_result_${id}`)
+      if (local) {
+        try {
+          return JSON.parse(local)
+        } catch (e) {}
       }
     }
     return null
   },
 
   async getByChildId(childId) {
+    if (!childId) return []
+
     const ASSESSMENT_TABLES = [
       'assessment_special_school',
       'assessment_asd',
@@ -202,23 +187,18 @@ export const assessmentService = {
         if (data && data.length > 0) {
           allAssessments.push(...data)
         }
-      } catch (err) {
-        console.warn('assessmentService.getByChildId legacy notice:', err.message)
-      }
+      } catch (_) {}
     }
 
     if (allAssessments.length > 0) {
       return allAssessments.sort((a, b) => new Date(b.assessment_date || b.created_at || 0) - new Date(a.assessment_date || a.created_at || 0))
     }
 
-    // Local fallback
+    // Database is authoritative: if no database assessment exists, purge any stale local cache and return []
     if (typeof window !== 'undefined') {
-      const local = localStorage.getItem(`assessment_result_${childId}`)
-      if (local) {
-        try {
-          return [JSON.parse(local)]
-        } catch (e) {}
-      }
+      try {
+        localStorage.removeItem(`assessment_result_${childId}`)
+      } catch (_) {}
     }
     return []
   },

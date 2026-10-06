@@ -355,10 +355,10 @@ export default function LearningDisabilityAssessmentForm() {
 
   // ════════════ DIAGNOSTIC SUMMARY STATE ════════════
   const [diagnosticSummary, setDiagnosticSummary] = useState({
-    dyslexiaRisk: "Low / Within Normal Limits",
-    dysgraphiaRisk: "Low / Within Normal Limits",
-    dyscalculiaRisk: "Low / Within Normal Limits",
-    workingMemoryDeficit: "Adequate",
+    dyslexiaRisk: "Pending Assessment",
+    dysgraphiaRisk: "Pending Assessment",
+    dyscalculiaRisk: "Pending Assessment",
+    workingMemoryDeficit: "Pending Assessment",
     clinicalImpression: "",
     recommendedAccommodations: "Extra time in exams (25-30%), Multi-sensory phonics instruction, Audio-visual aids, Step-by-step math breakdown.",
     remedialGoals: ""
@@ -377,7 +377,7 @@ export default function LearningDisabilityAssessmentForm() {
     loadKids();
   }, []);
 
-  // Pre-fill selected child data if available
+  // Pre-fill selected child data if available & check for existing saved assessment in DB
   useEffect(() => {
     if (!selectedChildId) return;
     const found = childrenList.find((c) => c.id === selectedChildId);
@@ -391,10 +391,37 @@ export default function LearningDisabilityAssessmentForm() {
         classGrade: found.grade || found.class || prev.classGrade,
         fatherOccupation: found.parent?.occupation || prev.fatherOccupation
       }));
+    }
 
-      // Try restore draft from localStorage
+    // Check database first: if a completed assessment exists in the DB, load it; otherwise clean stale local data
+    async function checkDbAssessment() {
+      try {
+        const records = await therapyAssessmentService.getByChildId(selectedChildId, 'learning_disability');
+        if (Array.isArray(records) && records.length > 0) {
+          const latest = records[0];
+          setSavedAssessmentId(latest.id);
+          if (latest.form_data) {
+            if (latest.form_data.caseInfo) setCaseInfo(latest.form_data.caseInfo);
+            if (latest.form_data.level1Data) setLevel1Data(latest.form_data.level1Data);
+            if (latest.form_data.level2Data) setLevel2Data(latest.form_data.level2Data);
+            if (latest.form_data.memoryData) setMemoryData(latest.form_data.memoryData);
+            if (latest.form_data.diagnosticSummary) setDiagnosticSummary(latest.form_data.diagnosticSummary);
+          }
+          return;
+        }
+      } catch (e) {
+        console.warn("Check DB assessment notice:", e.message);
+      }
+
+      // If no DB assessment, child has NOT completed assessment
+      setSavedAssessmentId("");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`assessment_result_${selectedChildId}`);
+      }
+
+      // Try restore draft from localStorage only if present
       const draftKey = `ldst_draft_${selectedChildId}`;
-      const savedDraft = localStorage.getItem(draftKey);
+      const savedDraft = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
       if (savedDraft) {
         try {
           const parsed = JSON.parse(savedDraft);
@@ -409,9 +436,11 @@ export default function LearningDisabilityAssessmentForm() {
         }
       }
     }
+
+    checkDbAssessment();
   }, [selectedChildId, childrenList]);
 
-  // Auto-save draft on changes
+  // Auto-save draft on changes (only if at least one sub-test or field was touched)
   useEffect(() => {
     if (!selectedChildId) return;
     const timer = setTimeout(() => {
@@ -436,19 +465,24 @@ export default function LearningDisabilityAssessmentForm() {
   const computedScores = useMemo(() => {
     // 1. Level 1 Visual Discrimination Errors
     let l1DiscrimErrors = 0;
+    let discrimAttempted = false;
     VISUAL_DISCRIM_ROWS.forEach((row) => {
       const checked = level1Data.discrimRows[`row${row.id}`];
+      if (checked !== undefined && checked !== null && checked !== "") discrimAttempted = true;
       if (checked === false || checked === "incorrect") l1DiscrimErrors++;
     });
     if (level1Data.totalDiscrimErrors) {
+      discrimAttempted = true;
       l1DiscrimErrors = Math.max(l1DiscrimErrors, Number(level1Data.totalDiscrimErrors) || 0);
     }
 
     // 2. Level 1 Auditory Discrimination Errors
     let l1AuditoryErrors = 0;
+    let auditoryAttempted = false;
     AUDITORY_PAIRS.forEach((pair) => {
       const ans = level1Data.auditoryPairs[`pair${pair.id}`];
-      if (ans !== undefined && ans !== null) {
+      if (ans !== undefined && ans !== null && ans !== "") {
+        auditoryAttempted = true;
         const isSame = ans === "same" || ans === true;
         if (isSame !== pair.same) l1AuditoryErrors++;
       }
@@ -456,55 +490,90 @@ export default function LearningDisabilityAssessmentForm() {
 
     // 3. Level 2 Spelling Score
     let spellingCorrect = 0;
+    let spellingAttempted = Object.keys(level2Data.spellingChecked || {}).length > 0;
     let spellingTotal = 50;
     SPELLING_COLUMNS.forEach((col, cIdx) => {
       col.words.forEach((w, wIdx) => {
         if (level2Data.spellingChecked[`${cIdx}_${wIdx}`]) spellingCorrect++;
       });
     });
-    const spellingErrors = spellingTotal - spellingCorrect;
+    // Only calculate errors if spelling test was actually administered
+    const spellingErrors = spellingAttempted ? Math.max(0, spellingTotal - spellingCorrect) : 0;
 
     // 4. Level 2 Arithmetic Score
     let arithCorrect = 0;
+    let arithAttempted = Object.keys(level2Data.arithmeticAnswers || {}).length > 0;
     ARITHMETIC_PROBLEMS.forEach((prob) => {
       if (level2Data.arithmeticAnswers[`prob${prob.id}`] === "correct") arithCorrect++;
     });
 
     // 5. Memory Digit Span
     let maxFwd = 0;
+    let fwdAttempted = Object.keys(memoryData.digitSpanForwardPassed || {}).length > 0;
     DIGIT_SPAN_FORWARD.forEach((it) => {
       if (memoryData.digitSpanForwardPassed[`fwd${it.id}`]) maxFwd = Math.max(maxFwd, it.count);
     });
     let maxBwd = 0;
+    let bwdAttempted = Object.keys(memoryData.digitSpanBackwardPassed || {}).length > 0;
     DIGIT_SPAN_BACKWARD.forEach((it) => {
       if (memoryData.digitSpanBackwardPassed[`bwd${it.id}`]) maxBwd = Math.max(maxBwd, it.count);
     });
 
+    // Sentence Memory
+    const sentenceAnswers = memoryData.sentenceMemoryAnswers || {};
+    const sentenceRepCount = Object.keys(sentenceAnswers).filter(k => sentenceAnswers[k] !== "").length;
+    const sentenceRepStatus = sentenceRepCount >= SENTENCE_MEMORY_ITEMS.length
+      ? "Sentence Repetition complete."
+      : sentenceRepCount > 0
+      ? `Sentence Repetition in progress (${sentenceRepCount}/${SENTENCE_MEMORY_ITEMS.length}).`
+      : "Sentence Repetition not administered.";
+
+    // Track whether any sub-tests have actually been administered
+    const readingAttempted = Boolean(level2Data.p1ReadingTime || level2Data.p2ReadingTime || level2Data.p1Wpm);
+    const writingAttempted = Boolean(
+      level2Data.writtenCompositionScore ||
+      (level1Data.fineMotorGrip && level1Data.fineMotorGrip !== "Normal Tripod") ||
+      (level2Data.handwritingLegibility && level2Data.handwritingLegibility !== "Good") ||
+      (level2Data.letterReversals && level2Data.letterReversals !== "None")
+    );
+    const memoryAttempted = fwdAttempted || bwdAttempted || sentenceRepCount > 0 || Boolean(memoryData.pairedAssociatesScores?.trial1);
+    const hasAnyAdministered = discrimAttempted || auditoryAttempted || spellingAttempted || arithAttempted || readingAttempted || writingAttempted || memoryAttempted;
+
     // 6. Risk Scoring Indices
     let dyslexiaScore = 0;
-    if (l1DiscrimErrors >= 3) dyslexiaScore += 2;
-    if (l1AuditoryErrors >= 4) dyslexiaScore += 2;
-    if (spellingErrors >= 20) dyslexiaScore += 3;
-    if (level2Data.letterReversals === "Frequent" || level2Data.letterReversals === "Moderate") dyslexiaScore += 2;
+    if (discrimAttempted && l1DiscrimErrors >= 3) dyslexiaScore += 2;
+    if (auditoryAttempted && l1AuditoryErrors >= 4) dyslexiaScore += 2;
+    if (spellingAttempted && spellingErrors >= 20) dyslexiaScore += 3;
+    if (writingAttempted && (level2Data.letterReversals === "Frequent" || level2Data.letterReversals === "Moderate")) dyslexiaScore += 2;
 
     let dysgraphiaScore = 0;
-    if (level1Data.fineMotorGrip.includes("Poor") || level1Data.fineMotorGrip.includes("Immature")) dysgraphiaScore += 2;
-    if (level2Data.handwritingLegibility === "Illegible" || level2Data.handwritingLegibility === "Poor") dysgraphiaScore += 3;
-    if (spellingErrors >= 15) dysgraphiaScore += 2;
+    if (writingAttempted && (level1Data.fineMotorGrip.includes("Poor") || level1Data.fineMotorGrip.includes("Immature"))) dysgraphiaScore += 2;
+    if (writingAttempted && (level2Data.handwritingLegibility === "Illegible" || level2Data.handwritingLegibility === "Poor")) dysgraphiaScore += 3;
+    if (spellingAttempted && spellingErrors >= 15) dysgraphiaScore += 2;
 
     let dyscalculiaScore = 0;
-    if (arithCorrect <= 4 && (level2Data.p1ReadingTime || spellingCorrect > 0)) dyscalculiaScore += 4;
-    else if (arithCorrect <= 6) dyscalculiaScore += 2;
+    if (arithAttempted) {
+      if (arithCorrect <= 4 && (readingAttempted || spellingAttempted)) dyscalculiaScore += 4;
+      else if (arithCorrect <= 6) dyscalculiaScore += 2;
+    }
 
     let workingMemoryScore = maxFwd + maxBwd;
 
-    // Severity labels
-    const getRiskLabel = (score) => {
+    // Severity labels (only provide clinical risk label if subtest was administered)
+    const getRiskLabel = (score, isAttempted) => {
+      if (!isAttempted) return "Pending Assessment (Not Administered)";
       if (score >= 5) return "High Clinical Risk (Significant Deficit)";
       if (score >= 3) return "Moderate Risk (Needs Targeted Remediation)";
       if (score >= 2) return "Mild Risk (Monitor & Provide Scaffolding)";
       return "Within Normal Limits (Low Risk)";
     };
+
+    const dyslexiaRiskLabel = getRiskLabel(dyslexiaScore, discrimAttempted || auditoryAttempted || spellingAttempted || readingAttempted);
+    const dysgraphiaRiskLabel = getRiskLabel(dysgraphiaScore, writingAttempted || spellingAttempted);
+    const dyscalculiaRiskLabel = getRiskLabel(dyscalculiaScore, arithAttempted);
+    const memoryRiskLabel = memoryAttempted
+      ? (workingMemoryScore < 5 ? "Significant Deficit" : workingMemoryScore < 8 ? "Mild Vulnerability" : "Adequate Span")
+      : "Pending Assessment (Not Administered)";
 
     return {
       l1DiscrimErrors,
@@ -515,13 +584,16 @@ export default function LearningDisabilityAssessmentForm() {
       maxFwd,
       maxBwd,
       totalDigitSpan: maxFwd + maxBwd,
-      dyslexiaRiskLabel: getRiskLabel(dyslexiaScore),
-      dysgraphiaRiskLabel: getRiskLabel(dysgraphiaScore),
-      dyscalculiaRiskLabel: getRiskLabel(dyscalculiaScore),
+      dyslexiaRiskLabel,
+      dysgraphiaRiskLabel,
+      dyscalculiaRiskLabel,
+      memoryRiskLabel,
+      sentenceRepStatus,
       dyslexiaScore,
       dysgraphiaScore,
       dyscalculiaScore,
-      workingMemoryScore
+      workingMemoryScore,
+      hasAnyAdministered
     };
   }, [level1Data, level2Data, memoryData]);
 
@@ -610,6 +682,7 @@ export default function LearningDisabilityAssessmentForm() {
     if (confirm("Are you sure you want to clear this assessment draft? All entered responses will be reset.")) {
       if (selectedChildId) {
         localStorage.removeItem(`ldst_draft_${selectedChildId}`);
+        localStorage.removeItem(`assessment_result_${selectedChildId}`);
       }
       window.location.reload();
     }
@@ -643,6 +716,32 @@ export default function LearningDisabilityAssessmentForm() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <div
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold"
+            style={{
+              backgroundColor: savedAssessmentId ? "#e7f1ec" : computedScores.hasAnyAdministered ? "#FEF3C7" : "#F3F4F6",
+              color: savedAssessmentId ? "#0F6E56" : computedScores.hasAnyAdministered ? "#854F0B" : "#5F5E5A",
+              borderColor: savedAssessmentId ? "#0F6E56" : computedScores.hasAnyAdministered ? "#854F0B" : "#D1D5DB"
+            }}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                savedAssessmentId
+                  ? "bg-emerald-600"
+                  : computedScores.hasAnyAdministered
+                  ? "bg-amber-500 animate-pulse"
+                  : "bg-gray-400"
+              }`}
+            />
+            <span>
+              {savedAssessmentId
+                ? "Assessment Completed"
+                : computedScores.hasAnyAdministered
+                ? "Assessment In Progress"
+                : "Assessment Not Started"}
+            </span>
+          </div>
+
           {autoSavedTime && (
             <span className="text-[11px] font-semibold text-[#4b5a52] bg-[#f3f6f2] px-2.5 py-1 rounded-full border border-[#d9e0da] flex items-center gap-1">
               <Clock className="h-3 w-3 text-[#2f6f5e]" />
@@ -2001,6 +2100,19 @@ export default function LearningDisabilityAssessmentForm() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {(activeTab === "summary" || typeof window !== "undefined" && window.matchMedia("print").matches) && (
         <div className="space-y-6">
+          {/* Notification when assessment is not yet administered */}
+          {!computedScores.hasAnyAdministered && (
+            <div className="bg-amber-50 border border-amber-300 rounded-[12px] p-4 flex items-start gap-3 shadow-2xs">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-amber-900">Assessment Form Not Yet Filled</h4>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  No LDST sub-tests have been administered yet for this child. Clinical risk indices below are marked as &ldquo;Pending Assessment&rdquo;. Administer sub-tests in Level I, Level II, or the Memory Battery to calculate objective diagnostic risk indices.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Risk Classification Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Dyslexia */}
@@ -2058,10 +2170,10 @@ export default function LearningDisabilityAssessmentForm() {
               </div>
               <h4 className="text-sm font-black text-[#1f2a24]">Working Memory Span</h4>
               <p className="text-xs font-bold text-purple-800">
-                Forward: {computedScores.maxFwd} Digits | Backward: {computedScores.maxBwd} Digits
+                Forward: {computedScores.maxFwd} Digits | Backward: {computedScores.maxBwd} Digits ({computedScores.memoryRiskLabel})
               </p>
               <p className="text-[11px] text-[#4b5a52] leading-relaxed">
-                Total Digit Capacity: {computedScores.totalDigitSpan} · Sentence Repetition complete.
+                Total Digit Capacity: {computedScores.totalDigitSpan} · {computedScores.sentenceRepStatus}
               </p>
             </div>
           </div>

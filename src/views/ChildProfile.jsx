@@ -177,7 +177,7 @@ export default function ChildProfile() {
           setHomeExercisesList(hList);
         }
       } else {
-        // No published report — ensure exercises are cleared
+        // No published report â€” ensure exercises are cleared
         setLatestPublishedReport(null);
         setClinicExercisesList([]);
         setHomeExercisesList([]);
@@ -196,7 +196,7 @@ export default function ChildProfile() {
     if (!id) return;
     setLoadingExercises(true);
     try {
-      // Only look for published reports — never fall back to drafts or assessments
+      // Only look for published reports â€” never fall back to drafts or assessments
       let publishedRep = null;
       try {
         const allReps = await reportService.getByChildId(id);
@@ -208,7 +208,7 @@ export default function ChildProfile() {
       } catch (_) {}
 
       if (!publishedRep) {
-        // No published report exists — show empty state
+        // No published report exists â€” show empty state
         setLatestPublishedReport(null);
         setClinicExercisesList([]);
         setHomeExercisesList([]);
@@ -643,9 +643,9 @@ export default function ChildProfile() {
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {/* EXERCISES TAB (Clinic Exercises & Home Exercises)           */}
-      {/* ════════════════════════════════════════════════════════════ */}
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === "exercises" && (
         <div className="space-y-6">
           {loadingExercises ? (
@@ -693,12 +693,12 @@ export default function ChildProfile() {
                 </Button>
               </div>
 
-              {/* SECTION 1 — CLINIC EXERCISES */}
+              {/* SECTION 1 â€” CLINIC EXERCISES */}
               <div className="bg-white rounded-[12px] border border-[#D3D1C7] border-l-4 border-l-[#185FA5] shadow-xs overflow-hidden">
                 <div className="p-4 border-b border-[#D3D1C7]/60 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[15px] font-bold text-[#185FA5] flex items-center gap-2">
-                      <span>🏥 Clinic Exercises</span>
+                      <span>ðŸ¥ Clinic Exercises</span>
                     </h3>
                     <p className="text-[12px] text-[#5F5E5A]">Done during therapy sessions</p>
                   </div>
@@ -731,7 +731,7 @@ export default function ChildProfile() {
                                 }}
                               />
                               <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 hover:bg-black/85 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
-                                🔍 View Full Guide
+                                ðŸ” View Full Guide
                               </span>
                             </div>
                           )}
@@ -750,7 +750,7 @@ export default function ChildProfile() {
                               </span>
                               {ex.frequency && (
                                 <span className="text-[11px] text-[#5F5E5A] font-semibold">
-                                  • {ex.frequency}
+                                  â€¢ {ex.frequency}
                                 </span>
                               )}
                             </div>
@@ -767,7 +767,7 @@ export default function ChildProfile() {
                                 onClick={() => setExpandedClinicBenefits((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
                                 className="text-[12px] text-[#5F5E5A] hover:text-[#185FA5] font-semibold flex items-center gap-1 cursor-pointer"
                               >
-                                <span>{isExpanded ? "Hide benefits ▲" : "Show benefits ▼"}</span>
+                                <span>{isExpanded ? "Hide benefits â–²" : "Show benefits â–¼"}</span>
                               </button>
 
                               {isExpanded && ex.benefits && (
@@ -786,12 +786,12 @@ export default function ChildProfile() {
                 </div>
               </div>
 
-              {/* SECTION 2 — HOME EXERCISES */}
+              {/* SECTION 2 â€” HOME EXERCISES */}
               <div className="bg-white rounded-[12px] border border-[#D3D1C7] border-l-4 border-l-[#0F6E56] shadow-xs overflow-hidden space-y-4 p-4">
                 <div className="flex items-center justify-between gap-3 border-b border-[#D3D1C7]/60 pb-3">
                   <div>
                     <h3 className="text-[15px] font-bold text-[#0F6E56] flex items-center gap-2">
-                      <span>🏠 Home Exercises</span>
+                      <span>ðŸ  Home Exercises</span>
                     </h3>
                     <p className="text-[12px] text-[#5F5E5A]">Parent does these daily at home</p>
                   </div>
@@ -846,7 +846,7 @@ export default function ChildProfile() {
                                 }}
                               />
                               <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 hover:bg-black/85 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
-                                🔍 View Full Guide
+                                ðŸ” View Full Guide
                               </span>
                             </div>
                           )}
@@ -865,7 +865,7 @@ export default function ChildProfile() {
                               </span>
                               {ex.frequency && (
                                 <span className="text-[11px] text-[#5F5E5A] font-semibold">
-                                  • {ex.frequency}
+                                  â€¢ {ex.frequency}
                                 </span>
                               )}
                             </div>
@@ -882,7 +882,7 @@ export default function ChildProfile() {
                                 onClick={() => setExpandedHomeInstructions((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
                                 className="hover:text-[#0F6E56] cursor-pointer flex items-center gap-1"
                               >
-                                <span>{isInstrExpanded ? "Hide instructions ▲" : "How to do this ▼"}</span>
+                                <span>{isInstrExpanded ? "Hide instructions â–²" : "How to do this â–¼"}</span>
                               </button>
 
                               {/* Collapsible Benefits */}
@@ -891,7 +891,7 @@ export default function ChildProfile() {
                                 onClick={() => setExpandedHomeBenefits((prev) => ({ ...prev, [ex.id || idx]: !prev[ex.id || idx] }))}
                                 className="hover:text-[#185FA5] cursor-pointer flex items-center gap-1"
                               >
-                                <span>{isBenExpanded ? "Hide benefits ▲" : "Benefits ▼"}</span>
+                                <span>{isBenExpanded ? "Hide benefits â–²" : "Benefits â–¼"}</span>
                               </button>
                             </div>
 
@@ -933,7 +933,7 @@ export default function ChildProfile() {
                 {/* HOME PROGRAMME NOTE CARD */}
                 <div className="bg-[#F0VDF4] border border-[#0F6E56] rounded-[8px] p-4 space-y-2">
                   <h4 className="text-[13px] font-bold text-[#0F6E56] flex items-center gap-1.5">
-                    📱 Visible on Parent Portal
+                    ðŸ“± Visible on Parent Portal
                   </h4>
                   {isPortalActive ? (
                     <div className="text-[12px] text-[#5F5E5A] space-y-1">
@@ -949,7 +949,7 @@ export default function ChildProfile() {
                         onClick={() => setActiveTab("parent-access")}
                         className="text-xs font-bold text-[#185FA5] underline cursor-pointer"
                       >
-                        Set Up Parent Portal →
+                        Set Up Parent Portal â†’
                       </button>
                     </div>
                   )}
@@ -988,7 +988,7 @@ export default function ChildProfile() {
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-[#0F6E56]" />
                       <span className="text-xs font-bold text-[#2C2C2A]">
-                        {rep.iep_report ? `IEP Progress Report — Cycle ${rep.iep_cycle || 1}` : `Clinical Assessment Report`}
+                        {rep.iep_report ? `IEP Progress Report â€” Cycle ${rep.iep_cycle || 1}` : `Clinical Assessment Report`}
                       </span>
                       <Badge label="Published" variant="green" size="sm" />
                     </div>
@@ -1036,14 +1036,14 @@ export default function ChildProfile() {
                 <strong className="font-mono text-sm text-[#185FA5] block">
                   {parentPassword
                     ? parentPassword.startsWith("$2")
-                      ? "•••••••• (Securely Hashed)"
+                      ? "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ (Securely Hashed)"
                       : parentPassword
                     : "Not configured"}
                 </strong>
               </div>
               <div className="space-y-1">
                 <span className="text-[#9B9A96] block uppercase text-[10px] font-bold">Portal Access Status</span>
-                <span className="text-emerald-700 font-bold">{isPortalActive ? "Enabled — Parent can log in with phone & password" : "Disabled"}</span>
+                <span className="text-emerald-700 font-bold">{isPortalActive ? "Enabled â€” Parent can log in with phone & password" : "Disabled"}</span>
               </div>
             </div>
 
@@ -1078,7 +1078,7 @@ export default function ChildProfile() {
             </div>
           ) : appointments.length === 0 ? (
             <Card className="p-10 text-center space-y-4">
-              <div className="text-4xl">📅</div>
+              <div className="text-4xl">ðŸ“…</div>
               <h4 className="font-bold text-[#2C2C2A]">No appointments yet</h4>
               <p className="text-xs text-[#5F5E5A]">Book the first appointment for {data?.name}</p>
               <button
@@ -1106,7 +1106,7 @@ export default function ChildProfile() {
                     <div className="w-px h-10 bg-[#D3D1C7]/60 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-sm text-[#2C2C2A]">{getTypeLabel(a.appointment_type)} Session</p>
-                      <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} minutes{a.notes ? ` · ${a.notes.slice(0, 40)}...` : ""}</p>
+                      <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} minutes{a.notes ? ` Â· ${a.notes.slice(0, 40)}...` : ""}</p>
                     </div>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>{getTypeLabel(a.appointment_type)}</span>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>{getStatusLabel(a.status)}</span>
@@ -1242,11 +1242,11 @@ export default function ChildProfile() {
                 {previewExerciseModal?.category}
               </span>
               <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
-                ⏱ {previewExerciseModal?.duration || "15 mins"}
+                â± {previewExerciseModal?.duration || "15 mins"}
               </span>
               {previewExerciseModal?.frequency && (
                 <span className="px-2 py-0.5 bg-amber-50 text-[#854F0B] text-[11px] font-bold rounded border border-amber-200/60">
-                  🔄 {previewExerciseModal.frequency}
+                  ðŸ”„ {previewExerciseModal.frequency}
                 </span>
               )}
             </div>

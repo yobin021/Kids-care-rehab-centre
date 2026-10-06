@@ -191,67 +191,14 @@ export const reportService = {
 
     if (Array.isArray(list) && list.length > 0) return list
 
-    // Check localStorage fallback for published or drafted reports
-    if (typeof window !== 'undefined') {
-      try {
-        const localPub = localStorage.getItem(`report_published_${childId}`)
-        if (localPub) {
-          const parsed = JSON.parse(localPub)
-          return [{
-            id: parsed.id || `local-rep-${childId}`,
-            child_id: childId,
-            status: 'published',
-            published_at: parsed.publishedDate || new Date().toISOString(),
-            clinic_exercises: parsed.clinicEx || parsed.clinic_exercises || parsed.formState?.exercises?.clinicExercises || [],
-            home_exercises: parsed.homeEx || parsed.home_exercises || parsed.formState?.exercises?.homeExercises || [],
-            therapist_report: parsed.therapistReport || parsed.formState?.therapistReport || {},
-            parent_report: parsed.parentReport || parsed.formState?.parentReport || {},
-            therapy_details: parsed.therapy_details || parsed.formState?.parentReport || {}
-          }]
-        }
-        const localDraft = localStorage.getItem(`report_draft_${childId}`)
-        if (localDraft) {
-          const parsed = JSON.parse(localDraft)
-          return [{
-            id: parsed.id || `local-rep-${childId}`,
-            child_id: childId,
-            status: parsed.status || 'draft',
-            clinic_exercises: parsed.clinicEx || parsed.clinic_exercises || parsed.formState?.exercises?.clinicExercises || [],
-            home_exercises: parsed.homeEx || parsed.home_exercises || parsed.formState?.exercises?.homeExercises || [],
-            therapist_report: parsed.therapistReport || parsed.formState?.therapistReport || {},
-            parent_report: parsed.parentReport || parsed.formState?.parentReport || {}
-          }]
-        }
-      } catch (_) {}
-    }
-
+    // Database is the single source of truth â€” no localStorage fallback
     return []
   },
 
   async getPublishedByChildId(childId) {
     if (!childId) return null
 
-    // Check localStorage first for instant client responsiveness
-    if (typeof window !== 'undefined') {
-      try {
-        const localPub = localStorage.getItem(`report_published_${childId}`)
-        if (localPub) {
-          const parsed = JSON.parse(localPub)
-          return {
-            id: parsed.id || `local-rep-${childId}`,
-            child_id: childId,
-            status: 'published',
-            published_at: parsed.publishedDate || new Date().toISOString(),
-            clinic_exercises: parsed.clinicEx || parsed.clinic_exercises || parsed.formState?.exercises?.clinicExercises || [],
-            home_exercises: parsed.homeEx || parsed.home_exercises || parsed.formState?.exercises?.homeExercises || [],
-            therapist_report: parsed.therapistReport || parsed.formState?.therapistReport || {},
-            parent_report: parsed.parentReport || parsed.formState?.parentReport || {},
-            therapy_details: parsed.therapy_details || parsed.formState?.parentReport || {}
-          }
-        }
-      } catch (_) {}
-    }
-
+    // Database is the single source of truth for published reports
     try {
       const data = await db.select('reports', {
         match: { child_id: childId, status: 'published' },
@@ -261,10 +208,9 @@ export const reportService = {
       const rep = Array.isArray(data) ? data[0] || null : data
       if (rep) return rep
     } catch {
-      // fallback below
+      // no published report found
     }
 
-    // No published report found — do NOT fall back to drafts
     return null
   },
 

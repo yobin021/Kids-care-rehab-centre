@@ -127,14 +127,6 @@ export default function TherapistReportView({ initialEditMode = false }) {
         }
       }
 
-      if (!reportObj) {
-        const localPub = localStorage.getItem(`report_published_${targetId}`) || localStorage.getItem(`report_draft_${targetId}`);
-        if (localPub) {
-          try {
-            reportObj = JSON.parse(localPub);
-          } catch (_) {}
-        }
-      }
 
       let assessmentObj = null;
       if (!reportObj) {

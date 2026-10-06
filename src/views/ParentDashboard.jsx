@@ -38,51 +38,35 @@ export default function ParentDashboard() {
     setLoading(true);
     try {
       if (isIep) {
-        // 1. Fetch IEP reports
+        // 1. Fetch IEP reports — strictly published reports only
         const reps = await iepService.getReportsByChildId(child.id);
-        const published = (reps || []).find((r) => r.status === "published" || r.review_status === "published") || reps?.[0];
-        setIepReport(published || null);
+        const published = (reps || []).find((r) => r.status === "published" || r.review_status === "published") || null;
+        setIepReport(published);
         setReportInfo({
           hasReport: !!published,
-          status: published?.status || "draft",
+          status: published?.status || null,
           date: published?.published_at?.split("T")[0] || published?.created_at?.split("T")[0] || null,
           cycle: published?.iep_cycle || 1,
           nextReviewDate: published?.next_review_date || null
         });
       } else {
-        // 1. Fetch Therapy reports
-        let rep = await reportService.getPublishedByChildId(child.id);
-        if (!rep) {
-          const reps = await reportService.getByChildId(child.id);
-          if (reps && reps.length > 0) rep = reps[0];
-        }
+        // 1. Fetch Therapy reports — database is single source of truth for published reports
+        const rep = await reportService.getPublishedByChildId(child.id);
 
-        const localRep = localStorage.getItem(`report_therapist_${child.id}`) || localStorage.getItem(`report_published_${child.id}`);
-        if (rep || localRep) {
+        if (rep && (rep.status === "published" || rep.review_status === "published")) {
           setReportInfo({
             hasReport: true,
-            status: rep?.status || "published",
-            date: rep?.published_at?.split("T")[0] || rep?.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]
+            status: "published",
+            date: rep.published_at?.split("T")[0] || rep.created_at?.split("T")[0] || null
           });
         } else {
           setReportInfo({ hasReport: false });
         }
 
-        // 2. Fetch today's completed exercise logs strictly for Therapy children
-        let homeExercises = rep?.home_exercises || rep?.homeExercises || [];
-        if ((!homeExercises || homeExercises.length === 0) && typeof window !== "undefined") {
-          const localAss = localStorage.getItem(`assessment_result_${child.id}`);
-          if (localAss) {
-            try {
-              const p = JSON.parse(localAss);
-              homeExercises = p.home_exercises || p.homeExercises || [];
-            } catch (_) {}
-          }
-        }
-        if (!homeExercises || homeExercises.length === 0) {
-          const defaults = await exerciseService.getForChild(child);
-          homeExercises = (defaults || []).slice(0, 4);
-        }
+        // 2. Fetch today's completed exercise logs strictly from published report
+        const homeExercises = (rep && (rep.status === "published" || rep.review_status === "published"))
+          ? (rep.home_exercises || rep.homeExercises || [])
+          : [];
 
         const logs = await parentService.getTodayLogs(child.id);
         const completedCount = logs ? logs.filter((l) => l.is_done).length : 0;

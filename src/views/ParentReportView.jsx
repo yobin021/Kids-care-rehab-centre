@@ -103,29 +103,13 @@ export default function ParentReportView() {
       if (isApproved && hasContent) {
         setData(result);
       } else {
-        fallbackLocal(activeChildId);
+        setData(null);
       }
     } catch (err) {
       console.warn("Published report fetch fallback:", err.message);
-      fallbackLocal(activeChildId);
+      setData(null);
     } finally {
       setLoading(false);
-    }
-
-    function fallbackLocal(targetId) {
-      if (!targetId) return setData(null);
-      // ONLY check strictly published reports, NEVER unapproved drafts
-      const savedPub = localStorage.getItem(`report_published_${targetId}`);
-      if (savedPub) {
-        try {
-          const parsed = JSON.parse(savedPub);
-          if (parsed.publishedDate || parsed.status === "published") {
-            setData(parsed);
-            return;
-          }
-        } catch (e) {}
-      }
-      setData(null);
     }
 
   };

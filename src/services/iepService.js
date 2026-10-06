@@ -298,12 +298,6 @@ export const iepService = {
       const arr = Array.isArray(data) ? data : []
       if (arr[0]) return arr[0]
 
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem(`report_published_${childId}`)
-        if (saved) {
-          try { return JSON.parse(saved) } catch (_) {}
-        }
-      }
       return null
     } catch (err) {
       console.warn('iepService.getPublishedForChild:', err.message)

@@ -57,32 +57,16 @@ export default function ParentExercises() {
         return;
       }
 
-      // Step 1: Get latest published report
-      let report = await reportService.getPublishedByChildId(childId);
-      if (!report) {
-        const reps = await reportService.getByChildId(childId);
-        if (reps && reps.length > 0) report = reps[0];
-      }
+      // Step 1: Get latest published report from database ONLY
+      const report = await reportService.getPublishedByChildId(childId);
 
-      let homeExerciseIds = report?.home_exercises || report?.homeExercises || [];
+      // Exercises must strictly come from an approved & published report — never fall back to drafts or defaults
+      const homeExerciseIds = report?.home_exercises || report?.homeExercises || [];
 
-      // Step 1b: If report has no exercises, check local assessment result
-      if ((!homeExerciseIds || homeExerciseIds.length === 0) && typeof window !== "undefined") {
-        const localAss = localStorage.getItem(`assessment_result_${childId}`);
-        if (localAss) {
-          try {
-            const parsedAss = JSON.parse(localAss);
-            homeExerciseIds = parsedAss.home_exercises || parsedAss.homeExercises || [];
-          } catch (_) {}
-        }
-      }
-
-      // Step 1c: If still empty and child is in therapy, provide default pathway recommendations
-      if ((!homeExerciseIds || homeExerciseIds.length === 0) && !isIep) {
-        const defaultList = await exerciseService.getForChild(child);
-        if (defaultList && defaultList.length > 0) {
-          homeExerciseIds = defaultList.slice(0, 4).map((e) => e.name);
-        }
+      if (!report || !homeExerciseIds || homeExerciseIds.length === 0) {
+        setExercises([]);
+        setLoading(false);
+        return;
       }
 
       if (!homeExerciseIds || homeExerciseIds.length === 0) {

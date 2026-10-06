@@ -191,7 +191,7 @@ export const reportService = {
 
     if (Array.isArray(list) && list.length > 0) return list
 
-    // Database is the single source of truth â€” no localStorage fallback
+    // Database is the single source of truth — no localStorage fallback
     return []
   },
 

@@ -419,12 +419,43 @@ export default function LearningDisabilityAssessmentForm() {
         localStorage.removeItem(`assessment_result_${selectedChildId}`);
       }
 
-      // Try restore draft from localStorage only if present
+      // Try restore draft from localStorage only if present and legitimately administered
       const draftKey = `ldst_draft_${selectedChildId}`;
       const savedDraft = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
       if (savedDraft) {
         try {
           const parsed = JSON.parse(savedDraft);
+          // Check if the saved draft actually contains any administered sub-test data
+          const hasAnyInDraft =
+            Boolean(parsed.level1Data && (
+              Object.keys(parsed.level1Data.discrimRows || {}).length > 0 ||
+              parsed.level1Data.totalDiscrimErrors ||
+              Object.keys(parsed.level1Data.auditoryPairs || {}).length > 0 ||
+              parsed.level1Data.totalAuditoryErrors ||
+              (parsed.level1Data.fineMotorGrip && parsed.level1Data.fineMotorGrip !== "Normal Tripod")
+            )) ||
+            Boolean(parsed.level2Data && (
+              Object.keys(parsed.level2Data.spellingChecked || {}).length > 0 ||
+              Object.keys(parsed.level2Data.arithmeticAnswers || {}).length > 0 ||
+              parsed.level2Data.p1ReadingTime ||
+              parsed.level2Data.p2ReadingTime ||
+              parsed.level2Data.writtenCompositionScore
+            )) ||
+            Boolean(parsed.memoryData && (
+              Object.keys(parsed.memoryData.digitSpanForwardPassed || {}).length > 0 ||
+              Object.keys(parsed.memoryData.digitSpanBackwardPassed || {}).length > 0 ||
+              Object.keys(parsed.memoryData.sentenceMemoryAnswers || {}).length > 0 ||
+              parsed.memoryData.pairedAssociatesScores?.trial1
+            ));
+
+          // If the draft was merely an empty template with no administered items, purge it to prevent stale state
+          if (!hasAnyInDraft) {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem(draftKey);
+            }
+            return;
+          }
+
           if (parsed.caseInfo) setCaseInfo(parsed.caseInfo);
           if (parsed.level1Data) setLevel1Data(parsed.level1Data);
           if (parsed.level2Data) setLevel2Data(parsed.level2Data);
@@ -440,9 +471,12 @@ export default function LearningDisabilityAssessmentForm() {
     checkDbAssessment();
   }, [selectedChildId, childrenList]);
 
-  // Auto-save draft on changes (only if at least one sub-test or field was touched)
+  // Auto-save draft on changes (ONLY if at least one sub-test has actually been administered)
   useEffect(() => {
     if (!selectedChildId) return;
+    // Do not auto-save an un-administered blank form as a draft
+    if (!computedScores.hasAnyAdministered) return;
+
     const timer = setTimeout(() => {
       const draftKey = `ldst_draft_${selectedChildId}`;
       const payload = {
@@ -459,7 +493,7 @@ export default function LearningDisabilityAssessmentForm() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId]);
+  }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId, computedScores.hasAnyAdministered]);
 
   // ════════════ COMPUTED SCORES & SLD INDICES ════════════
   const computedScores = useMemo(() => {

@@ -728,18 +728,36 @@ export default function TherapistReportView({ initialEditMode = false }) {
       if (isAdmin) {
         await reportService.saveDraft(reportPayload);
         await reportService.publish(reportDataRaw?.id || targetId, formState.preparedBy || user?.name, user?.id, reportPayload);
-        localStorage.setItem(`report_published_${child?.id || targetId}`, JSON.stringify({
-          childId: child?.id || targetId,
+        const pubKey = child?.id || targetId;
+        const publishedPayload = {
+          id: reportDataRaw?.id || `rep-${Date.now()}`,
+          childId: pubKey,
+          child_id: pubKey,
           formState: { therapistReport: formState, parentReport: formState },
           therapistReport: formState,
+          therapist_report: formState,
           parentReport: formState,
+          parent_report: formState,
           clinic_exercises: activeClinicExercises,
           home_exercises: activeHomeExercises,
           clinicEx: activeClinicExercises,
           homeEx: activeHomeExercises,
           status: "published",
-          publishedDate: new Date().toISOString().split("T")[0]
-        }));
+          review_status: "published",
+          publishedDate: new Date().toISOString().split("T")[0],
+          published_at: new Date().toISOString()
+        };
+        localStorage.setItem(`report_published_${pubKey}`, JSON.stringify(publishedPayload));
+        try {
+          const histKey = `reports_history_${pubKey}`;
+          const existingHist = JSON.parse(localStorage.getItem(histKey) || "[]");
+          const histArr = Array.isArray(existingHist) ? existingHist : [];
+          const updatedHist = [
+            publishedPayload,
+            ...histArr.filter((h) => h.id !== publishedPayload.id && h.publishedDate !== publishedPayload.publishedDate)
+          ];
+          localStorage.setItem(histKey, JSON.stringify(updatedHist));
+        } catch (_) {}
         setFormState((prev) => ({ ...prev, reportStatus: "published" }));
         setIsEditing(false);
         showToast("Report approved & published successfully! Parents can now view it.", "success");

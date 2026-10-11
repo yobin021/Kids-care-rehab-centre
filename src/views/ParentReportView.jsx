@@ -9,7 +9,7 @@ import Badge from "../components/ui/Badge";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import IepDomainRadarGraph from "../components/assessment/IepDomainRadarGraph";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { reportService } from "../services/reportService";
 import { iepService } from "../services/iepService";
 import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
@@ -21,8 +21,11 @@ import { CATEGORY_CONFIG } from "./TherapistReportView";
 
 export default function ParentReportView() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, childrenList } = useAuth();
+  const urlReportId = searchParams.get("reportId") || id;
+
   const targetChildId = id || user?.childId;
   const child = childrenList.find((c) => c.id === targetChildId) || (targetChildId ? { id: targetChildId } : childrenList[0]);
   const isIep = isIepProgram(child) || isIepProgram(user);
@@ -56,44 +59,57 @@ export default function ParentReportView() {
       setLoading(true);
       setError(null);
 
+      const targetRepId = searchParams.get("reportId") || id;
+
       let directReport = null;
-      if (id) {
+      if (targetRepId) {
         try {
-          directReport = await reportService.getById(id);
+          directReport = await reportService.getById(targetRepId);
           if (!directReport) {
-            directReport = await iepService.getReportById(id);
+            directReport = await iepService.getReportById(targetRepId);
           }
         } catch (_) {}
       }
 
-      const effectiveChildId = directReport?.child_id || directReport?.childId || activeChildId;
+      // Collect all possible candidate IDs for this child
+      const candidateIds = Array.from(new Set([
+        directReport?.child_id,
+        directReport?.childId,
+        activeChildId,
+        targetChildId,
+        child?.id,
+        child?.custom_id,
+        user?.childId,
+        user?.child_id
+      ].filter(Boolean)));
 
-      let allPubList = [];
-      if (effectiveChildId) {
-        const reportMap = new Map();
+      const reportMap = new Map();
 
-        // 1. IEP reports (strictly published)
+      // 1. Fetch IEP reports from database across candidate IDs
+      for (const cid of candidateIds) {
         try {
-          const iepReps = await iepService.getReportsByChildId(effectiveChildId);
+          const iepReps = await iepService.getReportsByChildId(cid);
           if (Array.isArray(iepReps)) {
             iepReps.forEach((r) => {
-              if (r && r.id && (r.status === "published" || r.review_status === "published")) {
-                reportMap.set(r.id, r);
+              if (r && r.id && (r.status === "published" || r.review_status === "published" || r.published_at || r.publishedDate)) {
+                reportMap.set(r.id, { ...r, source_type: "iep" });
               }
             });
           }
         } catch (e) {
           console.warn("IEP report lookup notice:", e.message);
         }
+      }
 
-        // 2. Clinical Therapy reports (strictly published)
+      // 2. Fetch Clinical Therapy reports from database across candidate IDs
+      for (const cid of candidateIds) {
         try {
-          const therapyReps = await reportService.getByChildId(effectiveChildId);
+          const therapyReps = await reportService.getByChildId(cid);
           if (Array.isArray(therapyReps)) {
             therapyReps.forEach((r) => {
-              if (r && r.id && (r.status === "published" || r.review_status === "published")) {
+              if (r && r.id && (r.status === "published" || r.review_status === "published" || r.published_at || r.publishedDate)) {
                 if (!reportMap.has(r.id)) {
-                  reportMap.set(r.id, r);
+                  reportMap.set(r.id, { ...r, source_type: "clinical" });
                 }
               }
             });
@@ -101,35 +117,81 @@ export default function ParentReportView() {
         } catch (e) {
           console.warn("Therapy report lookup notice:", e.message);
         }
+      }
 
-        // 3. Fallback to getPublishedByChildId in case it's in a table not returned above
+      // 3. Fallback: getPublishedByChildId across candidate IDs
+      for (const cid of candidateIds) {
         try {
-          const singlePub = await reportService.getPublishedByChildId(effectiveChildId);
-          if (singlePub && singlePub.id && (singlePub.status === "published" || singlePub.review_status === "published")) {
+          const singlePub = await reportService.getPublishedByChildId(cid);
+          if (singlePub && singlePub.id && (singlePub.status === "published" || singlePub.review_status === "published" || singlePub.published_at || singlePub.publishedDate)) {
             if (!reportMap.has(singlePub.id)) {
               reportMap.set(singlePub.id, singlePub);
             }
           }
         } catch (_) {}
-
-        if (directReport && directReport.id && (directReport.status === "published" || directReport.review_status === "published")) {
-          reportMap.set(directReport.id, directReport);
-        }
-
-        allPubList = Array.from(reportMap.values()).sort((a, b) => {
-          const dateA = new Date(a.published_at || a.created_at || a.last_edited_at || 0).getTime();
-          const dateB = new Date(b.published_at || b.created_at || b.last_edited_at || 0).getTime();
-          return dateB - dateA;
-        });
       }
+
+      // 4. LocalStorage history fallback (preserves all historical reports)
+      if (typeof window !== "undefined") {
+        for (const cid of candidateIds) {
+          try {
+            const histRaw = localStorage.getItem(`reports_history_${cid}`);
+            if (histRaw) {
+              const histList = JSON.parse(histRaw);
+              if (Array.isArray(histList)) {
+                histList.forEach((h, idx) => {
+                  if (h) {
+                    const hId = h.id || `local-rep-${cid}-${idx}`;
+                    if (!reportMap.has(hId)) {
+                      reportMap.set(hId, { ...h, id: hId });
+                    }
+                  }
+                });
+              }
+            }
+
+            const pubRaw = localStorage.getItem(`report_published_${cid}`);
+            if (pubRaw) {
+              const pubObj = JSON.parse(pubRaw);
+              if (pubObj) {
+                const pId = pubObj.id || `local-pub-${cid}`;
+                if (!reportMap.has(pId)) {
+                  reportMap.set(pId, { ...pubObj, id: pId });
+                }
+              }
+            }
+
+            const iepRaw = localStorage.getItem(`iep_report_${cid}`);
+            if (iepRaw) {
+              const iepObj = JSON.parse(iepRaw);
+              if (iepObj && (iepObj.status === "published" || iepObj.review_status === "published")) {
+                const iId = iepObj.id || `local-iep-${cid}`;
+                if (!reportMap.has(iId)) {
+                  reportMap.set(iId, { ...iepObj, id: iId });
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (directReport && directReport.id) {
+        reportMap.set(directReport.id, directReport);
+      }
+
+      const allPubList = Array.from(reportMap.values()).sort((a, b) => {
+        const dateA = new Date(a.published_at || a.publishedDate || a.created_at || a.last_edited_at || 0).getTime();
+        const dateB = new Date(b.published_at || b.publishedDate || b.created_at || b.last_edited_at || 0).getTime();
+        return dateB - dateA;
+      });
 
       setReportsList(allPubList);
       setChildReportsCount(Math.max(allPubList.length, 1));
 
       // Choose which report to show:
       let activeRep = null;
-      if (directReport && (directReport.status === "published" || directReport.review_status === "published")) {
-        activeRep = directReport;
+      if (targetRepId) {
+        activeRep = allPubList.find((r) => r.id === targetRepId) || directReport || allPubList[0] || null;
       } else if (selectedReportId) {
         activeRep = allPubList.find((r) => r.id === selectedReportId) || allPubList[0] || null;
       } else {
@@ -144,11 +206,16 @@ export default function ParentReportView() {
             if (assObj) activeRep.assessments = assObj;
           } catch (_) {}
         }
-        if (!activeRep.assessments && effectiveChildId) {
-          try {
-            const assList = await assessmentService.getByChildId(effectiveChildId);
-            if (Array.isArray(assList) && assList.length > 0) activeRep.assessments = assList[0];
-          } catch (_) {}
+        for (const cid of candidateIds) {
+          if (!activeRep.assessments) {
+            try {
+              const assList = await assessmentService.getByChildId(cid);
+              if (Array.isArray(assList) && assList.length > 0) {
+                activeRep.assessments = assList[0];
+                break;
+              }
+            } catch (_) {}
+          }
         }
         setData(activeRep);
       } else {
@@ -165,6 +232,7 @@ export default function ParentReportView() {
   const handleSelectReport = async (rep) => {
     if (!rep || rep.id === data?.id) return;
     setSelectedReportId(rep.id);
+    setSearchParams({ reportId: rep.id });
 
     // Enrich assessment if needed
     if (!rep.assessments && rep.assessment_id) {
@@ -216,7 +284,7 @@ export default function ParentReportView() {
 
   useEffect(() => {
     fetchReport();
-  }, [activeChildId]);
+  }, [activeChildId, urlReportId]);
 
   const iep = data?.iep_report || data?.iepReport;
   const report =
@@ -404,7 +472,28 @@ export default function ParentReportView() {
   };
 
   const renderReportHistorySelector = () => {
-    if (!reportsList || reportsList.length <= 1) return null;
+    if (!reportsList || reportsList.length === 0) return null;
+
+    if (reportsList.length === 1) {
+      return (
+        <div className="no-print bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 mb-2 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-emerald-950 truncate">
+                🟢 Official Published Progress Report
+              </p>
+              <p className="text-[11px] text-emerald-700 font-medium">
+                Published: {data?.published_at?.split("T")[0] || data?.publishedDate || "Recently Published"}
+              </p>
+            </div>
+          </div>
+          <Badge label="Active Report" variant="green" size="sm" />
+        </div>
+      );
+    }
 
     return (
       <div className="no-print bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3.5 mb-2">

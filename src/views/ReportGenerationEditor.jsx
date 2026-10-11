@@ -936,18 +936,37 @@ export default function ReportGenerationEditor() {
         }
 
         const fullPublishedData = {
+          id: currentReportId || `rep-${Date.now()}`,
           childId: currentChildId,
+          child_id: currentChildId,
           childName: activeChild?.name || child?.name,
           publishedDate: pubDate,
+          published_at: pubDate,
           status: "published",
+          review_status: "published",
+          assessment_type: detectedCategory,
           formState,
           therapistReport: formState.therapistReport,
+          therapist_report: formState.therapistReport,
           parentReport: formState.parentReport,
+          parent_report: formState.parentReport,
           clinicEx: formState.exercises.clinicExercises,
-          homeEx: formState.exercises.homeExercises
+          clinic_exercises: formState.exercises.clinicExercises,
+          homeEx: formState.exercises.homeExercises,
+          home_exercises: formState.exercises.homeExercises
         };
         if (currentChildId) {
           localStorage.setItem(`report_published_${currentChildId}`, JSON.stringify(fullPublishedData));
+          try {
+            const histKey = `reports_history_${currentChildId}`;
+            const existingHist = JSON.parse(localStorage.getItem(histKey) || "[]");
+            const histArr = Array.isArray(existingHist) ? existingHist : [];
+            const updatedHist = [
+              fullPublishedData,
+              ...histArr.filter((h) => h.id !== fullPublishedData.id && h.publishedDate !== fullPublishedData.publishedDate)
+            ];
+            localStorage.setItem(histKey, JSON.stringify(updatedHist));
+          } catch (_) {}
         }
 
         if (currentChildId) {

@@ -634,7 +634,42 @@ export default function ChildProfile() {
   const parentName = data?.parent?.name || data?.parent_accounts?.parent_name || "Parent";
   const parentPhone = data?.parent?.phone || data?.parent_accounts?.phone || portalPhone;
   const parentPassword = data?.parent?.portalPassword || data?.parent_accounts?.password_hash || portalPass;
-  const isPortalActive = data?.parent?.portalActive ?? data?.parent_accounts?.portal_active ?? true;
+  const isPortalActive = Boolean(data?.parent?.portalActive || data?.parent_accounts?.portal_active);
+
+  const handleTogglePortalStatus = async () => {
+    const nextStatus = !isPortalActive;
+    try {
+      const childId = id || data?.id;
+      const targetPhone = portalPhone || data?.parent?.phone || data?.parent_accounts?.phone;
+      if (targetPhone) {
+        await db.update('parent_accounts', { portal_active: nextStatus }, { match: { phone: String(targetPhone) } }).catch(() => {});
+      }
+      if (childId) {
+        await db.update('parent_accounts', { portal_active: nextStatus }, { match: { child_id: childId } }).catch(() => {});
+      }
+      setData((prev) => ({
+        ...prev,
+        parent: {
+          ...(prev?.parent || {}),
+          portalActive: nextStatus
+        },
+        parent_accounts: {
+          ...(prev?.parent_accounts || {}),
+          portal_active: nextStatus
+        }
+      }));
+      if (typeof window !== "undefined") {
+        try {
+          const registered = JSON.parse(localStorage.getItem("kcr_registered_children") || "[]");
+          const updated = registered.map(c => c.id === childId ? { ...c, parent: { ...(c.parent || {}), portalActive: nextStatus } } : c);
+          localStorage.setItem("kcr_registered_children", JSON.stringify(updated));
+        } catch (_) {}
+      }
+      showToast(nextStatus ? "Parent portal access activated!" : "Parent portal access deactivated.", "success");
+    } catch (err) {
+      showToast("Failed to update status: " + err.message, "error");
+    }
+  };
 
   const handleOpenSetupModal = () => {
     setPortalPhone(parentPhone || "");
@@ -1397,16 +1432,18 @@ export default function ChildProfile() {
                     >
                       View Published Report
                     </Button>
-                    <Button
-                      variant="outlined"
-                      size="sm"
-                      icon={Trash2}
-                      onClick={() => handleDeleteReport(rep.id, rep.assessment_type)}
-                      className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-                      title="Delete Report"
-                    >
-                      Delete
-                    </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outlined"
+                        size="sm"
+                        icon={Trash2}
+                        onClick={() => handleDeleteReport(rep.id, rep.assessment_type)}
+                        className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                        title="Delete Report"
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1454,6 +1491,14 @@ export default function ChildProfile() {
               </Button>
               <Button variant="outlined" icon={Key} onClick={handleOpenResetModal}>
                 Reset Password
+              </Button>
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={handleTogglePortalStatus}
+                className={isPortalActive ? "border-amber-300 text-amber-700 hover:bg-amber-50" : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"}
+              >
+                {isPortalActive ? "Deactivate Access" : "Activate Access"}
               </Button>
             </div>
           </div>

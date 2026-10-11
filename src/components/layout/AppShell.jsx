@@ -219,7 +219,7 @@ export default function AppShell({ children }) {
 
       {/* LEFT SIDEBAR (Dark Theme - 260px) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col bg-[#0F172A] border-r border-slate-800 transition-transform duration-300 md:sticky md:top-0 md:h-screen md:max-h-screen md:self-start md:translate-x-0 shadow-[4px_0_24px_rgba(0,0,0,0.1)] shrink-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col bg-[#0F172A] border-r border-slate-800 transition-transform duration-300 md:static md:translate-x-0 shadow-[4px_0_24px_rgba(0,0,0,0.1)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -328,8 +328,8 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Bottom User Profile */}
-        <div className="p-4 bg-slate-900/50 border-t border-slate-800 shrink-0">
-          <div className="flex items-center justify-between gap-2">
+        <div className="p-4 bg-slate-900/50 border-t border-slate-800">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-9 w-9 rounded-xl bg-gradient-blue text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-inner">
                 {initials}
@@ -343,12 +343,11 @@ export default function AppShell({ children }) {
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 hover:text-rose-200 transition-colors cursor-pointer text-xs font-semibold shrink-0"
+              className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
               title="Logout"
               aria-label="Logout"
             >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>

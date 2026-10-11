@@ -46,7 +46,7 @@ export default function ChildRegistration() {
     phone: "",
     email: "",
     address: "",
-    createParentAccess: true,
+    createParentAccess: false,
     parentPassword: ""
   });
 

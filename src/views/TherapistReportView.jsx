@@ -796,6 +796,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
   };
 
   const handleDeleteReport = async () => {
+    if (!isAdmin) {
+      showToast("Only administrators can delete reports.", "error");
+      return;
+    }
     if (window.confirm(`Are you sure you want to delete this clinical report for ${child?.name || "this child"}? This action cannot be undone.`)) {
       try {
         await reportService.delete(reportDataRaw?.id || targetId, formState.assessmentType || category);
@@ -1071,16 +1075,18 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 ⬇ Download PDF
               </Button>
 
-              <Button
-                variant="outlined"
-                size="sm"
-                icon={Trash2}
-                onClick={handleDeleteReport}
-                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-                title="Delete this report"
-              >
-                Delete
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outlined"
+                  size="sm"
+                  icon={Trash2}
+                  onClick={handleDeleteReport}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  title="Delete this report"
+                >
+                  Delete
+                </Button>
+              )}
 
               {formState.reportStatus === "published" ? (
                 <div className="flex items-center gap-1.5">

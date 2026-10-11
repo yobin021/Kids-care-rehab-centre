@@ -18,7 +18,8 @@ import {
   Trash2,
   Search,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Shield
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -645,6 +646,7 @@ export default function ReportGenerationEditor() {
   const autoSaveTimer = useRef(null);
 
   const triggerAutoSave = (nextState) => {
+    if (!isAdmin) return; // Only administrators can save report modifications
     setSaveStatus("unsaved");
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
 
@@ -700,6 +702,7 @@ export default function ReportGenerationEditor() {
 
   // State Update Helpers
   const updateTherapist = (field, val) => {
+    if (!isAdmin) return;
     const next = {
       ...formState,
       therapistReport: { ...formState.therapistReport, [field]: val }
@@ -712,6 +715,7 @@ export default function ReportGenerationEditor() {
   };
 
   const updateParent = (field, val) => {
+    if (!isAdmin) return;
     const next = {
       ...formState,
       parentReport: { ...formState.parentReport, [field]: val }
@@ -724,6 +728,7 @@ export default function ReportGenerationEditor() {
   };
 
   const updateExercises = (field, val) => {
+    if (!isAdmin) return;
     const next = {
       ...formState,
       exercises: { ...formState.exercises, [field]: val }
@@ -732,8 +737,12 @@ export default function ReportGenerationEditor() {
     triggerAutoSave(next);
   };
 
-  // Single Section Rewrite API Call
+  // Single Section Rewrite API Call (Admin Only)
   const handleRewriteSection = async (sectionKey, promptText, targetTab = "therapist") => {
+    if (!isAdmin) {
+      if (showToast) showToast("Only administrators can rewrite report sections.", "info");
+      return;
+    }
     setSectionLoading((prev) => ({ ...prev, [sectionKey]: true }));
     try {
       const res = await fetch("/api/generate-report", {
@@ -769,8 +778,12 @@ export default function ReportGenerationEditor() {
     }
   };
 
-  // Full Tab Regeneration API Call
+  // Full Tab Regeneration API Call (Admin Only)
   const handleRegenerateEntireReport = async (targetTab) => {
+    if (!isAdmin) {
+      if (showToast) showToast("Only administrators can regenerate reports.", "info");
+      return;
+    }
     if (targetTab === "therapist") setShowRegenTherapistModal(false);
     else setShowRegenParentModal(false);
 
@@ -1156,48 +1169,86 @@ export default function ReportGenerationEditor() {
             <span>Print / PDF</span>
           </button>
 
-          {/* Delete Report button */}
-          <Button
-            variant="outlined"
-            size="sm"
-            icon={Trash2}
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-            onClick={handleDeleteReport}
-            title="Delete this report"
-          >
-            Delete Report
-          </Button>
+          {/* Delete Report button (Admin Only) */}
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={Trash2}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              onClick={handleDeleteReport}
+              title="Delete this report"
+            >
+              Delete Report
+            </Button>
+          )}
 
-          {/* 4. [Save Draft] button */}
-          <Button
-            variant="outlined"
-            size="sm"
-            icon={Save}
-            disabled={saveStatus === "saving" || isManualSaving}
-            onClick={handleManualSave}
-          >
-            {isManualSaving ? "Saving..." : manualSaveSuccess ? "Saved ✓" : "Save Draft"}
-          </Button>
+          {/* 4. [Save Draft] button (Admin Only) */}
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={Save}
+              disabled={saveStatus === "saving" || isManualSaving}
+              onClick={handleManualSave}
+            >
+              {isManualSaving ? "Saving..." : manualSaveSuccess ? "Saved ✓" : "Save Draft"}
+            </Button>
+          )}
 
           {/* 5. [Submit for Review (Staff) or Approve & Publish (Admin)] button */}
-          <Button
-            variant={reportStatus === "published" ? "secondary" : "primary"}
-            size="sm"
-            icon={isAdmin ? CheckCircle2 : Send}
-            onClick={handleValidateAndPublish}
-          >
-            {isAdmin
-              ? reportStatus === "published"
-                ? "Update & Republish"
-                : "Approve & Publish"
-              : reportStatus === "pending_review"
-              ? "Update Submission"
-              : "Submit for Review"}
-          </Button>
+          {isAdmin ? (
+            <Button
+              variant={reportStatus === "published" ? "secondary" : "primary"}
+              size="sm"
+              icon={CheckCircle2}
+              onClick={handleValidateAndPublish}
+            >
+              {reportStatus === "published" ? "Update & Republish" : "Approve & Publish"}
+            </Button>
+          ) : reportStatus === "pending_review" ? (
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-[6px] bg-purple-100 text-purple-800 text-xs font-bold border border-purple-300 flex items-center gap-1">
+                <Send className="h-3.5 w-3.5 text-purple-600" /> Pending Admin Review
+              </span>
+              <Button size="sm" variant="secondary" onClick={() => navigate(`/reports/${targetId}/therapist`)}>
+                View Clinical Report →
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Send}
+              onClick={handleValidateAndPublish}
+            >
+              Submit for Admin Review
+            </Button>
+          )}
         </div>
 
-
       </div>
+
+      {/* STAFF READ-ONLY NOTICE BANNER */}
+      {!isAdmin && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-[8px] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-start gap-2.5">
+            <Shield className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-900">
+              <strong className="font-bold block">Staff View (Read-Only)</strong>
+              <span>Only administrators have permission to rewrite generated reports and modify therapy exercises. This report is awaiting administrator review.</span>
+            </div>
+          </div>
+          <Button
+            variant="outlined"
+            size="sm"
+            className="border-amber-600 text-amber-800 hover:bg-amber-100 shrink-0"
+            onClick={() => navigate(`/reports/${targetId}/therapist`)}
+          >
+            View Clinical Report →
+          </Button>
+        </div>
+      )}
 
       {/* PUBLISHED REPORT EDIT BANNER */}
       {reportStatus === "published" && (
@@ -1287,15 +1338,19 @@ export default function ReportGenerationEditor() {
           
           {/* TOOLBAR */}
           <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-2 text-xs">
-            <span className="text-[12px] text-[#5F5E5A] font-medium">AI Generated — Edit as needed</span>
-            <Button
-              variant="outlined"
-              size="sm"
-              icon={RotateCcw}
-              onClick={() => setShowRegenTherapistModal(true)}
-            >
-              🔄 Regenerate Entire Report
-            </Button>
+            <span className="text-[12px] text-[#5F5E5A] font-medium">
+              {isAdmin ? "AI Generated — Edit as needed" : "AI Generated — Clinical Narrative (Read-Only for Staff)"}
+            </span>
+            {isAdmin && (
+              <Button
+                variant="outlined"
+                size="sm"
+                icon={RotateCcw}
+                onClick={() => setShowRegenTherapistModal(true)}
+              >
+                🔄 Regenerate Entire Report
+              </Button>
+            )}
           </div>
 
           {/* DEDICATED ASSESSMENT REPORT FINDINGS REFERENCE TABLE */}
@@ -1380,15 +1435,17 @@ export default function ReportGenerationEditor() {
                 {/* Section Top Bar */}
                 <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
                   <span className="text-[11px] font-bold text-[#9B9A96] tracking-wider uppercase">{sec.label}</span>
-                  <button
-                    type="button"
-                    disabled={isSecLoading}
-                    onClick={() => handleRewriteSection(sec.key, sec.prompt, "therapist")}
-                    className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                  >
-                    <RotateCcw className={`h-3.5 w-3.5 ${isSecLoading ? "animate-spin" : ""}`} />
-                    <span>↺ Rewrite</span>
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={isSecLoading}
+                      onClick={() => handleRewriteSection(sec.key, sec.prompt, "therapist")}
+                      className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className={`h-3.5 w-3.5 ${isSecLoading ? "animate-spin" : ""}`} />
+                      <span>↺ Rewrite</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Section Textarea Area with Loading Overlay */}
@@ -1396,9 +1453,14 @@ export default function ReportGenerationEditor() {
                   <textarea
                     rows={4}
                     value={textVal}
+                    readOnly={!isAdmin}
                     onChange={(e) => updateTherapist(sec.key, e.target.value)}
-                    className={`w-full p-3 text-xs font-medium text-[#2C2C2A] bg-white rounded-[8px] border outline-none resize-none transition-colors ${
-                      hasError ? "border-red-500" : "border-[#D3D1C7] focus:border-[#185FA5]"
+                    className={`w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border outline-none resize-none transition-colors ${
+                      !isAdmin
+                        ? "bg-[#F8F8F6] border-[#D3D1C7]/70 cursor-default"
+                        : hasError
+                        ? "border-red-500 bg-red-50/20"
+                        : "border-[#D3D1C7] focus:border-[#185FA5] bg-white"
                     }`}
                   />
 
@@ -1413,13 +1475,15 @@ export default function ReportGenerationEditor() {
 
                 {/* Section Bottom Bar */}
                 <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#D3D1C7]/30">
-                  <button
-                    type="button"
-                    onClick={() => updateTherapist(sec.key, "")}
-                    className="text-[#993C1D] hover:underline font-semibold cursor-pointer"
-                  >
-                    Clear text
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => updateTherapist(sec.key, "")}
+                      className="text-[#993C1D] hover:underline font-semibold cursor-pointer"
+                    >
+                      Clear text
+                    </button>
+                  ) : <span className="text-[10px] text-[#9B9A96] italic">Admin editable</span>}
                   <span className="text-[#9B9A96] font-mono">{textVal.length} characters</span>
                 </div>
 
@@ -1465,33 +1529,38 @@ export default function ReportGenerationEditor() {
                           {exObj?.category && <span className="text-[10px] text-[#9B9A96] block font-medium">{exObj.category}</span>}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
-                          updateExercises("clinicExercises", next);
-                        }}
-                        className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
+                            updateExercises("clinicExercises", next);
+                          }}
+                          className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
+                          title="Remove Exercise"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              <Button
-                variant="outlined"
-                fullWidth
-                size="sm"
-                icon={Plus}
-                onClick={() => {
-                  setAddExType("clinic");
-                  setShowAddExModal(true);
-                }}
-              >
-                + Add Clinic Exercise
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => {
+                    setAddExType("clinic");
+                    setShowAddExModal(true);
+                  }}
+                >
+                  + Add Clinic Exercise
+                </Button>
+              )}
             </div>
 
             {/* HOME EXERCISES COLUMN */}
@@ -1526,33 +1595,38 @@ export default function ReportGenerationEditor() {
                           {exObj?.category && <span className="text-[10px] text-[#9B9A96] block font-medium">{exObj.category}</span>}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
-                          updateExercises("homeExercises", next);
-                        }}
-                        className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
+                            updateExercises("homeExercises", next);
+                          }}
+                          className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
+                          title="Remove Exercise"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              <Button
-                variant="outlined"
-                fullWidth
-                size="sm"
-                icon={Plus}
-                onClick={() => {
-                  setAddExType("home");
-                  setShowAddExModal(true);
-                }}
-              >
-                + Add Home Exercise
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => {
+                    setAddExType("home");
+                    setShowAddExModal(true);
+                  }}
+                >
+                  + Add Home Exercise
+                </Button>
+              )}
             </div>
 
           </div>
@@ -1570,12 +1644,16 @@ export default function ReportGenerationEditor() {
                     <button
                       key={day}
                       type="button"
+                      disabled={!isAdmin}
                       onClick={() => {
+                        if (!isAdmin) return;
                         const arr = [...formState.exercises.therapyDays];
                         const next = isSel ? arr.filter((d) => d !== day) : [...arr, day];
                         updateExercises("therapyDays", next);
                       }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                        !isAdmin ? "cursor-default opacity-85" : "cursor-pointer"
+                      } ${
                         isSel ? "bg-[#185FA5] text-white shadow-xs" : "bg-[#F8F8F6] text-[#5F5E5A] border border-[#D3D1C7]"
                       }`}
                     >
@@ -1590,6 +1668,7 @@ export default function ReportGenerationEditor() {
               <Input
                 label="Session Time"
                 type="time"
+                disabled={!isAdmin}
                 value={formState.exercises.sessionTime}
                 onChange={(e) => updateExercises("sessionTime", e.target.value)}
               />
@@ -1598,8 +1677,11 @@ export default function ReportGenerationEditor() {
                 <label className="block text-xs font-bold text-[#2C2C2A]">Duration</label>
                 <select
                   value={formState.exercises.sessionDuration}
+                  disabled={!isAdmin}
                   onChange={(e) => updateExercises("sessionDuration", e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
+                  className={`w-full h-10 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium outline-none ${
+                    !isAdmin ? "bg-[#F8F8F6] text-[#5F5E5A] cursor-not-allowed" : "bg-white text-[#2C2C2A]"
+                  }`}
                 >
                   <option value="30">30 minutes</option>
                   <option value="45">45 minutes</option>
@@ -1612,6 +1694,7 @@ export default function ReportGenerationEditor() {
                 type="number"
                 min="1"
                 max="7"
+                disabled={!isAdmin}
                 value={formState.exercises.frequencyPerWeek}
                 onChange={(e) => updateExercises("frequencyPerWeek", e.target.value)}
               />
@@ -1619,6 +1702,7 @@ export default function ReportGenerationEditor() {
               <Input
                 label="Start Date"
                 type="date"
+                disabled={!isAdmin}
                 value={formState.exercises.startDate}
                 onChange={(e) => updateExercises("startDate", e.target.value)}
               />

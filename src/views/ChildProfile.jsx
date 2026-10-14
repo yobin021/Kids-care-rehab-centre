@@ -73,6 +73,7 @@ export default function ChildProfile() {
   const childCat = detectChildCategory(data);
   const [assessments, setAssessments] = useState([]);
   const [reports, setReports] = useState([]);
+  const [pendingReports, setPendingReports] = useState([]);
   const [parentMessages, setParentMessages] = useState([]);
 
   // Multi-Staff Permissions & Assignment State
@@ -283,10 +284,28 @@ export default function ChildProfile() {
         }
       });
       const uniqueReps = Array.from(reportMap.values());
-      // Only published reports should appear in the child profile reports tab, sorted newest first
+      // Only published reports should appear in the published reports section
       const publishedOnly = uniqueReps.filter(
         (r) => r.status === "published" || r.review_status === "published"
       );
+      const pendingOnly = uniqueReps.filter(
+        (r) => r.status === "pending_review" || r.review_status === "pending_review"
+      );
+      if (typeof window !== "undefined") {
+        try {
+          const draftRaw = localStorage.getItem(`report_draft_${id}`);
+          if (draftRaw) {
+            const draftObj = JSON.parse(draftRaw);
+            if (draftObj && (draftObj.status === "pending_review" || draftObj.review_status === "pending_review")) {
+              if (!pendingOnly.some((p) => p.id === draftObj.reportId || p.id === draftObj.id)) {
+                pendingOnly.push({ ...draftObj, id: draftObj.reportId || draftObj.id || `draft-${id}` });
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      setPendingReports(pendingOnly);
+
       const sortedPublished = [...publishedOnly].sort((a, b) => {
         const dateA = new Date(a.published_at || a.created_at || a.last_edited_at || 0).getTime();
         const dateB = new Date(b.published_at || b.created_at || b.last_edited_at || 0).getTime();
@@ -1382,10 +1401,52 @@ export default function ChildProfile() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-[#2C2C2A]">Published Reports</h3>
+              <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical Reports</h3>
               <p className="text-xs text-[#5F5E5A]">Official assessment &amp; IEP progress reports published by Admin</p>
             </div>
           </div>
+
+          {/* Pending Admin Review Alert */}
+          {pendingReports.length > 0 && (
+            <div className="bg-amber-50/90 border border-amber-300 rounded-[12px] p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-amber-950 flex items-center gap-2">
+                      Report Generated — Awaiting Admin Review &amp; Submission
+                    </h4>
+                    <p className="text-xs text-amber-900/80 mt-0.5">
+                      Staff have completed the assessment report. Once reviewed and submitted by the administrator, it will become published and visible to therapists and parents.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="self-end sm:self-auto shrink-0">
+                  {isAdmin ? (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(`/reports/${id}/review`)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold"
+                    >
+                      Review &amp; Submit / Publish
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outlined"
+                      onClick={() => navigate(`/reports/${id}/therapist`)}
+                      className="border-amber-300 text-amber-900 hover:bg-amber-100 font-semibold"
+                    >
+                      View Submitted Draft
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {reports.length === 0 ? (
             <Card padding="p-8">

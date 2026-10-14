@@ -987,6 +987,10 @@ export default function ReportGenerationEditor() {
             reportsCount: ((activeChild || child)?.reportsCount || 0) + 1,
             lastReportDate: pubDate
           });
+          localStorage.removeItem(`report_draft_${currentChildId}`);
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
         }
 
         setReportStatus("published");
@@ -1016,6 +1020,9 @@ export default function ReportGenerationEditor() {
         };
         if (currentChildId) {
           localStorage.setItem(`report_draft_${currentChildId}`, JSON.stringify(fullDraftData));
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
         }
 
         setReportStatus("pending_review");
@@ -1206,16 +1213,7 @@ export default function ReportGenerationEditor() {
             >
               {reportStatus === "published" ? "Update & Republish" : "Approve & Publish"}
             </Button>
-          ) : reportStatus === "pending_review" ? (
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-[6px] bg-purple-100 text-purple-800 text-xs font-bold border border-purple-300 flex items-center gap-1">
-                <Send className="h-3.5 w-3.5 text-purple-600" /> Pending Admin Review
-              </span>
-              <Button size="sm" variant="secondary" onClick={() => navigate(`/reports/${targetId}/therapist`)}>
-                View Clinical Report →
-              </Button>
-            </div>
-          ) : (
+          ) : reportStatus !== "pending_review" ? (
             <Button
               variant="primary"
               size="sm"
@@ -1224,40 +1222,21 @@ export default function ReportGenerationEditor() {
             >
               Submit for Admin Review
             </Button>
-          )}
+          ) : null}
         </div>
 
       </div>
 
-      {/* STAFF READ-ONLY NOTICE BANNER */}
-      {!isAdmin && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-[8px] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-start gap-2.5">
-            <Shield className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-900">
-              <strong className="font-bold block">Staff View (Read-Only)</strong>
-              <span>Only administrators have permission to rewrite generated reports and modify therapy exercises. This report is awaiting administrator review.</span>
-            </div>
-          </div>
-          <Button
-            variant="outlined"
-            size="sm"
-            className="border-amber-600 text-amber-800 hover:bg-amber-100 shrink-0"
-            onClick={() => navigate(`/reports/${targetId}/therapist`)}
-          >
-            View Clinical Report →
-          </Button>
-        </div>
-      )}
+      {/* ─── ADMIN BANNER NOTICES ─── */}
 
-      {/* PUBLISHED REPORT EDIT BANNER */}
-      {reportStatus === "published" && (
-        <div className="bg-[#FEF3C7] border-l-4 border-[#854F0B] p-4 rounded-r-[8px] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+      {/* 3. Admin Published Report Edit Banner */}
+      {isAdmin && reportStatus === "published" && (
+        <div className="bg-[#FEF3C7] border-l-4 border-[#854F0B] p-4 rounded-r-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="h-5 w-5 text-[#854F0B] shrink-0 mt-0.5" />
             <div className="text-xs text-[#854F0B]">
               <strong className="font-bold block">You are editing a published report.</strong>
-              <span>Any changes you save will immediately update what {child?.parent?.name} sees on their portal.</span>
+              <span>Any changes you save will immediately update what {child?.parent?.name || "the parent"} sees on their portal.</span>
             </div>
           </div>
 
@@ -1273,28 +1252,38 @@ export default function ReportGenerationEditor() {
         </div>
       )}
 
-      {/* PENDING REVIEW BANNER */}
-      {reportStatus === "pending_review" && (
-        <div className="bg-[#EEF2FF] border-l-4 border-[#4F46E5] p-4 rounded-r-[8px] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+      {/* 4. Admin Pending Review Banner */}
+      {isAdmin && reportStatus === "pending_review" && (
+        <div className="bg-[#EEF2FF] border-l-4 border-[#4F46E5] p-4 rounded-r-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-start gap-2.5">
             <Send className="h-5 w-5 text-[#4F46E5] shrink-0 mt-0.5" />
             <div className="text-xs text-[#312E81]">
-              <strong className="font-bold block">Assessment submitted for Admin review.</strong>
+              <strong className="font-bold block">Assessment Submitted for Admin Review</strong>
               <span>
-                This report is currently in <span className="font-semibold text-[#4F46E5]">Pending Review</span> status. Once reviewed and approved by an Admin, it will be published to the Parent Portal.
+                This report is currently in <span className="font-semibold text-[#4F46E5]">Pending Review</span> status. Once reviewed and approved by you, it will be published to the Parent Portal.
               </span>
             </div>
           </div>
 
-          <Button
-            variant="outlined"
-            size="sm"
-            className="border-[#4F46E5] text-[#4F46E5] hover:bg-indigo-50 shrink-0"
-            icon={Eye}
-            onClick={() => setShowParentPreviewModal(true)}
-          >
-            Preview Parent View
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outlined"
+              size="sm"
+              className="border-[#4F46E5] text-[#4F46E5] hover:bg-indigo-50"
+              icon={Eye}
+              onClick={() => setShowParentPreviewModal(true)}
+            >
+              Preview Parent View
+            </Button>
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              icon={CheckCircle2}
+              onClick={handleValidateAndPublish}
+            >
+              Approve &amp; Publish
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1318,7 +1307,7 @@ export default function ReportGenerationEditor() {
             activeTab === "therapist" ? "bg-[#185FA5] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
           }`}
         >
-          Clinical Report (Editable)
+          {isAdmin ? "Clinical Report (Editable)" : "Clinical Report"}
         </button>
 
         <button

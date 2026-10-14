@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Eye, CalendarDays, Activity, BookOpen, Users, Shield, ArrowRight } from "lucide-react";
+import { Eye, CalendarDays, Activity, BookOpen, Users, Shield, ArrowRight, Bell, CheckCircle2, Clock, FileText } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -10,6 +10,7 @@ import ErrorMessage from "../components/ui/ErrorMessage";
 import { reportService } from "../services/reportService";
 import { appointmentService } from "../services/appointmentService";
 import { iepService } from "../services/iepService";
+import { notificationService } from "../services/notificationService";
 
 export default function AdminDashboard() {
   const { user, childrenList } = useAuth();
@@ -19,6 +20,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [iepPendingCount, setIepPendingCount] = useState(0);
+  const [pendingNotifications, setPendingNotifications] = useState([]);
 
   const todayStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -50,10 +52,22 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const notifs = await notificationService.getAdminNotifications(childrenList);
+      setPendingNotifications(notifs);
+    } catch (_) {}
+  }, [childrenList]);
+
   useEffect(() => {
     fetchReports();
+    loadNotifications();
     iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
-  }, [childrenList]);
+
+    const handleUpdate = () => loadNotifications();
+    window.addEventListener("clinical_notifications_changed", handleUpdate);
+    return () => window.removeEventListener("clinical_notifications_changed", handleUpdate);
+  }, [childrenList, loadNotifications]);
 
   return (
     <div className="space-y-8 text-slate-800 pb-10">
@@ -70,6 +84,70 @@ export default function AdminDashboard() {
           <p className="text-xs sm:text-[14px] font-semibold text-slate-500">{todayStr}</p>
         </div>
       </div>
+
+      {/* ─── PENDING REPORT APPROVALS & NOTIFICATIONS ─── */}
+      {pendingNotifications.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-orange-50/80 border border-amber-200/90 rounded-3xl p-5 sm:p-7 shadow-[0_4px_24px_rgba(245,158,11,0.09)] space-y-5 animate-slide-up">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/60 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/25 shrink-0">
+                <Bell className="h-5 w-5 animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  Action Required: {pendingNotifications.length} Child {pendingNotifications.length === 1 ? 'Report' : 'Reports'} Awaiting Review
+                </h3>
+                <p className="text-xs sm:text-[13px] text-amber-900/90 font-medium">
+                  Staff have generated assessment reports. Please review and submit/publish them to make them visible to therapists and parents.
+                </p>
+              </div>
+            </div>
+            <span className="self-start sm:self-center text-xs font-black px-3 py-1 rounded-full bg-amber-500 text-white shadow-xs">
+              {pendingNotifications.length} Needs Review
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pendingNotifications.map((notif) => (
+              <div
+                key={notif.id}
+                className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                      {notif.pathway}
+                    </span>
+                    <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1 shrink-0">
+                      <Clock className="h-3 w-3" />
+                      {new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+
+                  <h4 className="text-sm font-bold text-slate-900">
+                    Report Generated: <span className="text-blue-600 font-black">{notif.childName}</span>
+                  </h4>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Prepared by <strong className="text-slate-800">{notif.preparedBy}</strong>. Please review and submit/publish it.
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                  <Button
+                    size="sm"
+                    icon={CheckCircle2}
+                    onClick={() => navigate(notif.reviewUrl)}
+                    className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto"
+                  >
+                    Review &amp; Submit / Publish
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ─── TWO MAIN CLINICAL MODULES ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

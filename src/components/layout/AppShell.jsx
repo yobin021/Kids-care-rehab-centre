@@ -13,9 +13,14 @@ import {
   Activity,
   CalendarDays,
   BookOpen,
-  ChevronRight
+  ChevronRight,
+  Bell,
+  CheckCircle2,
+  Clock,
+  ArrowRight
 } from "lucide-react";
 import Toast from "../ui/Toast";
+import { notificationService } from "../../services/notificationService";
 
 export default function AppShell({ children }) {
   const { user, isAdmin, isParent, logout, toasts, removeToast, childrenList } = useAuth();
@@ -23,14 +28,45 @@ export default function AppShell({ children }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [iepPendingCount, setIepPendingCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = React.useRef(null);
 
-  // Load pending IEP count for admin badge
+  // Load pending notifications & IEP count for admin
+  const loadAdminNotifications = React.useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const list = await notificationService.getAdminNotifications(childrenList);
+      setNotifications(list);
+    } catch (_) {}
+  }, [isAdmin, childrenList]);
+
   React.useEffect(() => {
     if (!isAdmin) return;
+    loadAdminNotifications();
     import("../../services/iepService").then(({ iepService }) => {
       iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
     }).catch(() => {});
-  }, [isAdmin]);
+
+    const handleUpdate = () => loadAdminNotifications();
+    window.addEventListener("clinical_notifications_changed", handleUpdate);
+    return () => window.removeEventListener("clinical_notifications_changed", handleUpdate);
+  }, [isAdmin, loadAdminNotifications]);
+
+  // Click outside listener for notifications dropdown
+  React.useEffect(() => {
+    function handleClickOutside(event) {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setNotifOpen(false);
+      }
+    }
+    if (notifOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [notifOpen]);
 
   const handleLogout = () => {
     const isParentUser = isParent || location.pathname.startsWith("/parent") || location.pathname.includes("/parent");
@@ -270,7 +306,12 @@ export default function AppShell({ children }) {
               className={`sidebar-nav-item ${location.pathname.startsWith("/children") ? "active" : ""}`}
             >
               <Users className="h-4 w-4 shrink-0" />
-              <span>Children & Reports</span>
+              <span className="flex-1">Children & Reports</span>
+              {isAdmin && notifications.length > 0 && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white shadow-[0_0_8px_rgba(245,158,11,0.5)]">
+                  {notifications.length}
+                </span>
+              )}
             </Link>
 
             <Link
@@ -376,6 +417,92 @@ export default function AppShell({ children }) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Admin Notifications Bell */}
+            {isAdmin && (
+              <div className="relative" ref={notifRef}>
+                <button
+                  type="button"
+                  onClick={() => setNotifOpen(!notifOpen)}
+                  className={`relative p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                    notifOpen
+                      ? "bg-amber-100 text-amber-800 border border-amber-300 shadow-xs"
+                      : notifications.length > 0
+                      ? "bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 shadow-2xs"
+                      : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-2xs"
+                  }`}
+                  title="Clinical Notifications & Report Approvals"
+                  aria-label="Clinical Notifications"
+                >
+                  <Bell className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-black rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center shadow-xs animate-pulse">
+                      {notifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notifications Dropdown Panel */}
+                {notifOpen && (
+                  <div className="absolute right-0 mt-2 w-[340px] sm:w-[420px] bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.18)] border border-slate-200 z-50 overflow-hidden animate-slide-up">
+                    <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-amber-400" />
+                        <h3 className="text-sm font-bold tracking-tight">Clinical Notifications</h3>
+                      </div>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                        {notifications.length} {notifications.length === 1 ? 'Pending Review' : 'Pending Reviews'}
+                      </span>
+                    </div>
+
+                    <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center space-y-2">
+                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
+                          <p className="text-xs font-bold text-slate-800">All Reports Reviewed</p>
+                          <p className="text-[11px] text-slate-500">No reports are currently waiting for admin review or submission.</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div key={notif.id} className="p-4 hover:bg-slate-50 transition-colors space-y-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 mb-1">
+                                  {notif.pathway}
+                                </span>
+                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                                  Report Generated: <span className="text-blue-600">{notif.childName}</span>
+                                </h4>
+                              </div>
+                              <span className="text-[10px] font-medium text-slate-400 shrink-0 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-600 leading-relaxed">
+                              Generated by <strong className="text-slate-800">{notif.preparedBy}</strong>. Please review and submit/publish it to make it visible to therapists and parents.
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNotifOpen(false);
+                                navigate(notif.reviewUrl);
+                              }}
+                              className="w-full mt-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                            >
+                              <span>Review & Submit / Publish</span>
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-[13px] font-bold text-slate-800 leading-tight">{user?.name}</span>
               <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{isAdmin ? 'Admin' : 'Staff'} Role</span>

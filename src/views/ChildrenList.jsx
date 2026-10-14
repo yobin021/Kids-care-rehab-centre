@@ -414,11 +414,6 @@ export default function ChildrenList() {
                             <Button variant="outlined" size="sm" icon={FilePlus} onClick={() => navigate(childCat.assessmentRoute)}>
                               + Assessment
                             </Button>
-                            {!childCat.isIep && (
-                              <Button variant="ghost" size="sm" onClick={() => navigate(`/reports/new/${c.id}`)}>
-                                + Report
-                              </Button>
-                            )}
                           </div>
                         </td>
                       </tr>

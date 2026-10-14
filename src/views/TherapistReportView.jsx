@@ -23,7 +23,10 @@ import {
   Brain,
   Zap,
   Target,
-  Trash2
+  Trash2,
+  FilePlus,
+  Plus,
+  Search
 } from "lucide-react";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -396,6 +399,16 @@ export default function TherapistReportView({ initialEditMode = false }) {
   const [assignedClinicExercises, setAssignedClinicExercises] = useState([]);
   const [assignedHomeExercises, setAssignedHomeExercises] = useState([]);
 
+  // Add Exercise Modal state
+  const [exerciseModalOpen, setExerciseModalOpen] = useState(false);
+  const [exerciseModalType, setExerciseModalType] = useState("clinic"); // "clinic" | "home"
+  const [exerciseSearch, setExerciseSearch] = useState("");
+  const [customExerciseName, setCustomExerciseName] = useState("");
+  const [customExerciseCategory, setCustomExerciseCategory] = useState("Clinical Physiotherapy");
+  const [customExerciseDuration, setCustomExerciseDuration] = useState("10–15 mins");
+  const [customExerciseDesc, setCustomExerciseDesc] = useState("");
+  const [showCustomExerciseForm, setShowCustomExerciseForm] = useState(false);
+
   const autoSaveTimerRef = useRef(null);
 
   // 1. Load Data
@@ -482,8 +495,27 @@ export default function TherapistReportView({ initialEditMode = false }) {
         extractEx(assessmentObj?.home_exercises) ||
         extractEx(assessmentObj?.homeExercises) ||
         [];
-      setAssignedClinicExercises(clinicEx);
-      setAssignedHomeExercises(homeEx);
+
+      // Determine category theme for defaults if none assigned yet
+      const rawCatEarly = (
+        reportObj?.assessment_type ||
+        assessmentObj?.source_table ||
+        assessmentObj?.assessment_type ||
+        childObj?.therapy_category ||
+        childObj?.diagnosis ||
+        ""
+      ).toLowerCase();
+      let earlyKey = "asd";
+      if (rawCatEarly.includes("adhd") || rawCatEarly.includes("conner")) earlyKey = "adhd";
+      else if (rawCatEarly.includes("delay") || rawCatEarly.includes("developmental")) earlyKey = "developmental_delay";
+      else if (rawCatEarly.includes("learn") || rawCatEarly.includes("ldst") || rawCatEarly.includes("sld") || rawCatEarly.includes("dyslex")) earlyKey = "learning_disability";
+      else if (rawCatEarly.includes("special") || rawCatEarly.includes("iep")) earlyKey = "special_school";
+
+      const earlyTheme = CATEGORY_CONFIG[earlyKey] || CATEGORY_CONFIG.asd;
+      const initialClinic = clinicEx && clinicEx.length > 0 ? clinicEx : (earlyTheme.defaultClinicExercises || []);
+      const initialHome = homeEx && homeEx.length > 0 ? homeEx : (earlyTheme.defaultHomeExercises || []);
+      setAssignedClinicExercises(initialClinic);
+      setAssignedHomeExercises(initialHome);
 
       // Populate initial text fields
       const rep = reportObj?.therapist_report || reportObj?.therapistReport || reportObj?.formState?.therapistReport || {};
@@ -561,20 +593,56 @@ export default function TherapistReportView({ initialEditMode = false }) {
     return currentTheme.protocolTitle;
   }, [currentTheme]);
 
-  // Active exercises: uses therapist assigned if present, otherwise category-tailored defaults with images
-  const activeClinicExercises = useMemo(() => {
-    if (Array.isArray(assignedClinicExercises) && assignedClinicExercises.length > 0) {
-      return assignedClinicExercises;
-    }
-    return currentTheme.defaultClinicExercises;
-  }, [assignedClinicExercises, currentTheme]);
+  // Active exercises: uses current state of assigned exercises
+  const activeClinicExercises = assignedClinicExercises;
+  const activeHomeExercises = assignedHomeExercises;
 
-  const activeHomeExercises = useMemo(() => {
-    if (Array.isArray(assignedHomeExercises) && assignedHomeExercises.length > 0) {
-      return assignedHomeExercises;
+  // Exercise Remove & Add Handlers
+  const handleRemoveClinicExercise = (indexToRemove) => {
+    setAssignedClinicExercises((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setHasUnsavedChanges(true);
+    showToast("Exercise removed from clinic routine.", "info");
+  };
+
+  const handleRemoveHomeExercise = (indexToRemove) => {
+    setAssignedHomeExercises((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+    setHasUnsavedChanges(true);
+    showToast("Exercise removed from home routine.", "info");
+  };
+
+  const handleAddExercise = (exercise) => {
+    const exObj = typeof exercise === "string" ? { name: exercise } : exercise;
+    if (exerciseModalType === "clinic") {
+      setAssignedClinicExercises((prev) => [...prev, exObj]);
+      showToast(`Added "${exObj.name || "Exercise"}" to in-clinic protocol.`, "success");
+    } else {
+      setAssignedHomeExercises((prev) => [...prev, exObj]);
+      showToast(`Added "${exObj.name || "Exercise"}" to home routine.`, "success");
     }
-    return currentTheme.defaultHomeExercises;
-  }, [assignedHomeExercises, currentTheme]);
+    setHasUnsavedChanges(true);
+    setExerciseModalOpen(false);
+  };
+
+  const handleAddCustomExercise = (e) => {
+    e.preventDefault();
+    if (!customExerciseName.trim()) {
+      showToast("Please enter an exercise name.", "error");
+      return;
+    }
+    const newEx = {
+      name: customExerciseName.trim(),
+      category: customExerciseCategory || "Clinical Activity",
+      duration: customExerciseDuration || "10–15 mins",
+      frequency: customExerciseDuration || "Daily Routine",
+      description: customExerciseDesc.trim() || "Structured therapeutic routine tailored for child progress.",
+      home_description: customExerciseDesc.trim() || "Daily home reinforcement routine.",
+      benefits: ["Supports functional progress", "Enhances motor & sensory skills"]
+    };
+    handleAddExercise(newEx);
+    setCustomExerciseName("");
+    setCustomExerciseDesc("");
+    setShowCustomExerciseForm(false);
+  };
 
   // Derived ISAA & Domain Scores
   const domainScores = useMemo(() => {
@@ -758,9 +826,16 @@ export default function TherapistReportView({ initialEditMode = false }) {
           ];
           localStorage.setItem(histKey, JSON.stringify(updatedHist));
         } catch (_) {}
+        // Clear draft & notify system
+        localStorage.removeItem(`report_draft_${pubKey}`);
+        if (targetId) localStorage.removeItem(`report_draft_${targetId}`);
+        if (child?.id) localStorage.removeItem(`report_draft_${child.id}`);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
+        }
         setFormState((prev) => ({ ...prev, reportStatus: "published" }));
         setIsEditing(false);
-        showToast("Report approved & published successfully! Parents can now view it.", "success");
+        showToast("Report approved & published successfully! Parents and therapists can now view it.", "success");
       } else {
         await reportService.submitForReview(reportDataRaw?.id || targetId, formState.preparedBy || user?.name, user?.id, reportPayload);
         localStorage.setItem(`report_draft_${child?.id || targetId}`, JSON.stringify({
@@ -775,6 +850,9 @@ export default function TherapistReportView({ initialEditMode = false }) {
           status: "pending_review",
           updatedDate: new Date().toISOString().split("T")[0]
         }));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
+        }
         setFormState((prev) => ({ ...prev, reportStatus: "pending_review" }));
         setIsEditing(false);
         showToast("Report submitted for Admin review. Admin approval is required before publishing to parents.", "success");
@@ -959,7 +1037,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
   const numAxes = radarAxes.length;
   const angleStep = 360 / numAxes;
-  const cx = 160, cy = 160, maxR = 120;
+  const cx = 170, cy = 135, maxR = 70;
   const radarPointsString = radarAxes.map((d, i) => {
     const angle = (i * angleStep - 90) * (Math.PI / 180);
     const r = (d.score / 100) * maxR;
@@ -1063,6 +1141,28 @@ export default function TherapistReportView({ initialEditMode = false }) {
                   ✏ Edit Report
                 </Button>
               )}
+
+              {/* Edit Assessment Form button */}
+              <Button
+                variant="outlined"
+                size="sm"
+                icon={FilePlus}
+                onClick={() => {
+                  const targetChildId = child?.id || targetId;
+                  const assId = reportDataRaw?.assessment_id || formState?.assessment_id;
+                  let route = `/therapy/asd/assessment/${targetChildId}`;
+                  if (detectedCategory === 'adhd') route = `/therapy/adhd/assessment/${targetChildId}`;
+                  else if (detectedCategory === 'developmental_delay') route = `/therapy/delay/assessment/${targetChildId}`;
+                  else if (detectedCategory === 'learning_disability') route = `/therapy/sld/assessment/${targetChildId}`;
+                  else if (detectedCategory === 'special_school') route = `/assessment/new/${targetChildId}`;
+                  if (assId) route += `?assessmentId=${assId}`;
+                  navigate(route);
+                }}
+                className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                title="Edit the original assessment form and scores"
+              >
+                Edit Assessment Form
+              </Button>
 
               <Button
                 variant="outlined"
@@ -1268,45 +1368,57 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
           {/* PART B: DOMAIN RADAR CHART & SCORES */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center pt-2">
-            {/* Left 320px Radar Chart */}
+            {/* Left Radar Chart */}
             <div
-              className="md:col-span-6 flex flex-col items-center justify-center p-4 rounded-[12px] border"
+              className="md:col-span-6 flex flex-col items-center justify-center p-4 rounded-[12px] border overflow-hidden"
               style={{ backgroundColor: currentTheme.themeBg, borderColor: `${currentTheme.themeColor}30` }}
             >
               <span
-                className="text-[11px] font-bold uppercase block mb-2"
+                className="text-[11px] font-bold uppercase block mb-1 text-center"
                 style={{ color: currentTheme.themeColor }}
               >
                 {currentTheme.radarTitle}
               </span>
-              <svg width="320" height="320" viewBox="0 0 320 320" className="overflow-visible">
+              <svg viewBox="0 0 340 270" className="w-full max-w-[340px] h-auto overflow-hidden">
                 {/* Concentric rings at 25%, 50%, 75%, 100% */}
-                {[30, 60, 90, 120].map((r, idx) => (
+                {[17.5, 35, 52.5, 70].map((r, idx) => (
                   <circle key={idx} cx={cx} cy={cy} r={r} fill="none" stroke="#D3D1C7" strokeWidth="0.8" />
                 ))}
 
                 {/* Ring Labels */}
                 {[25, 50, 75, 100].map((val, idx) => (
-                  <text key={idx} x={cx + 5} y={cy - (idx + 1) * 30 + 3} className="text-[9px] fill-[#9B9A96]">
+                  <text key={idx} x={cx + 4} y={cy - (idx + 1) * 17.5 + 3} className="text-[8px] fill-[#9B9A96]">
                     {val}
                   </text>
                 ))}
 
-                {/* Ray Axes */}
+                {/* Ray Axes & Clean Fitted Labels */}
                 {radarAxes.map((d, idx) => {
                   const angle = (idx * angleStep - 90) * (Math.PI / 180);
                   const x2 = cx + maxR * Math.cos(angle);
                   const y2 = cy + maxR * Math.sin(angle);
 
-                  const lx = cx + (maxR + 16) * Math.cos(angle);
-                  const ly = cy + (maxR + 10) * Math.sin(angle);
-                  const anchor = Math.abs(angle - Math.PI / 2) < 0.1 || Math.abs(angle + Math.PI / 2) < 0.1 ? "middle" : angle > -Math.PI / 2 && angle < Math.PI / 2 ? "start" : "end";
+                  const cosA = Math.cos(angle);
+                  const sinA = Math.sin(angle);
+                  const lx = cx + (maxR + 12) * cosA;
+                  const ly = cy + (maxR + 10) * sinA;
+
+                  const isTop = Math.abs(angle + Math.PI / 2) < 0.25;
+                  const isBottom = Math.abs(angle - Math.PI / 2) < 0.25;
+                  const anchor = isTop || isBottom ? "middle" : cosA > 0.05 ? "start" : "end";
 
                   return (
                     <g key={idx}>
                       <line x1={cx} y1={cy} x2={x2} y2={y2} stroke="#D3D1C7" strokeWidth="0.8" />
-                      <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="text-[10px] font-bold fill-[#5F5E5A]">
-                        {d.label} ({d.score}%)
+                      <text
+                        x={lx}
+                        y={ly}
+                        textAnchor={anchor}
+                        dominantBaseline="central"
+                        className="text-[9px] font-bold fill-[#4B4944]"
+                      >
+                        <tspan x={lx} dy="-0.3em">{d.label}</tspan>
+                        <tspan x={lx} dy="1.1em" fill={currentTheme.themeColor} fontWeight="bold">({d.score}%)</tspan>
                       </text>
                     </g>
                   );
@@ -1332,10 +1444,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
                       key={idx}
                       cx={x}
                       cy={y}
-                      r="5"
+                      r="4"
                       fill={currentTheme.themeColor}
                       stroke="white"
-                      strokeWidth="2"
+                      strokeWidth="1.5"
                     />
                   );
                 })}
@@ -1464,17 +1576,50 @@ export default function TherapistReportView({ initialEditMode = false }) {
           </div>
 
           {/* In-Clinic Exercises */}
-          {activeClinicExercises.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-[12px] font-bold uppercase text-[#0F6E56] flex items-center gap-1.5">
-                  <span>🏥 In-Clinic Therapeutic Exercises & Interventions</span>
-                </h4>
-                <span className="text-[10px] font-bold text-[#5F5E5A]">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-[12px] font-bold uppercase text-[#0F6E56] flex items-center gap-1.5">
+                <span>🏥 In-Clinic Therapeutic Exercises & Interventions</span>
+              </h4>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-[#5F5E5A] hidden sm:inline">
                   Supervised by Rehabilitation Specialist
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExerciseModalType("clinic");
+                    setExerciseSearch("");
+                    setShowCustomExerciseForm(false);
+                    setExerciseModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#0F6E56] bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Exercise</span>
+                </button>
               </div>
+            </div>
 
+            {activeClinicExercises.length === 0 ? (
+              <div className="p-6 text-center border-2 border-dashed border-[#D3D1C7] rounded-[10px] bg-white">
+                <Dumbbell className="h-8 w-8 text-[#0F6E56]/40 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-[#5F5E5A]">No in-clinic exercises assigned yet.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExerciseModalType("clinic");
+                    setExerciseSearch("");
+                    setShowCustomExerciseForm(false);
+                    setExerciseModalOpen(true);
+                  }}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#0F6E56] hover:bg-[#0c5945] rounded-md transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Clinic Exercise</span>
+                </button>
+              </div>
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {activeClinicExercises.map((ex, idx) => {
                   const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
@@ -1554,27 +1699,71 @@ export default function TherapistReportView({ initialEditMode = false }) {
                       {/* Bottom footer bar */}
                       <div className="px-3.5 py-2 bg-[#F8F8F6] border-t border-[#D3D1C7]/60 text-[10px] font-bold text-[#5F5E5A] flex items-center justify-between">
                         <span>In-Clinic Session</span>
-                        <span className="text-[#0F6E56]">Active Protocol</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#0F6E56]">Active Protocol</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveClinicExercise(idx)}
+                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-0.5 rounded border border-red-200 transition-colors text-[10px] font-semibold cursor-pointer"
+                            title="Remove this exercise from report"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Home Routine Exercises */}
-          {activeHomeExercises.length > 0 && (
-            <div className="space-y-3 pt-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-[12px] font-bold uppercase text-[#854F0B] flex items-center gap-1.5">
-                  <span>🏠 Prescribed Home Exercise Routine for Parents & Caregivers</span>
-                </h4>
-                <span className="text-[10px] font-bold text-[#854F0B]">
+          <div className="space-y-3 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-[12px] font-bold uppercase text-[#854F0B] flex items-center gap-1.5">
+                <span>🏠 Prescribed Home Exercise Routine for Parents & Caregivers</span>
+              </h4>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-[#854F0B] hidden sm:inline">
                   Daily Home Reinforcement Program
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExerciseModalType("home");
+                    setExerciseSearch("");
+                    setShowCustomExerciseForm(false);
+                    setExerciseModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#854F0B] bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Exercise</span>
+                </button>
               </div>
+            </div>
 
+            {activeHomeExercises.length === 0 ? (
+              <div className="p-6 text-center border-2 border-dashed border-[#D3D1C7] rounded-[10px] bg-white">
+                <Activity className="h-8 w-8 text-[#854F0B]/40 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-[#5F5E5A]">No home exercises prescribed yet.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExerciseModalType("home");
+                    setExerciseSearch("");
+                    setShowCustomExerciseForm(false);
+                    setExerciseModalOpen(true);
+                  }}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#854F0B] hover:bg-[#6c4008] rounded-md transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Home Exercise</span>
+                </button>
+              </div>
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {activeHomeExercises.map((ex, idx) => {
                   const master = resolveExerciseItem(ex) || (typeof ex === "object" ? ex : { name: ex });
@@ -1654,14 +1843,25 @@ export default function TherapistReportView({ initialEditMode = false }) {
                       {/* Bottom footer bar */}
                       <div className="px-3.5 py-2 bg-[#FEF6E7]/40 border-t border-[#854F0B]/20 text-[10px] font-bold text-[#854F0B] flex items-center justify-between">
                         <span>Parent-Led Daily Routine</span>
-                        <span>Home Practice ✓</span>
+                        <div className="flex items-center gap-2">
+                          <span>Home Practice ✓</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveHomeExercise(idx)}
+                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-0.5 rounded border border-red-200 transition-colors text-[10px] font-semibold cursor-pointer"
+                            title="Remove this exercise from report"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* ═══ SECTION 6 — SIGN OFF ═══ */}
@@ -1798,6 +1998,166 @@ export default function TherapistReportView({ initialEditMode = false }) {
             <Button variant="outlined" onClick={() => setShowCancelModal(false)}>Keep Editing</Button>
             <Button variant="secondary" onClick={() => { setShowCancelModal(false); setIsEditing(false); setHasUnsavedChanges(false); }}>Discard Changes</Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Add Exercise Modal */}
+      <Modal
+        isOpen={exerciseModalOpen}
+        onClose={() => setExerciseModalOpen(false)}
+        title={
+          exerciseModalType === "clinic"
+            ? "Add In-Clinic Therapeutic Exercise"
+            : "Add Prescribed Home Exercise"
+        }
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 border-b border-[#D3D1C7] pb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search exercises by name, category, or benefit..."
+                value={exerciseSearch}
+                onChange={(e) => setExerciseSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 focus:border-[#185FA5]"
+              />
+            </div>
+            <Button
+              variant={showCustomExerciseForm ? "primary" : "outlined"}
+              size="sm"
+              onClick={() => setShowCustomExerciseForm(!showCustomExerciseForm)}
+            >
+              {showCustomExerciseForm ? "Browse Library" : "+ Custom Exercise"}
+            </Button>
+          </div>
+
+          {showCustomExerciseForm ? (
+            <form onSubmit={handleAddCustomExercise} className="space-y-3 bg-[#F8F8F6] p-4 rounded-xl border border-[#D3D1C7]">
+              <h4 className="text-xs font-bold text-[#2C2C2A] uppercase">Create Custom Exercise</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Exercise Name *"
+                  placeholder="e.g. Balance Beam Step-Over"
+                  value={customExerciseName}
+                  onChange={(e) => setCustomExerciseName(e.target.value)}
+                  required
+                />
+                <Input
+                  label="Category"
+                  placeholder="e.g. Gross Motor, Sensory"
+                  value={customExerciseCategory}
+                  onChange={(e) => setCustomExerciseCategory(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Duration / Frequency"
+                  placeholder="e.g. 10–15 mins or Daily"
+                  value={customExerciseDuration}
+                  onChange={(e) => setCustomExerciseDuration(e.target.value)}
+                />
+                <Input
+                  label="Clinical Description / Instructions"
+                  placeholder="Steps or cues for therapist or parents..."
+                  value={customExerciseDesc}
+                  onChange={(e) => setCustomExerciseDesc(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" size="sm" type="button" onClick={() => setShowCustomExerciseForm(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" type="submit" className="bg-[#0F6E56] text-white">
+                  Add to Report
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="max-h-[55vh] overflow-y-auto space-y-2 pr-1">
+              {(() => {
+                const query = exerciseSearch.trim().toLowerCase();
+                const filtered = MASTER_EXERCISES.filter((ex) => {
+                  if (!query) return true;
+                  return (
+                    ex.name.toLowerCase().includes(query) ||
+                    ex.category.toLowerCase().includes(query) ||
+                    (ex.description && ex.description.toLowerCase().includes(query)) ||
+                    (ex.benefits && ex.benefits.some((b) => b.toLowerCase().includes(query)))
+                  );
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="py-8 text-center text-slate-500 text-xs">
+                      No matching exercises found for "{exerciseSearch}".
+                    </div>
+                  );
+                }
+
+                const currentList = exerciseModalType === "clinic" ? activeClinicExercises : activeHomeExercises;
+
+                return filtered.map((ex) => {
+                  const isAlreadyAdded = currentList.some((assigned) => {
+                    const name = typeof assigned === "string" ? assigned : assigned.name;
+                    return name?.toLowerCase() === ex.name.toLowerCase();
+                  });
+
+                  return (
+                    <div
+                      key={ex.id || ex.name}
+                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {ex.image_url ? (
+                          <img
+                            src={ex.image_url}
+                            alt={ex.name}
+                            className="w-12 h-12 object-cover rounded-md border border-slate-200 shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-slate-100 rounded-md flex items-center justify-center shrink-0 border border-slate-200">
+                            <Activity className="h-5 w-5 text-slate-400" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h5 className="text-xs font-bold text-slate-900 truncate">{ex.name}</h5>
+                            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0">
+                              {ex.category}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                            {exerciseModalType === "home" ? ex.home_description || ex.description : ex.description}
+                          </p>
+                          <span className="text-[10px] text-emerald-700 font-medium">
+                            ⏱ {exerciseModalType === "home" ? ex.frequency || "Daily" : ex.duration || "10–15 mins"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAddExercise(ex)}
+                        className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-md transition-colors cursor-pointer ${
+                          isAlreadyAdded
+                            ? "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
+                            : "bg-[#0F6E56] hover:bg-[#0c5945] text-white shadow-2xs"
+                        }`}
+                      >
+                        <Plus className="h-3 w-3" />
+                        <span>{isAlreadyAdded ? "Add Again" : "Add"}</span>
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

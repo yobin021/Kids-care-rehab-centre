@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Save, CheckCircle2, AlertCircle, Send, Printer, Edit3, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2, AlertCircle, Send, Printer, Edit3, Trash2, FileText, AlertTriangle, Clock } from "lucide-react";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
@@ -17,7 +17,10 @@ import {
 import { therapyAssessmentService } from "../services/therapyAssessmentService";
 import { assessmentService } from "../services/assessmentService";
 import { childAssignmentService } from "../services/childAssignmentService";
+import { iepService } from "../services/iepService";
+import { reportService } from "../services/reportService";
 import { calculateDomainScores, classifyProfile, selectExercises } from "../utils/scoringEngine";
+import { checkReassessmentEligibility } from "../utils/reassessmentHelpers";
 
 export default function AssessmentForm() {
   const { childId, id } = useParams();
@@ -29,6 +32,8 @@ export default function AssessmentForm() {
   const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || (id && id.length > 20 ? id : null));
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [loadedChildId, setLoadedChildId] = useState(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [existingReport, setExistingReport] = useState(null);
 
   const targetChildId = loadedChildId || childId || (id && id.length < 20 ? id : null) || childId;
   const child = childrenList.find((c) => c.id === targetChildId) || childrenList[0];
@@ -38,6 +43,53 @@ export default function AssessmentForm() {
   const [showRestoreBanner, setShowRestoreBanner] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [intervalEligibility, setIntervalEligibility] = useState(null);
+  const [isIntervalLocked, setIsIntervalLocked] = useState(false);
+
+  const checkExistingReport = async (activeChildId, assessId) => {
+    try {
+      const [iepReports, therapyReports, assList] = await Promise.all([
+        iepService.getReportsByChildId(activeChildId).catch(() => []),
+        reportService.getByChildId(activeChildId).catch(() => []),
+        assessmentService.getByChildId(activeChildId).catch(() => [])
+      ]);
+      const allReps = [...(iepReports || []), ...(therapyReports || [])];
+
+      if (assessId) {
+        let match = allReps.find(
+          (r) => r.assessment_id === assessId || r.assessmentId === assessId
+        );
+        if (match) {
+          setIsReadOnly(true);
+          setExistingReport(match);
+          setIsIntervalLocked(false);
+          return true;
+        } else {
+          setIsReadOnly(false);
+          setExistingReport(null);
+          setIsIntervalLocked(false);
+          return false;
+        }
+      } else {
+        const eligibility = checkReassessmentEligibility(assList, allReps);
+        setIntervalEligibility(eligibility);
+        if (Array.isArray(assList) && assList.length > 0 && !eligibility.eligible) {
+          setIsIntervalLocked(true);
+          setIsReadOnly(true);
+          setExistingReport(null);
+          return true;
+        } else {
+          setIsIntervalLocked(false);
+          setIsReadOnly(false);
+          setExistingReport(null);
+          return false;
+        }
+      }
+    } catch (err) {
+      console.warn("Check existing report error in AssessmentForm:", err);
+      return false;
+    }
+  };
 
   const [formData, setFormData] = useState({
     // Student Info
@@ -283,15 +335,22 @@ export default function AssessmentForm() {
     }
   }, [child]);
 
-  // Load existing assessment if assessmentId is passed
+  // Load existing assessment if assessmentId is passed & check existing reports
   useEffect(() => {
     const targetAssId = queryAssessmentId || (id && id.length > 20 ? id : null);
+    const activeChild = targetChildId || childId;
+    if (activeChild) {
+      checkExistingReport(activeChild, targetAssId);
+    }
     if (targetAssId) {
       assessmentService.getById(targetAssId)
         .then((existing) => {
           if (existing) {
             setCurrentAssessmentId(existing.id);
-            if (existing.child_id) setLoadedChildId(existing.child_id);
+            if (existing.child_id) {
+              setLoadedChildId(existing.child_id);
+              checkExistingReport(existing.child_id, existing.id);
+            }
             setIsEditingExisting(true);
             if (existing.form_data) {
               setFormData((prev) => ({
@@ -305,15 +364,16 @@ export default function AssessmentForm() {
         })
         .catch((err) => console.warn("AssessmentForm existing load notice:", err.message));
     }
-  }, [queryAssessmentId, id]);
+  }, [queryAssessmentId, id, targetChildId, childId]);
 
   useEffect(() => {
     const draftKey = `iep_assessment_draft_${targetChildId}`;
     const saved = localStorage.getItem(draftKey);
-    if (saved && !isEditingExisting) setShowRestoreBanner(true);
-  }, [targetChildId, isEditingExisting]);
+    if (saved && !isEditingExisting && !isReadOnly) setShowRestoreBanner(true);
+  }, [targetChildId, isEditingExisting, isReadOnly]);
 
   const handleRestoreDraft = () => {
+    if (isReadOnly) return;
     const draftKey = `iep_assessment_draft_${targetChildId}`;
     const saved = localStorage.getItem(draftKey);
     if (saved) {
@@ -328,12 +388,14 @@ export default function AssessmentForm() {
   };
 
   const handleStartFresh = () => {
+    if (isReadOnly) return;
     localStorage.removeItem(`iep_assessment_draft_${targetChildId}`);
     setShowRestoreBanner(false);
     showToast("Started fresh assessment.", "info");
   };
 
   const updateField = (key, val) => {
+    if (isReadOnly) return;
     setFormData((prev) => {
       const next = { ...prev, [key]: val };
       localStorage.setItem(`iep_assessment_draft_${targetChildId}`, JSON.stringify(next));
@@ -343,6 +405,7 @@ export default function AssessmentForm() {
   };
 
   const updateNested = (parentKey, childKey, val) => {
+    if (isReadOnly) return;
     setFormData((prev) => {
       const next = { ...prev, [parentKey]: { ...(prev[parentKey] || {}), [childKey]: val } };
       localStorage.setItem(`iep_assessment_draft_${targetChildId}`, JSON.stringify(next));
@@ -352,6 +415,7 @@ export default function AssessmentForm() {
   };
 
   const updateDeepGoal = (sectionKey, rowKey, fieldKey, val) => {
+    if (isReadOnly) return;
     setFormData((prev) => {
       const next = {
         ...prev,
@@ -375,6 +439,7 @@ export default function AssessmentForm() {
 
   // Action 1: Save Assessment (Keeps user on form, updates existing record or creates draft)
   const handleSaveAssessmentOnly = async () => {
+    if (isReadOnly) return;
     const activeChildId = child?.id || targetChildId;
     if (!activeChildId) {
       showToast("Please select a valid child before saving.", "danger");
@@ -423,6 +488,14 @@ export default function AssessmentForm() {
 
   // Action 2: Generate Report and Submit for Review
   const handleSubmitAssessment = async () => {
+    if (isIntervalLocked) {
+      showToast(
+        `Clinical Protocol: Re-assessments can only be taken once every 3 months. Next eligible date: ${intervalEligibility?.nextEligibleDateFormatted}`,
+        "warning"
+      );
+      return;
+    }
+    if (isReadOnly) return;
     const activeChildId = child?.id || targetChildId;
     if (!activeChildId) {
       showToast("Please select a valid child before submitting.", "danger");
@@ -488,6 +561,7 @@ export default function AssessmentForm() {
   };
 
   const handleDeleteAssessment = async () => {
+    if (isReadOnly) return;
     const activeChildId = child?.id || targetChildId;
     if (window.confirm("Are you sure you want to delete this IEP assessment form? All entered domain ratings and exercise configurations will be deleted.")) {
       try {
@@ -526,8 +600,63 @@ export default function AssessmentForm() {
 
   return (
     <div className="space-y-4 text-[#2C2C2A] pb-24 max-w-5xl mx-auto">
+      {/* ═══ 3-MONTH INTERVAL PROTOCOL RESTRICTION BANNER ═══ */}
+      {isIntervalLocked && intervalEligibility && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-[12px] text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-start gap-3">
+            <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-amber-950">
+                Clinical Protocol Restriction: 3-Month Re-assessment Interval Active
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Clinical reassessments can only be conducted once every 3 months. Previous IEP assessment was on <strong>{intervalEligibility.lastAssessmentDateFormatted}</strong>. Next eligible date: <strong className="underline text-amber-950">{intervalEligibility.nextEligibleDateFormatted}</strong> ({intervalEligibility.daysRemaining} days remaining).
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navigate(`/children/${targetChildId}`)}
+            className="shrink-0 font-bold shadow-xs text-xs"
+          >
+            Back to Child Profile
+          </Button>
+        </div>
+      )}
+
+      {/* Read-Only Banner if report is generated */}
+      {!isIntervalLocked && isReadOnly && (
+        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-[12px] text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 rounded-full text-amber-800 shrink-0 mt-0.5">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900">
+                Assessment Form Finalized — Clinical IEP Report Generated
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                This IEP assessment form is locked in view-only mode because a clinical report has already been generated. The assessment form can no longer be edited.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="primary"
+              icon={FileText}
+              className="bg-amber-800 hover:bg-amber-900 text-white font-bold"
+              onClick={() => navigate(`/iep/report/${existingReport?.id || targetChildId}`)}
+            >
+              View Generated IEP Report
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Draft Restore Banner */}
-      {showRestoreBanner && (
+      {showRestoreBanner && !isReadOnly && (
         <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-[12px] text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-[#854F0B] shrink-0" />
@@ -550,7 +679,11 @@ export default function AssessmentForm() {
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-[#2C2C2A]">{child?.name || "Student Assessment"}</h2>
               <span className="font-mono text-xs text-[#9B9A96]">{child?.id}</span>
-              {isEditingExisting && (
+              {isReadOnly ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Report Generated (View-Only)
+                </span>
+              ) : isEditingExisting && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
                   <Edit3 className="h-3 w-3" /> Editing Saved Assessment
                 </span>
@@ -561,23 +694,38 @@ export default function AssessmentForm() {
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
           {lastSaved && <span className="text-[11px] font-bold text-[#3B6D11] flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Saved {lastSaved}</span>}
-          <Button
-            variant="outlined"
-            size="sm"
-            icon={Trash2}
-            onClick={handleDeleteAssessment}
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-            disabled={isSubmitting}
-            title="Delete this assessment"
-          >
-            Delete Form
-          </Button>
-          <Button variant="outlined" size="sm" icon={Save} onClick={handleSaveAssessmentOnly} loading={isSubmitting}>
-            Save Assessment
-          </Button>
-          <Button size="sm" icon={Send} className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs" onClick={() => setShowSubmitModal(true)}>
-            Generate Report &amp; Submit for Review
-          </Button>
+          {isReadOnly ? (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={FileText}
+              className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs font-bold"
+              onClick={() => navigate(`/iep/report/${existingReport?.id || targetChildId}`)}
+              title="View the generated clinical report"
+            >
+              View Generated IEP Report
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outlined"
+                size="sm"
+                icon={Trash2}
+                onClick={handleDeleteAssessment}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                disabled={isSubmitting}
+                title="Delete this assessment"
+              >
+                Delete Form
+              </Button>
+              <Button variant="outlined" size="sm" icon={Save} onClick={handleSaveAssessmentOnly} loading={isSubmitting}>
+                Save Assessment
+              </Button>
+              <Button size="sm" icon={Send} className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs" onClick={() => setShowSubmitModal(true)}>
+                Generate Report &amp; Submit for Review
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1365,24 +1513,47 @@ export default function AssessmentForm() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-[#D3D1C7]">
-              <Button variant="outlined" onClick={goPrev}>← Back</Button>
-              <div className="flex items-center gap-2.5">
-                <Button
-                  variant="outlined"
-                  size="lg"
-                  icon={Trash2}
-                  onClick={handleDeleteAssessment}
-                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-                  disabled={isSubmitting}
-                >
-                  Delete
-                </Button>
-                <Button variant="outlined" size="lg" icon={Save} onClick={handleSaveAssessmentOnly} loading={isSubmitting}>
-                  Save Assessment
-                </Button>
-                <Button size="lg" icon={Send} className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs" onClick={() => setShowSubmitModal(true)}>
-                  Generate Report &amp; Submit for Review
-                </Button>
+              <Button variant="outlined" onClick={goPrev} className="w-full sm:w-auto">← Back</Button>
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+                {isReadOnly ? (
+                  <>
+                    <Button
+                      size="lg"
+                      variant="outlined"
+                      onClick={() => navigate(`/children/${child?.id || targetChildId}`)}
+                    >
+                      Back to Child Profile
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="primary"
+                      icon={FileText}
+                      className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs font-bold"
+                      onClick={() => navigate(`/iep/report/${existingReport?.id || targetChildId}`)}
+                    >
+                      View Generated IEP Report
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outlined"
+                      size="lg"
+                      icon={Trash2}
+                      onClick={handleDeleteAssessment}
+                      className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                      disabled={isSubmitting}
+                    >
+                      Delete
+                    </Button>
+                    <Button variant="outlined" size="lg" icon={Save} onClick={handleSaveAssessmentOnly} loading={isSubmitting}>
+                      Save Assessment
+                    </Button>
+                    <Button size="lg" icon={Send} className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs" onClick={() => setShowSubmitModal(true)}>
+                      Generate Report &amp; Submit for Review
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

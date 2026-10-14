@@ -24,7 +24,6 @@ import {
   Zap,
   Target,
   Trash2,
-  FilePlus,
   Plus,
   Search
 } from "lucide-react";
@@ -37,7 +36,7 @@ import ErrorMessage from "../components/ui/ErrorMessage";
 import { reportService } from "../services/reportService";
 import { childrenService } from "../services/childrenService";
 import { assessmentService } from "../services/assessmentService";
-import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem, resolveExerciseList } from "../services/exerciseService";
 import { MASTER_EXERCISES } from "../data/exercisesData";
 import { calculateISAAScore, calculateDomainScores } from "../utils/scoringEngine";
 import { printReportWithFilename, formatReportFilename } from "../utils/printHelpers";
@@ -339,6 +338,19 @@ export default function TherapistReportView({ initialEditMode = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Report Form State
+  const [formState, setFormState] = useState({
+    background: "",
+    assessmentFindings: "",
+    currentStatus: "",
+    recommendations: "",
+    reviewPlan: "",
+    preparedBy: "",
+    designation: "",
+    preparedDate: new Date().toISOString().split("T")[0],
+    reportStatus: "draft"
+  });
+
   useEffect(() => {
     if (child) {
       const activeName = child?.name;
@@ -354,14 +366,26 @@ export default function TherapistReportView({ initialEditMode = false }) {
     }
   }, [child, targetId, reportDataRaw]);
 
-  // View Mode (false) vs Edit Mode (true) — Only Admin can edit
-  const [isEditing, setIsEditing] = useState(isAdmin ? initialEditMode : false);
+  // Published lock flag — once published, report can NEVER be edited
+  const isPublished = useMemo(() => {
+    const pubKey = child?.id || targetId;
+    const isLocalPub = typeof window !== "undefined" && pubKey ? Boolean(localStorage.getItem(`report_published_${pubKey}`)) : false;
+    return (
+      formState.reportStatus === "published" ||
+      reportDataRaw?.status === "published" ||
+      reportDataRaw?.review_status === "published" ||
+      isLocalPub
+    );
+  }, [formState.reportStatus, reportDataRaw, child?.id, targetId]);
+
+  // View Mode (false) vs Edit Mode (true) — Only Admin can edit un-published reports
+  const [isEditing, setIsEditing] = useState(isAdmin && !isPublished ? initialEditMode : false);
 
   useEffect(() => {
-    if (!isAdmin && isEditing) {
+    if ((!isAdmin || isPublished) && isEditing) {
       setIsEditing(false);
     }
-  }, [isAdmin, isEditing]);
+  }, [isAdmin, isPublished, isEditing]);
 
   // Save & Auto-Save State: 'saved' | 'unsaved' | 'saving'
   const [saveStatus, setSaveStatus] = useState("saved");
@@ -381,19 +405,6 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
   // Confirm Exit Edit Modal
   const [showCancelModal, setShowCancelModal] = useState(false);
-
-  // Report Form State
-  const [formState, setFormState] = useState({
-    background: "",
-    assessmentFindings: "",
-    currentStatus: "",
-    recommendations: "",
-    reviewPlan: "",
-    preparedBy: "",
-    designation: "",
-    preparedDate: new Date().toISOString().split("T")[0],
-    reportStatus: "draft"
-  });
 
   const [exerciseMap, setExerciseMap] = useState({});
   const [assignedClinicExercises, setAssignedClinicExercises] = useState([]);
@@ -593,24 +604,27 @@ export default function TherapistReportView({ initialEditMode = false }) {
     return currentTheme.protocolTitle;
   }, [currentTheme]);
 
-  // Active exercises: uses current state of assigned exercises
-  const activeClinicExercises = assignedClinicExercises;
-  const activeHomeExercises = assignedHomeExercises;
+  // Active exercises: uses current state of assigned exercises resolved with dynamic image deduplication
+  const activeClinicExercises = useMemo(() => resolveExerciseList(assignedClinicExercises), [assignedClinicExercises]);
+  const activeHomeExercises = useMemo(() => resolveExerciseList(assignedHomeExercises), [assignedHomeExercises]);
 
-  // Exercise Remove & Add Handlers
+  // Exercise Remove & Add Handlers — strictly restricted to Admin review/edit mode on un-published reports
   const handleRemoveClinicExercise = (indexToRemove) => {
+    if (isPublished || !isEditing) return;
     setAssignedClinicExercises((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     setHasUnsavedChanges(true);
     showToast("Exercise removed from clinic routine.", "info");
   };
 
   const handleRemoveHomeExercise = (indexToRemove) => {
+    if (isPublished || !isEditing) return;
     setAssignedHomeExercises((prev) => prev.filter((_, idx) => idx !== indexToRemove));
     setHasUnsavedChanges(true);
     showToast("Exercise removed from home routine.", "info");
   };
 
   const handleAddExercise = (exercise) => {
+    if (isPublished || !isEditing) return;
     const exObj = typeof exercise === "string" ? { name: exercise } : exercise;
     if (exerciseModalType === "clinic") {
       setAssignedClinicExercises((prev) => [...prev, exObj]);
@@ -724,6 +738,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
   };
 
   const saveDraft = async (stateToSave = formState, isAuto = false) => {
+    if (isPublished) {
+      if (!isAuto) showToast("Published reports are locked and cannot be edited.", "warning");
+      return;
+    }
     setSaveStatus("saving");
     try {
       await reportService.saveDraft({
@@ -760,6 +778,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
   };
 
   const handlePublish = async () => {
+    if (isPublished) {
+      showToast("This report is already published and locked.", "warning");
+      return;
+    }
     // Validate 5 text sections
     const errors = {};
     if (!formState.background.trim()) errors.background = true;
@@ -1064,32 +1086,84 @@ export default function TherapistReportView({ initialEditMode = false }) {
   }
 
   return (
-    <div className="space-y-6 text-[#2C2C2A] min-h-screen bg-[#F8F8F6] pb-24">
+    <div className="space-y-6 text-[#2C2C2A] min-h-screen bg-[#F8F8F6] pb-24 print:min-h-0 print:h-auto print:p-0 print:pb-0 print:m-0 print:space-y-0 print:bg-white">
       {/* Injected Print Styles */}
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          #report-document, #report-document * { visibility: visible; }
+          html, body, #__next, #root, .h-screen, .min-h-screen, main {
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            position: static !important;
+          }
+          aside, header, nav, .no-print, .edit-mode-only, button {
+            display: none !important;
+          }
+          .sticky {
+            position: static !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 10mm 14mm;
+          }
+          body {
+            background: white !important;
+            color: #2C2C2A !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          main {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            transform: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            background: transparent !important;
+          }
           #report-document {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            transform: none !important;
+            position: relative !important;
             width: 100% !important;
             max-width: 100% !important;
             box-shadow: none !important;
+            border: none !important;
             border-radius: 0 !important;
-            padding: 15mm 20mm !important;
-            margin: 0 !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            background: white !important;
           }
-          .no-print { display: none !important; }
-          .edit-mode-only { display: none !important; }
-          @page { size: A4 portrait; margin: 15mm 20mm; }
-          svg, [class*="bg-"], div[style*="background"] {
-            print-color-adjust: exact !important;
+          *, *::before, *::after {
+            animation: none !important;
+            transition: none !important;
             -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .no-page-break { page-break-inside: avoid; }
-          .page-break-before { page-break-before: always; }
+          .animate-fade-in, .animate-slide-up {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+          }
+          .avoid-break, tr, .exercise-print-card, .sign-off-block, .radar-card-print {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .page-break-before {
+            page-break-before: always !important;
+            break-before: page !important;
+          }
+          table {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
+          }
         }
       `}</style>
 
@@ -1130,7 +1204,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
           {/* View Mode Buttons */}
           {!isEditing ? (
             <>
-              {isAdmin && (
+              {isAdmin && !isPublished && (
                 <Button
                   variant="outlined"
                   size="sm"
@@ -1141,28 +1215,6 @@ export default function TherapistReportView({ initialEditMode = false }) {
                   ✏ Edit Report
                 </Button>
               )}
-
-              {/* Edit Assessment Form button */}
-              <Button
-                variant="outlined"
-                size="sm"
-                icon={FilePlus}
-                onClick={() => {
-                  const targetChildId = child?.id || targetId;
-                  const assId = reportDataRaw?.assessment_id || formState?.assessment_id;
-                  let route = `/therapy/asd/assessment/${targetChildId}`;
-                  if (detectedCategory === 'adhd') route = `/therapy/adhd/assessment/${targetChildId}`;
-                  else if (detectedCategory === 'developmental_delay') route = `/therapy/delay/assessment/${targetChildId}`;
-                  else if (detectedCategory === 'learning_disability') route = `/therapy/sld/assessment/${targetChildId}`;
-                  else if (detectedCategory === 'special_school') route = `/assessment/new/${targetChildId}`;
-                  if (assId) route += `?assessmentId=${assId}`;
-                  navigate(route);
-                }}
-                className="border-slate-300 text-slate-700 hover:bg-slate-50"
-                title="Edit the original assessment form and scores"
-              >
-                Edit Assessment Form
-              </Button>
 
               <Button
                 variant="outlined"
@@ -1175,7 +1227,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 ⬇ Download PDF
               </Button>
 
-              {isAdmin && (
+              {isAdmin && !isPublished && (
                 <Button
                   variant="outlined"
                   size="sm"
@@ -1188,17 +1240,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 </Button>
               )}
 
-              {formState.reportStatus === "published" ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="px-2.5 py-1 rounded-[6px] bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1 border border-emerald-300">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" /> Published
-                  </span>
-                  {isAdmin && (
-                    <Button size="sm" variant="secondary" onClick={handlePublish} loading={isPublishing} className="bg-amber-600 hover:bg-amber-700 text-white border-none">
-                      Update Report
-                    </Button>
-                  )}
-                </div>
+              {isPublished ? (
+                <span className="px-3 py-1 rounded-[6px] bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5 border border-emerald-300 shadow-sm">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" /> Published (Locked)
+                </span>
               ) : formState.reportStatus === "pending_review" ? (
                 <div className="flex items-center gap-1.5">
                   <span className="px-2.5 py-1 rounded-[6px] bg-purple-100 text-purple-800 text-xs font-bold flex items-center gap-1 border border-purple-300">
@@ -1269,10 +1314,10 @@ export default function TherapistReportView({ initialEditMode = false }) {
       {/* ────────────────────────────────────────────────────────── */}
       <div
         id="report-document"
-        className="max-w-[860px] mx-auto bg-white rounded-[12px] p-[40px] shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-[#D3D1C7] space-y-8"
+        className="max-w-[860px] mx-auto bg-white rounded-[12px] p-[40px] shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-[#D3D1C7] space-y-8 print:max-w-none print:w-full print:p-0 print:m-0 print:shadow-none print:border-none print:rounded-none print:bg-white print:block print:visible print:opacity-100"
       >
         {/* ═══ SECTION 1 — CLINIC HEADER (Tailored per Assessment) ═══ */}
-        <div className="no-page-break space-y-4">
+        <div className="avoid-break space-y-4">
           <div className="flex items-center justify-between gap-4">
             {/* Logo Area */}
             <div className="flex items-center gap-3">
@@ -1320,7 +1365,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         </div>
 
         {/* ═══ SECTION 2 — CHILD DETAILS & CLINICAL PARAMETERS TABLE ═══ */}
-        <div className="no-page-break space-y-2">
+        <div className="avoid-break space-y-2">
           <div className="flex items-center justify-between pb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F5E5A]">
               PATIENT EVALUATION RECORD & CLINICAL PARAMETERS
@@ -1356,7 +1401,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         </div>
 
         {/* ═══ SECTION 3 — CLINICAL ASSESSMENT ANALYSIS & EVALUATION TABLE ═══ */}
-        <div className="no-page-break space-y-6 pt-2">
+        <div className="space-y-6 pt-2">
           {/* DEDICATED ASSESSMENT REPORT TABLE ROUTER FOR THE SPECIFIC ASSESSMENT FORM */}
           <AssessmentReportTableRouter
             assessmentType={detectedCategory}
@@ -1370,7 +1415,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center pt-2">
             {/* Left Radar Chart */}
             <div
-              className="md:col-span-6 flex flex-col items-center justify-center p-4 rounded-[12px] border overflow-hidden"
+              className="md:col-span-6 flex flex-col items-center justify-center p-4 rounded-[12px] border overflow-hidden avoid-break radar-card-print"
               style={{ backgroundColor: currentTheme.themeBg, borderColor: `${currentTheme.themeColor}30` }}
             >
               <span
@@ -1498,7 +1543,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         </div>
 
         {/* ═══ SECTION 4 — REPORT TEXT SECTIONS ═══ */}
-        <div className="no-page-break space-y-6 pt-4">
+        <div className="space-y-6 pt-4">
           <div className="border-b-2 pb-1" style={{ borderColor: currentTheme.themeColor }}>
             <h3 className="text-[13px] font-bold uppercase tracking-wider" style={{ color: currentTheme.themeColor }}>
               CLINICAL REPORT NARRATIVE
@@ -1512,7 +1557,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
             { key: "recommendations", title: "RECOMMENDATIONS & THERAPY PLAN" },
             { key: "reviewPlan", title: "REVIEW PLAN & MILESTONES" }
           ].map(({ key, title }) => (
-            <div key={key} className="space-y-1.5 no-page-break">
+            <div key={key} className="space-y-1.5 avoid-break">
               <div className="flex items-center justify-between">
                 <h4 className="text-[12px] font-bold uppercase text-[#5F5E5A]">{title}</h4>
                 {isEditing && (
@@ -1553,7 +1598,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         </div>
 
         {/* ═══ SECTION 5 — ASSIGNED THERAPY EXERCISES & HOME PROGRAM (WITH VERIFIED IMAGES) ═══ */}
-        <div className="no-page-break space-y-6 pt-4">
+        <div className="space-y-6 pt-4">
           <div
             className="border-b-2 pb-1.5 flex items-center justify-between"
             style={{ borderColor: currentTheme.themeColor }}
@@ -1585,19 +1630,21 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 <span className="text-[10px] font-bold text-[#5F5E5A] hidden sm:inline">
                   Supervised by Rehabilitation Specialist
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExerciseModalType("clinic");
-                    setExerciseSearch("");
-                    setShowCustomExerciseForm(false);
-                    setExerciseModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#0F6E56] bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md shadow-2xs transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Exercise</span>
-                </button>
+                {isEditing && !isPublished && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExerciseModalType("clinic");
+                      setExerciseSearch("");
+                      setShowCustomExerciseForm(false);
+                      setExerciseModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#0F6E56] bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-md shadow-2xs transition-colors cursor-pointer edit-mode-only"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Exercise</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1605,19 +1652,21 @@ export default function TherapistReportView({ initialEditMode = false }) {
               <div className="p-6 text-center border-2 border-dashed border-[#D3D1C7] rounded-[10px] bg-white">
                 <Dumbbell className="h-8 w-8 text-[#0F6E56]/40 mx-auto mb-2" />
                 <p className="text-xs font-semibold text-[#5F5E5A]">No in-clinic exercises assigned yet.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExerciseModalType("clinic");
-                    setExerciseSearch("");
-                    setShowCustomExerciseForm(false);
-                    setExerciseModalOpen(true);
-                  }}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#0F6E56] hover:bg-[#0c5945] rounded-md transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Clinic Exercise</span>
-                </button>
+                {isEditing && !isPublished && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExerciseModalType("clinic");
+                      setExerciseSearch("");
+                      setShowCustomExerciseForm(false);
+                      setExerciseModalOpen(true);
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#0F6E56] hover:bg-[#0c5945] rounded-md transition-colors cursor-pointer edit-mode-only"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Clinic Exercise</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1633,7 +1682,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
                   return (
                     <div
                       key={idx}
-                      className="bg-white border border-[#D3D1C7] rounded-[10px] overflow-hidden shadow-xs flex flex-col justify-between"
+                      className="bg-white border border-[#D3D1C7] rounded-[10px] overflow-hidden shadow-xs flex flex-col justify-between avoid-break exercise-print-card"
                     >
                       <div>
                         {/* Image Container with Visual Fallback */}
@@ -1701,15 +1750,17 @@ export default function TherapistReportView({ initialEditMode = false }) {
                         <span>In-Clinic Session</span>
                         <div className="flex items-center gap-2">
                           <span className="text-[#0F6E56]">Active Protocol</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveClinicExercise(idx)}
-                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-0.5 rounded border border-red-200 transition-colors text-[10px] font-semibold cursor-pointer"
-                            title="Remove this exercise from report"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            <span>Remove</span>
-                          </button>
+                          {isEditing && !isPublished && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveClinicExercise(idx)}
+                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-0.5 rounded border border-red-200 transition-colors text-[10px] font-semibold cursor-pointer edit-mode-only"
+                              title="Remove this exercise from report"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Remove</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1729,19 +1780,21 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 <span className="text-[10px] font-bold text-[#854F0B] hidden sm:inline">
                   Daily Home Reinforcement Program
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExerciseModalType("home");
-                    setExerciseSearch("");
-                    setShowCustomExerciseForm(false);
-                    setExerciseModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#854F0B] bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md shadow-2xs transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Exercise</span>
-                </button>
+                {isEditing && !isPublished && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExerciseModalType("home");
+                      setExerciseSearch("");
+                      setShowCustomExerciseForm(false);
+                      setExerciseModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-[#854F0B] bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-md shadow-2xs transition-colors cursor-pointer edit-mode-only"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Exercise</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1749,19 +1802,21 @@ export default function TherapistReportView({ initialEditMode = false }) {
               <div className="p-6 text-center border-2 border-dashed border-[#D3D1C7] rounded-[10px] bg-white">
                 <Activity className="h-8 w-8 text-[#854F0B]/40 mx-auto mb-2" />
                 <p className="text-xs font-semibold text-[#5F5E5A]">No home exercises prescribed yet.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExerciseModalType("home");
-                    setExerciseSearch("");
-                    setShowCustomExerciseForm(false);
-                    setExerciseModalOpen(true);
-                  }}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#854F0B] hover:bg-[#6c4008] rounded-md transition-colors cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Home Exercise</span>
-                </button>
+                {isEditing && !isPublished && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExerciseModalType("home");
+                      setExerciseSearch("");
+                      setShowCustomExerciseForm(false);
+                      setExerciseModalOpen(true);
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-[#854F0B] hover:bg-[#6c4008] rounded-md transition-colors cursor-pointer edit-mode-only"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Home Exercise</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1777,7 +1832,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
                   return (
                     <div
                       key={idx}
-                      className="bg-white border border-[#D3D1C7] rounded-[10px] overflow-hidden shadow-xs flex flex-col justify-between"
+                      className="bg-white border border-[#D3D1C7] rounded-[10px] overflow-hidden shadow-xs flex flex-col justify-between avoid-break exercise-print-card"
                     >
                       <div>
                         {/* Image Container with Visual Fallback */}
@@ -1845,15 +1900,17 @@ export default function TherapistReportView({ initialEditMode = false }) {
                         <span>Parent-Led Daily Routine</span>
                         <div className="flex items-center gap-2">
                           <span>Home Practice ✓</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveHomeExercise(idx)}
-                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-0.5 rounded border border-red-200 transition-colors text-[10px] font-semibold cursor-pointer"
-                            title="Remove this exercise from report"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            <span>Remove</span>
-                          </button>
+                          {isEditing && !isPublished && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveHomeExercise(idx)}
+                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50 px-2 py-0.5 rounded border border-red-200 transition-colors text-[10px] font-semibold cursor-pointer edit-mode-only"
+                              title="Remove this exercise from report"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              <span>Remove</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1865,7 +1922,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
         </div>
 
         {/* ═══ SECTION 6 — SIGN OFF ═══ */}
-        <div className="no-page-break page-break-before space-y-4 pt-6">
+        <div className="avoid-break sign-off-block space-y-4 pt-6">
           <div className="border-b-2 pb-1" style={{ borderColor: currentTheme.themeColor }}>
             <h3 className="text-[13px] font-bold uppercase tracking-wider" style={{ color: currentTheme.themeColor }}>
               CLINICAL MULTIDISCIPLINARY SIGN OFF
@@ -1921,7 +1978,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#D3D1C7] p-3 shadow-lg flex items-center justify-center gap-3 no-print">
         {!isEditing ? (
           <>
-            {isAdmin && (
+            {isAdmin && !isPublished && (
               <Button variant="outlined" size="sm" icon={Edit3} onClick={() => setIsEditing(true)}>
                 ✏ Edit Report
               </Button>
@@ -1929,7 +1986,12 @@ export default function TherapistReportView({ initialEditMode = false }) {
             <Button variant="outlined" size="sm" icon={Download} onClick={triggerPdfDownload} className="border-[#0F6E56] text-[#0F6E56]">
               ⬇ Download PDF
             </Button>
-            {isAdmin && (
+            {isPublished ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 font-semibold text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Published (Locked)
+              </div>
+            ) : isAdmin ? (
               <Button 
                 size="sm" 
                 icon={CheckCircle2} 
@@ -1937,11 +1999,9 @@ export default function TherapistReportView({ initialEditMode = false }) {
                 loading={isPublishing}
                 className="bg-[#0F6E56] hover:bg-[#0c5845] text-white"
               >
-                {formState.reportStatus === "published"
-                  ? "Update & Republish"
-                  : "✓ Approve & Publish to Parents"}
+                ✓ Approve & Publish to Portals
               </Button>
-            )}
+            ) : null}
           </>
         ) : (
           <>
@@ -2003,7 +2063,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
 
       {/* Add Exercise Modal */}
       <Modal
-        isOpen={exerciseModalOpen}
+        isOpen={exerciseModalOpen && isEditing && !isPublished}
         onClose={() => setExerciseModalOpen(false)}
         title={
           exerciseModalType === "clinic"

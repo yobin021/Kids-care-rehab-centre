@@ -128,8 +128,10 @@ export async function printReportWithFilename({
   };
   window.addEventListener("afterprint", cleanup);
 
-  // Directly invoke print so the browser picks up the updated document.title
-  window.print();
+  // Give browser engine a tick to register updated document.title and finalize print layout
+  setTimeout(() => {
+    window.print();
+  }, 250);
 
   // Safety fallback after 60s in case afterprint is not supported
   setTimeout(() => {

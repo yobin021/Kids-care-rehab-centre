@@ -517,5 +517,17 @@ export const childAssignmentService = {
     if (user.role === "admin") return childrenList; // Admin sees ALL
 
     return childrenList.filter((c) => this.canStaffAccess(c.id, user, c));
+  },
+
+  /**
+   * Delete assignment record for a child
+   */
+  deleteAssignment(childId) {
+    if (!childId) return;
+    const assignments = getStorageAssignments();
+    if (assignments[childId]) {
+      delete assignments[childId];
+      setStorageAssignments(assignments);
+    }
   }
 };

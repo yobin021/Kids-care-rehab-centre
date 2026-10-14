@@ -11,7 +11,7 @@ import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { parentService } from "../services/parentService";
 import { reportService } from "../services/reportService";
-import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem, resolveExerciseList } from "../services/exerciseService";
 import { authService } from "../services/authService";
 import { isIepProgram } from "../utils/programHelpers";
 
@@ -78,24 +78,8 @@ export default function ParentExercises() {
       // Step 2: Get full exercise details
       const available = (await exerciseService.getAll()) || [];
 
-      // Step 3: Resolve every exercise to a full object with verified image & details
-      const seenIds = new Set();
-      const ordered = homeExerciseIds
-        .map((item, idx) => {
-          const resolved = resolveExerciseItem(item, available);
-          if (!resolved) return null;
-          let id = resolved.id || `ex-${idx}`;
-          if (seenIds.has(id)) {
-            id = `${id}-${idx}`;
-          }
-          seenIds.add(id);
-          return {
-            ...resolved,
-            id
-          };
-        })
-        .filter(Boolean);
-
+      // Step 3: Resolve every exercise to a full object with verified unique image & details
+      const ordered = resolveExerciseList(homeExerciseIds, available);
       setExercises(ordered);
 
       // Step 4: Load today's logs & weekly progress
@@ -307,34 +291,41 @@ export default function ParentExercises() {
                 }`}
               >
                 {/* EXERCISE IMAGE — PROMINENT ON PARENT PORTAL */}
-                {(ex.image_url || ex.imageUrl) ? (
-                  <div className="relative h-60 sm:h-72 bg-[#F8F9FA] border-b border-[#D3D1C7]/60 overflow-hidden flex items-center justify-center p-3">
-                    <img
-                      src={ex.image_url || ex.imageUrl}
-                      alt={ex.name}
-                      className="max-h-full max-w-full object-contain mx-auto rounded-[6px]"
-                      onError={(e) => {
-                        e.currentTarget.parentElement.style.display = "none";
-                      }}
-                    />
-                    {ex.category && (
-                      <span className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 rounded-full bg-white/95 text-[#0F6E56] shadow-sm border border-[#D3D1C7]/40">
-                        {ex.category}
-                      </span>
-                    )}
-                    {isDone && (
-                      <div className="absolute top-3 right-3 w-8 h-8 bg-[#3B6D11] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                        ✓
-                      </div>
-                    )}
+                <div className="relative h-60 sm:h-72 bg-[#F8F9FA] border-b border-[#D3D1C7]/60 overflow-hidden flex items-center justify-center p-3">
+                  <img
+                    src={ex.image_url || ex.imageUrl || "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX028.jpg"}
+                    alt={ex.name}
+                    className="max-h-full max-w-full object-contain mx-auto rounded-[6px]"
+                    onError={(e) => {
+                      if (!e.currentTarget.dataset.fallbackTried) {
+                        e.currentTarget.dataset.fallbackTried = "true";
+                        e.currentTarget.src = "https://midkfahpqowiwkajxeiz.supabase.co/storage/v1/object/public/exercise-images/EX028.jpg";
+                      } else {
+                        e.currentTarget.style.display = "none";
+                        const fb = e.currentTarget.nextElementSibling;
+                        if (fb) fb.style.display = "flex";
+                      }
+                    }}
+                  />
+                  <div
+                    style={{ display: "none" }}
+                    className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-100 text-teal-800 p-4 text-center rounded-[6px]"
+                  >
+                    <Dumbbell className="h-10 w-10 text-teal-600/50 mb-2" />
+                    <span className="text-sm font-bold text-[#2C2C2A]">{ex.name}</span>
+                    <span className="text-xs text-teal-700">Home Therapy Exercise Guide</span>
                   </div>
-                ) : (
-                  <div className={`h-12 flex items-center px-4 ${isDone ? "bg-emerald-100/60" : "bg-teal-50/60"}`}>
-                    <span className="text-xs font-bold text-[#0F6E56] bg-white px-2.5 py-1 rounded-full shadow-2xs">
-                      {ex.category || "Home Therapy"}
+                  {ex.category && (
+                    <span className="absolute top-3 left-3 text-xs font-bold px-2.5 py-1 rounded-full bg-white/95 text-[#0F6E56] shadow-sm border border-[#D3D1C7]/40">
+                      {ex.category}
                     </span>
-                  </div>
-                )}
+                  )}
+                  {isDone && (
+                    <div className="absolute top-3 right-3 w-8 h-8 bg-[#3B6D11] rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                      ✓
+                    </div>
+                  )}
+                </div>
                 <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="space-y-1 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

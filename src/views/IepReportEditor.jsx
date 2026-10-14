@@ -68,6 +68,11 @@ export default function IepReportEditor() {
         }
       }
       if (!data) throw new Error("Report not found");
+      if (data.status === "published" || data.review_status === "published") {
+        if (showToast) showToast("Published IEP reports are locked and cannot be edited.", "info");
+        navigate(`/iep/report/${reportId}`, { replace: true });
+        return;
+      }
       setReportData(data);
       setIepReport(data.iep_report || {});
     } catch (err) {
@@ -411,11 +416,11 @@ export default function IepReportEditor() {
       )}
 
       {/* Bottom Actions */}
-      <div className="flex items-center justify-between pt-2">
-        <Button variant="outlined" onClick={() => navigate(reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep")}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <Button variant="outlined" onClick={() => navigate(reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep")} className="w-full sm:w-auto">
           ← Back to IEP History
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
           {isDirty && (
             <Button variant="outlined" icon={Save} onClick={handleSave} loading={saving}>
               Save Changes

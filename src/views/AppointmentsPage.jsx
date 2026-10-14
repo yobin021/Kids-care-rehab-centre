@@ -631,7 +631,9 @@ export default function AppointmentsPage() {
           <h2 className="text-lg sm:text-[20px] font-bold text-[#2C2C2A]">Appointments</h2>
           <p className="text-xs font-semibold text-[#5F5E5A] mt-0.5">Schedule, manage and track all therapy appointments</p>
         </div>
-        <Button icon={Plus} onClick={() => setBookOpen(true)}>+ Book Appointment</Button>
+        <Button icon={Plus} onClick={() => setBookOpen(true)} className="w-full sm:w-auto justify-center">
+          Book Appointment
+        </Button>
       </div>
 
       {/* Filters + View toggle */}
@@ -660,13 +662,13 @@ export default function AppointmentsPage() {
             <option value="cancelled">Cancelled</option>
           </select>
         </div>
-        <div className="flex items-center justify-center sm:justify-start gap-1 border border-[#D3D1C7] rounded-[8px] p-0.5 bg-white shrink-0 self-start sm:self-auto">
+        <div className="flex items-center justify-center sm:justify-start gap-1 border border-[#D3D1C7] rounded-[8px] p-0.5 bg-white shrink-0 w-full sm:w-auto">
           <button onClick={() => setView("list")}
-            className={`px-3 py-1.5 rounded-[6px] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${view === "list" ? "bg-[#185FA5] text-white" : "text-[#5F5E5A] hover:bg-[#F8F8F6]"}`}>
+            className={`flex-1 sm:flex-initial justify-center px-3 py-1.5 rounded-[6px] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${view === "list" ? "bg-[#185FA5] text-white" : "text-[#5F5E5A] hover:bg-[#F8F8F6]"}`}>
             <List className="h-3.5 w-3.5" /> List
           </button>
           <button onClick={() => setView("calendar")}
-            className={`px-3 py-1.5 rounded-[6px] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${view === "calendar" ? "bg-[#185FA5] text-white" : "text-[#5F5E5A] hover:bg-[#F8F8F6]"}`}>
+            className={`flex-1 sm:flex-initial justify-center px-3 py-1.5 rounded-[6px] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${view === "calendar" ? "bg-[#185FA5] text-white" : "text-[#5F5E5A] hover:bg-[#F8F8F6]"}`}>
             <Calendar className="h-3.5 w-3.5" /> Calendar
           </button>
         </div>
@@ -681,7 +683,7 @@ export default function AppointmentsPage() {
             <div className="text-5xl">📅</div>
             <h3 className="text-[16px] font-bold text-[#2C2C2A]">No appointments found</h3>
             <p className="text-xs text-[#5F5E5A]">Adjust filters or book a new appointment</p>
-            <Button icon={Plus} onClick={() => setBookOpen(true)}>+ Book Appointment</Button>
+            <Button icon={Plus} onClick={() => setBookOpen(true)}>Book Appointment</Button>
           </div>
         ) : (
           <div className="space-y-6">

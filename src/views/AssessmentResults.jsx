@@ -138,7 +138,7 @@ export default function AssessmentResults() {
 
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#D3D1C7]/60 pb-3">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(`/children/${child?.id}`)} className="p-2 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer">
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
@@ -151,7 +151,7 @@ export default function AssessmentResults() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button icon={FileText} onClick={() => navigate(`/iep/${child?.id}/generate/${id}`)}>
             Generate IEP Report →
           </Button>
@@ -167,7 +167,7 @@ export default function AssessmentResults() {
         </div>
       </div>
 
-      <div className="p-6 rounded-[12px] text-white shadow-sm bg-[#185FA5] flex items-center justify-between">
+      <div className="p-5 sm:p-6 rounded-[12px] text-white shadow-sm bg-[#185FA5] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider block opacity-90">ISAA Assessment Outcome</span>
           <h3 className="text-2xl font-black">{isaa.severity}</h3>

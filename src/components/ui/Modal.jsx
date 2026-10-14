@@ -36,7 +36,7 @@ export default function Modal({ isOpen, open, onClose, title, children, size = "
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 animate-fade-in no-print">
       {/* Full Page Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm"

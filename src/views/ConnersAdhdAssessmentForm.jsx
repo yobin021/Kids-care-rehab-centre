@@ -18,7 +18,9 @@ import {
   Save,
   Send,
   Edit3,
-  Trash2
+  Trash2,
+  ShieldCheck,
+  Clock
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -29,7 +31,9 @@ import { therapyAssessmentService } from "../services/therapyAssessmentService";
 import { childAssignmentService } from "../services/childAssignmentService";
 import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
+import { reportService } from "../services/reportService";
 import { printReportWithFilename } from "../utils/printHelpers";
+import { checkReassessmentEligibility } from "../utils/reassessmentHelpers";
 
 export const CONNERS_ITEMS = [
   { id: 1, text: "Inattentive, easily distracted", subscale: "Inattention" },
@@ -144,8 +148,56 @@ export default function ConnersAdhdAssessmentForm() {
   const [schoolGrade, setSchoolGrade] = useState("");
   const [assessorName, setAssessorName] = useState(user?.name || "Occupational Therapist");
 
+  // Read-only Lock Flag: Set to true if a report has already been generated
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [existingReport, setExistingReport] = useState(null);
+  const [intervalEligibility, setIntervalEligibility] = useState(null);
+  const [isIntervalLocked, setIsIntervalLocked] = useState(false);
+
   // Ratings map: { item1: 0..3, ..., item27: 0..3 }
   const [ratings, setRatings] = useState({});
+
+  const checkExistingReport = async (cId, aId) => {
+    if (!cId) return;
+    try {
+      const [reps, assList] = await Promise.all([
+        reportService.getByChildId(cId).catch(() => []),
+        assessmentService.getByChildId(cId).catch(() => [])
+      ]);
+
+      if (aId) {
+        // Specific assessment requested: check if this assessment has a report
+        let matched = null;
+        if (Array.isArray(reps)) {
+          matched = reps.find((r) => r.assessment_id === aId || r.assessmentId === aId);
+        }
+        if (matched) {
+          setIsReadOnly(true);
+          setExistingReport(matched);
+          setIsIntervalLocked(false);
+        } else {
+          setIsReadOnly(false);
+          setExistingReport(null);
+          setIsIntervalLocked(false);
+        }
+      } else {
+        // New assessment requested: check 3-month reassessment interval
+        const eligibility = checkReassessmentEligibility(assList, reps);
+        setIntervalEligibility(eligibility);
+        if (Array.isArray(assList) && assList.length > 0 && !eligibility.eligible) {
+          setIsIntervalLocked(true);
+          setIsReadOnly(true);
+          setExistingReport(null);
+        } else {
+          setIsIntervalLocked(false);
+          setIsReadOnly(false);
+          setExistingReport(null);
+        }
+      }
+    } catch (err) {
+      console.warn("Conners check existing report notice:", err);
+    }
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -197,8 +249,16 @@ export default function ConnersAdhdAssessmentForm() {
               console.warn("Could not load existing Conners assessment:", err);
             }
           } else {
-            loadDraft(targetId);
+            // New assessment mode: reset form
+            setRatings({});
+            setAssessorNotes("");
+            setCurrentAssessmentId(null);
+            setIsEditingExisting(false);
+            setAssessmentDate(new Date().toISOString().split("T")[0]);
           }
+
+          // Check if report already exists or if 3-month interval is active
+          await checkExistingReport(targetId, queryAssessmentId);
         }
       } catch (err) {
         console.warn("ConnersAdhdForm load error:", err.message);
@@ -237,9 +297,11 @@ export default function ConnersAdhdAssessmentForm() {
     setParentName(found?.parent?.name || found?.parent_accounts?.parent_name || "");
     setSchoolGrade(found?.class || found?.school || "");
     loadDraft(newId);
+    checkExistingReport(newId, null);
   };
 
   const setItemRating = (itemNum, score) => {
+    if (isReadOnly) return;
     setRatings(prev => {
       const next = { ...prev, [`item${itemNum}`]: score };
       if (selectedChildId) {
@@ -258,6 +320,7 @@ export default function ConnersAdhdAssessmentForm() {
   };
 
   const handleQuickFillAll = (score) => {
+    if (isReadOnly) return;
     setRatings(prev => {
       const next = { ...prev };
       CONNERS_ITEMS.forEach(it => {
@@ -279,6 +342,7 @@ export default function ConnersAdhdAssessmentForm() {
   };
 
   const handleClearAll = () => {
+    if (isReadOnly) return;
     if (window.confirm("Are you sure you want to reset all 27 Conners' ratings?")) {
       setRatings({});
       if (selectedChildId) {
@@ -375,6 +439,10 @@ export default function ConnersAdhdAssessmentForm() {
   };
 
   const handleSaveAssessmentOnly = async () => {
+    if (isReadOnly) {
+      showToast("This assessment is finalized and cannot be modified.", "warning");
+      return;
+    }
     if (!selectedChildId) {
       showToast("Please select a child before saving.", "danger");
       return;
@@ -424,6 +492,18 @@ export default function ConnersAdhdAssessmentForm() {
   };
 
   const handleSubmit = async () => {
+    if (isIntervalLocked) {
+      showToast(
+        `Clinical Protocol: Re-assessments can only be taken once every 3 months. Next eligible date: ${intervalEligibility?.nextEligibleDateFormatted}`,
+        "warning"
+      );
+      return;
+    }
+    if (isReadOnly) {
+      showToast("A clinical report has already been generated for this assessment.", "info");
+      navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`);
+      return;
+    }
     if (!selectedChildId) {
       showToast("Please select a child before submitting.", "danger");
       return;
@@ -541,9 +621,9 @@ export default function ConnersAdhdAssessmentForm() {
             size="sm"
             variant="outlined"
             icon={ArrowLeft}
-            onClick={() => navigate("/therapy")}
+            onClick={() => navigate(selectedChildId ? `/children/${selectedChildId}` : "/therapy")}
           >
-            Back to Therapy
+            Back
           </Button>
           <Button
             size="sm"
@@ -558,39 +638,102 @@ export default function ConnersAdhdAssessmentForm() {
           >
             Print Form
           </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Trash2}
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-            disabled={savingOnly}
-            onClick={handleDeleteAssessment}
-            title="Delete this assessment"
-          >
-            Delete Form
-          </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Save}
-            loading={savingOnly}
-            onClick={handleSaveAssessmentOnly}
-            title="Save the assessment data without generating report"
-          >
-            Save Assessment
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            icon={Send}
-            className="bg-[#0F6E56] hover:bg-[#08503E]"
-            onClick={() => setShowConfirmModal(true)}
-            title="Save assessment and submit report for review"
-          >
-            Generate Report & Submit for Review
-          </Button>
+          {isReadOnly ? (
+            <Button
+              size="sm"
+              icon={FileText}
+              className="bg-[#0F6E56] hover:bg-[#08503E] text-white shadow-xs font-bold"
+              onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+            >
+              View Generated Report
+            </Button>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Trash2}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                disabled={savingOnly}
+                onClick={handleDeleteAssessment}
+                title="Delete this assessment"
+              >
+                Delete Form
+              </Button>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Save}
+                loading={savingOnly}
+                onClick={handleSaveAssessmentOnly}
+                title="Save the assessment data without generating report"
+              >
+                Save Assessment
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={Send}
+                className="bg-[#0F6E56] hover:bg-[#08503E]"
+                onClick={() => setShowConfirmModal(true)}
+                title="Save assessment and submit report for review"
+              >
+                Generate Report & Submit for Review
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* ═══ 3-MONTH INTERVAL PROTOCOL RESTRICTION BANNER ═══ */}
+      {isIntervalLocked && intervalEligibility && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <Clock className="h-7 w-7 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <h4 className="text-sm sm:text-base font-bold text-amber-950 leading-snug">
+                Clinical Protocol Restriction: 3-Month Re-assessment Interval Active
+              </h4>
+              <p className="text-xs sm:text-[13px] text-amber-800 font-medium mt-0.5">
+                Clinical reassessments can only be conducted once every 3 months. Previous assessment was conducted on <strong>{intervalEligibility.lastAssessmentDateFormatted}</strong>. Next eligible assessment: <strong className="underline text-amber-950">{intervalEligibility.nextEligibleDateFormatted}</strong> ({intervalEligibility.daysRemaining} days remaining).
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navigate(`/children/${selectedChildId}`)}
+            className="shrink-0 font-bold shadow-xs text-xs"
+          >
+            Back to Child Profile
+          </Button>
+        </div>
+      )}
+
+      {/* ═══ READ-ONLY FINALIZED BANNER ═══ */}
+      {!isIntervalLocked && isReadOnly && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <ShieldCheck className="h-7 w-7 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <h4 className="text-sm sm:text-base font-bold text-amber-900 leading-snug">
+                Assessment Form Finalized — Clinical Report Generated
+              </h4>
+              <p className="text-xs sm:text-[13px] text-amber-700 font-medium mt-0.5">
+                This assessment form is in <strong>view-only mode</strong> because a clinical report has already been generated. Responses cannot be modified.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            icon={FileText}
+            onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-none shrink-0 font-bold shadow-xs"
+          >
+            View Generated Report
+          </Button>
+        </div>
+      )}
 
       {/* ═══ PATIENT METADATA BOX (MATCHING FORM HEADER) ═══ */}
       <div className="bg-white p-5 rounded-[12px] border border-[#0F6E56]/30 shadow-2xs space-y-4">
@@ -601,8 +744,9 @@ export default function ConnersAdhdAssessmentForm() {
             </label>
             <select
               value={selectedChildId}
+              disabled={isReadOnly}
               onChange={(e) => handleChildChange(e.target.value)}
-              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#0F6E56] focus:bg-white cursor-pointer"
+              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#0F6E56] focus:bg-white cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
             >
               {allChildren.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -630,9 +774,10 @@ export default function ConnersAdhdAssessmentForm() {
             <input
               type="text"
               value={schoolGrade}
+              disabled={isReadOnly}
               onChange={(e) => setSchoolGrade(e.target.value)}
               placeholder="e.g. Grade 2 / Primary"
-              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#0F6E56] focus:bg-white"
+              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#0F6E56] focus:bg-white disabled:opacity-75 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -643,8 +788,9 @@ export default function ConnersAdhdAssessmentForm() {
             <input
               type="date"
               value={assessmentDate}
+              disabled={isReadOnly}
               onChange={(e) => setAssessmentDate(e.target.value)}
-              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#0F6E56]"
+              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#0F6E56] disabled:opacity-75 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -806,9 +952,11 @@ export default function ConnersAdhdAssessmentForm() {
                       return (
                         <td
                           key={opt.score}
-                          onClick={() => setItemRating(it.id, opt.score)}
-                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 cursor-pointer transition-all ${
-                            isSelected ? "bg-[#0F6E56]/15 font-bold" : "hover:bg-[#0F6E56]/5"
+                          onClick={() => !isReadOnly && setItemRating(it.id, opt.score)}
+                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 transition-all ${
+                            isReadOnly ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            isSelected ? "bg-[#0F6E56]/15 font-bold" : isReadOnly ? "" : "hover:bg-[#0F6E56]/5"
                           }`}
                         >
                           <div className="flex items-center justify-center">
@@ -816,8 +964,11 @@ export default function ConnersAdhdAssessmentForm() {
                               type="radio"
                               name={`conners-item-${it.id}`}
                               checked={isSelected}
-                              onChange={() => setItemRating(it.id, opt.score)}
-                              className="h-4.5 w-4.5 text-[#0F6E56] focus:ring-[#0F6E56] cursor-pointer accent-[#0F6E56]"
+                              disabled={isReadOnly}
+                              onChange={() => !isReadOnly && setItemRating(it.id, opt.score)}
+                              className={`h-4.5 w-4.5 text-[#0F6E56] focus:ring-[#0F6E56] accent-[#0F6E56] ${
+                                isReadOnly ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                              }`}
                             />
                           </div>
                         </td>
@@ -840,9 +991,12 @@ export default function ConnersAdhdAssessmentForm() {
         <textarea
           rows={3}
           value={assessorNotes}
+          disabled={isReadOnly}
           onChange={(e) => setAssessorNotes(e.target.value)}
           placeholder="Record observational notes regarding impulsivity, attention shifts, motor restlessness, and behavioral triggers..."
-          className="w-full p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[8px] text-xs text-[#2C2C2A] outline-none focus:border-[#0F6E56] focus:bg-white"
+          className={`w-full p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[8px] text-xs text-[#2C2C2A] outline-none focus:border-[#0F6E56] focus:bg-white ${
+            isReadOnly ? "bg-gray-100 text-gray-700 cursor-not-allowed" : ""
+          }`}
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-[#D3D1C7]">
@@ -851,47 +1005,72 @@ export default function ConnersAdhdAssessmentForm() {
               Conners CPRS-R:S Score: <span className="text-[#0F6E56] font-mono">{scoreResults.totalScore}/81</span> ({scoreResults.severity})
             </p>
             <p className="text-[11px] text-[#5F5E5A]">
-              Saving will persist this ADHD assessment and generate sensory &amp; behavioural therapy goals.
+              {isReadOnly
+                ? "This assessment form is locked in view-only mode because a clinical report has already been generated."
+                : "Saving will persist this ADHD assessment and generate sensory & behavioural therapy goals."}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              size="md"
-              variant="outlined"
-              icon={Trash2}
-              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-              disabled={savingOnly}
-              onClick={handleDeleteAssessment}
-            >
-              Delete
-            </Button>
-            <Button
-              size="md"
-              variant="outlined"
-              onClick={() => navigate("/therapy")}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="md"
-              variant="outlined"
-              icon={Save}
-              loading={savingOnly}
-              onClick={handleSaveAssessmentOnly}
-            >
-              Save Assessment
-            </Button>
-            <Button
-              size="md"
-              variant="primary"
-              icon={Send}
-              className="bg-[#0F6E56] hover:bg-[#08503E]"
-              loading={submitting}
-              onClick={() => setShowConfirmModal(true)}
-            >
-              Generate Report &amp; Submit for Review
-            </Button>
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+            {isReadOnly ? (
+              <>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  onClick={() => navigate("/therapy")}
+                >
+                  Back to Assessments
+                </Button>
+                <Button
+                  size="md"
+                  variant="primary"
+                  icon={FileText}
+                  className="bg-[#0F6E56] hover:bg-[#08503E]"
+                  onClick={() => navigate(`/reports/${existingReport?.id || childId}/therapist`)}
+                >
+                  View Generated Clinical Report
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  icon={Trash2}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  disabled={savingOnly}
+                  onClick={handleDeleteAssessment}
+                >
+                  Delete
+                </Button>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  onClick={() => navigate("/therapy")}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  icon={Save}
+                  loading={savingOnly}
+                  onClick={handleSaveAssessmentOnly}
+                >
+                  Save Assessment
+                </Button>
+                <Button
+                  size="md"
+                  variant="primary"
+                  icon={Send}
+                  className="bg-[#0F6E56] hover:bg-[#08503E]"
+                  loading={submitting}
+                  onClick={() => setShowConfirmModal(true)}
+                >
+                  Generate Report &amp; Submit for Review
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Card>

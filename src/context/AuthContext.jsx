@@ -183,6 +183,10 @@ export function AuthProvider({ children }) {
     );
   };
 
+  const deleteRegisteredChild = useCallback((childId) => {
+    setAllChildrenList((prev) => (Array.isArray(prev) ? prev.filter((c) => c.id !== childId) : []));
+  }, []);
+
   const addStaffPermission = useCallback(async (childId, staffMember, options) => {
     const res = await childAssignmentService.addStaffPermission(childId, staffMember, options);
     setAssignments(childAssignmentService.getAllAssignments());
@@ -292,6 +296,7 @@ export function AuthProvider({ children }) {
     reloadStaff,
     addRegisteredChild,
     updateChildDetails,
+    deleteRegisteredChild,
     setupParentPortal,
     resetParentPassword,
     addStaffMember,

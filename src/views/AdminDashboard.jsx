@@ -1,7 +1,22 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Eye, CalendarDays, Activity, BookOpen, Users, Shield, ArrowRight, Bell, CheckCircle2, Clock, FileText } from "lucide-react";
+import {
+  Eye,
+  CalendarDays,
+  Activity,
+  BookOpen,
+  Users,
+  Shield,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Edit3,
+  AlertTriangle,
+  Send,
+  Sparkles
+} from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -10,17 +25,20 @@ import ErrorMessage from "../components/ui/ErrorMessage";
 import { reportService } from "../services/reportService";
 import { appointmentService } from "../services/appointmentService";
 import { iepService } from "../services/iepService";
-import { notificationService } from "../services/notificationService";
 
 export default function AdminDashboard() {
-  const { user, childrenList } = useAuth();
+  const { user, childrenList, showToast } = useAuth();
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [iepPendingCount, setIepPendingCount] = useState(0);
-  const [pendingNotifications, setPendingNotifications] = useState([]);
+
+  // Pending Staff Reports awaiting Admin Review
+  const [pendingReports, setPendingReports] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [publishingId, setPublishingId] = useState(null);
 
   const todayStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -52,22 +70,132 @@ export default function AdminDashboard() {
     }
   };
 
-  const loadNotifications = useCallback(async () => {
+  const fetchPendingReports = async () => {
     try {
-      const notifs = await notificationService.getAdminNotifications(childrenList);
-      setPendingNotifications(notifs);
-    } catch (_) {}
-  }, [childrenList]);
+      setLoadingPending(true);
+      const [therapyPending, iepPending] = await Promise.all([
+        reportService.getAllPending().catch(() => []),
+        iepService.getPendingReview().catch(() => [])
+      ]);
+
+      const combined = [];
+      const seenChildOrRep = new Set();
+
+      // Process therapy pending
+      if (Array.isArray(therapyPending)) {
+        for (const r of therapyPending) {
+          const idKey = r.id || r.child_id;
+          if (!seenChildOrRep.has(idKey)) {
+            seenChildOrRep.add(idKey);
+            const matchedChild = childrenList.find((c) => c.id === r.child_id) || r.children;
+            combined.push({
+              ...r,
+              childName: matchedChild?.name || r.children?.name || r.childName || "Child",
+              childId: r.child_id || r.id,
+              type: r.assessment_type || matchedChild?.therapy_category || "Therapy",
+              prepared_by: r.prepared_by || "Therapy Staff",
+              created_at: r.created_at || new Date().toISOString(),
+              isIep: false
+            });
+          }
+        }
+      }
+
+      // Process IEP pending
+      if (Array.isArray(iepPending)) {
+        for (const r of iepPending) {
+          const idKey = r.id || r.child_id;
+          if (!seenChildOrRep.has(idKey)) {
+            seenChildOrRep.add(idKey);
+            const matchedChild = childrenList.find((c) => c.id === r.child_id) || r.children;
+            combined.push({
+              ...r,
+              childName: matchedChild?.name || r.student_name || "Student",
+              childId: r.child_id || r.id,
+              type: "Special School IEP",
+              prepared_by: r.prepared_by || "Special Educator",
+              created_at: r.created_at || new Date().toISOString(),
+              isIep: true
+            });
+          }
+        }
+      }
+
+      // Check localStorage for local/offline submitted drafts
+      if (typeof window !== "undefined") {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("report_draft_")) {
+            const cId = key.replace("report_draft_", "");
+            if (!localStorage.getItem(`report_published_${cId}`) && !seenChildOrRep.has(cId)) {
+              try {
+                const draft = JSON.parse(localStorage.getItem(key));
+                if (draft) {
+                  const matchedChild = childrenList.find((c) => c.id === cId);
+                  seenChildOrRep.add(cId);
+                  combined.push({
+                    id: draft.id || cId,
+                    child_id: cId,
+                    childId: cId,
+                    childName: matchedChild?.name || draft.childName || "Child",
+                    status: draft.status || "pending_review",
+                    type: draft.assessment_type || matchedChild?.therapy_category || "Clinical Therapy",
+                    prepared_by: draft.prepared_by || draft.formState?.therapistReport?.preparedBy || "Therapy Staff",
+                    created_at: draft.savedAt || draft.updatedDate || new Date().toISOString(),
+                    isIep: false,
+                    rawDraft: draft
+                  });
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      }
+
+      setPendingReports(combined);
+    } catch (err) {
+      console.warn("Admin fetch pending reports notice:", err);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  const handleQuickPublish = async (rep) => {
+    try {
+      setPublishingId(rep.id || rep.childId);
+      if (rep.isIep) {
+        await iepService.publishIepReport(rep.id, user?.name, user?.id);
+      } else {
+        await reportService.publish(rep.id || rep.childId, user?.name || "Admin", user?.id, rep);
+        const pubKey = rep.childId || rep.id;
+        const pubData = {
+          id: rep.id || `rep-${Date.now()}`,
+          childId: pubKey,
+          child_id: pubKey,
+          childName: rep.childName,
+          status: "published",
+          review_status: "published",
+          published_at: new Date().toISOString(),
+          publishedDate: new Date().toISOString().split("T")[0],
+          assessment_type: rep.type
+        };
+        localStorage.setItem(`report_published_${pubKey}`, JSON.stringify(pubData));
+        localStorage.removeItem(`report_draft_${pubKey}`);
+      }
+      if (showToast) showToast(`✓ Report for ${rep.childName} published to both Parent & Staff portals!`, "success");
+      await Promise.all([fetchPendingReports(), fetchReports()]);
+    } catch (err) {
+      if (showToast) showToast(`Failed to publish: ${err.message}`, "danger");
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   useEffect(() => {
     fetchReports();
-    loadNotifications();
-    iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
-
-    const handleUpdate = () => loadNotifications();
-    window.addEventListener("clinical_notifications_changed", handleUpdate);
-    return () => window.removeEventListener("clinical_notifications_changed", handleUpdate);
-  }, [childrenList, loadNotifications]);
+    fetchPendingReports();
+    iepService.getPendingReviewCount().then((n) => setIepPendingCount(n)).catch(() => {});
+  }, [childrenList]);
 
   return (
     <div className="space-y-8 text-slate-800 pb-10">
@@ -83,71 +211,165 @@ export default function AdminDashboard() {
           </h2>
           <p className="text-xs sm:text-[14px] font-semibold text-slate-500">{todayStr}</p>
         </div>
-      </div>
 
-      {/* ─── PENDING REPORT APPROVALS & NOTIFICATIONS ─── */}
-      {pendingNotifications.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-50/90 via-amber-50/60 to-orange-50/80 border border-amber-200/90 rounded-3xl p-5 sm:p-7 shadow-[0_4px_24px_rgba(245,158,11,0.09)] space-y-5 animate-slide-up">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/60 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-500/25 shrink-0">
-                <Bell className="h-5 w-5 animate-bounce" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  Action Required: {pendingNotifications.length} Child {pendingNotifications.length === 1 ? 'Report' : 'Reports'} Awaiting Review
-                </h3>
-                <p className="text-xs sm:text-[13px] text-amber-900/90 font-medium">
-                  Staff have generated assessment reports. Please review and submit/publish them to make them visible to therapists and parents.
-                </p>
-              </div>
-            </div>
-            <span className="self-start sm:self-center text-xs font-black px-3 py-1 rounded-full bg-amber-500 text-white shadow-xs">
-              {pendingNotifications.length} Needs Review
+        {pendingReports.length > 0 && (
+          <div className="relative z-10 flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-4 py-2 rounded-2xl">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+            <span className="text-xs sm:text-sm font-bold text-amber-900">
+              {pendingReports.length} Staff {pendingReports.length === 1 ? "Report" : "Reports"} Awaiting Review
             </span>
           </div>
+        )}
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {pendingNotifications.map((notif) => (
-              <div
-                key={notif.id}
-                className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                      {notif.pathway}
-                    </span>
-                    <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1 shrink-0">
-                      <Clock className="h-3 w-3" />
-                      {new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-
-                  <h4 className="text-sm font-bold text-slate-900">
-                    Report Generated: <span className="text-blue-600 font-black">{notif.childName}</span>
-                  </h4>
-
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Prepared by <strong className="text-slate-800">{notif.preparedBy}</strong>. Please review and submit/publish it.
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-                  <Button
-                    size="sm"
-                    icon={CheckCircle2}
-                    onClick={() => navigate(notif.reviewUrl)}
-                    className="bg-amber-600 hover:bg-amber-700 text-white w-full sm:w-auto"
-                  >
-                    Review &amp; Submit / Publish
-                  </Button>
-                </div>
-              </div>
-            ))}
+      {/* ─── REPORTS AWAITING ADMIN REVIEW (CRITICAL STAFF FLOW) ─── */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <FileText className="h-5 w-5 text-amber-600" />
+                Reports Awaiting Admin Review
+              </h3>
+              {pendingReports.length > 0 && (
+                <span className="bg-amber-500 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
+                  {pendingReports.length} Pending
+                </span>
+              )}
+            </div>
+            <p className="text-xs sm:text-[13px] text-slate-500 font-medium mt-0.5">
+              Staff assessment reports waiting for Admin verification, editing, and publication to Parent and Staff portals.
+            </p>
           </div>
         </div>
-      )}
+
+        {loadingPending ? (
+          <SkeletonCard count={2} />
+        ) : pendingReports.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-dashed border-emerald-200 p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-slate-900">All Staff Reports Reviewed & Up to Date</h4>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                When a therapist or special educator completes an assessment form and generates a report, it will appear here immediately for your review, editing, and publishing.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {pendingReports.map((rep) => {
+              const pathwayName = rep.type
+                ? rep.type.includes("asd")
+                  ? "ASD (ISAA Protocol)"
+                  : rep.type.includes("adhd")
+                  ? "ADHD (Conners' 3)"
+                  : rep.type.includes("delay")
+                  ? "Developmental Delay"
+                  : rep.type.includes("learn") || rep.type.includes("sld")
+                  ? "Learning Disability (SLD)"
+                  : rep.type.includes("iep") || rep.isIep
+                  ? "Special School IEP"
+                  : rep.type
+                : "Clinical Therapy";
+
+              const isPublishingThis = publishingId === (rep.id || rep.childId);
+
+              return (
+                <div
+                  key={rep.id || rep.childId}
+                  className="bg-white rounded-2xl border-2 border-amber-200/80 hover:border-amber-400 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative overflow-hidden"
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-orange-500" />
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-base font-bold text-slate-900 leading-snug">{rep.childName}</h4>
+                        <span className="font-mono text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded inline-block mt-1">
+                          ID: {rep.childId}
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-black border border-amber-300 shrink-0">
+                        Pending Review
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1.5 text-xs text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500">Track:</span>
+                        <span className="font-bold text-slate-800">{pathwayName}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500">Prepared by:</span>
+                        <span className="font-bold text-slate-800">{rep.prepared_by || "Therapy Staff"}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500">Submitted:</span>
+                        <span className="font-medium text-slate-700">
+                          {rep.created_at ? rep.created_at.split("T")[0] : "Recently"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <Button
+                      fullWidth
+                      size="sm"
+                      icon={Edit3}
+                      onClick={() =>
+                        navigate(
+                          rep.isIep
+                            ? `/iep/report/${rep.id}/review`
+                            : `/reports/${rep.id || rep.childId}/review`
+                        )
+                      }
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                    >
+                      Review & Edit Report
+                    </Button>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={CheckCircle2}
+                        onClick={() => handleQuickPublish(rep)}
+                        loading={isPublishingThis}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-none"
+                        title="Publish directly to Parent & Staff portals"
+                      >
+                        Publish to Portals
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="sm"
+                        icon={Eye}
+                        onClick={() =>
+                          navigate(
+                            rep.isIep
+                              ? `/iep/report/${rep.id}`
+                              : `/reports/${rep.id || rep.childId}/therapist`
+                          )
+                        }
+                        className="shrink-0"
+                        title="Preview report"
+                      >
+                        Preview
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* ─── TWO MAIN CLINICAL MODULES ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

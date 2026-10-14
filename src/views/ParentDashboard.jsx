@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity, School, Calendar, ChevronRight, BookOpen, Clock, History } from "lucide-react";
+import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity, School, Calendar, ChevronRight, BookOpen, Clock } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -26,7 +26,6 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [reportInfo, setReportInfo] = useState(null);
   const [iepReport, setIepReport] = useState(null);
-  const [allReportsList, setAllReportsList] = useState([]);
   const [exerciseStats, setExerciseStats] = useState({ completed: 0, total: 0 });
   const [nextAppointment, setNextAppointment] = useState(null);
 
@@ -110,8 +109,6 @@ export default function ParentDashboard() {
         const dateB = new Date(b.published_at || b.publishedDate || b.created_at || b.last_edited_at || 0).getTime();
         return dateB - dateA;
       });
-
-      setAllReportsList(publishedList);
 
       const latest = publishedList[0] || null;
 
@@ -229,7 +226,7 @@ export default function ParentDashboard() {
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Latest Document</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Report Document</p>
                       <p className="text-[13px] font-bold text-slate-800">
                         {isIep ? `Cycle ${reportInfo.cycle || 1}` : `Date: ${reportInfo.date}`}
                       </p>
@@ -240,39 +237,6 @@ export default function ParentDashboard() {
                       size="sm"
                     />
                   </div>
-                  {allReportsList && allReportsList.length > 1 && (
-                    <div className="pt-2.5 border-t border-slate-200/70 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                          <History className="h-3 w-3 text-blue-600" />
-                          <span>Reports History ({allReportsList.length})</span>
-                        </span>
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                          Old &amp; New
-                        </span>
-                      </div>
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
-                        {allReportsList.map((r, idx) => (
-                          <div
-                            key={r.id || idx}
-                            onClick={() => navigate(`/parent/report?reportId=${r.id}`)}
-                            className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
-                              idx === 0
-                                ? "bg-emerald-50/60 border-emerald-200 hover:bg-emerald-100 text-emerald-950 font-bold"
-                                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 font-medium"
-                            }`}
-                          >
-                            <span className="truncate">
-                              {idx === 0 ? "🟢 Latest Report" : `📄 Previous Report (${r.published_at?.split("T")[0] || r.publishedDate || "Past"})`}
-                            </span>
-                            <span className="text-[10px] font-bold text-blue-600 shrink-0 ml-1.5">
-                              View &rarr;
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">

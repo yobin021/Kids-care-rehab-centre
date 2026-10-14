@@ -20,7 +20,8 @@ import {
   Save,
   Send,
   Edit3,
-  Trash2
+  Trash2,
+  Eye
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -31,7 +32,9 @@ import { therapyAssessmentService } from "../services/therapyAssessmentService";
 import { childAssignmentService } from "../services/childAssignmentService";
 import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
+import { reportService } from "../services/reportService";
 import { printReportWithFilename } from "../utils/printHelpers";
+import { checkReassessmentEligibility } from "../utils/reassessmentHelpers";
 
 export const DEVELOPMENTAL_AGE_TIERS = [
   {
@@ -541,6 +544,8 @@ export default function DevelopmentalDelayAssessmentForm() {
   const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || null);
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [savingOnly, setSavingOnly] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [existingReport, setExistingReport] = useState(null);
 
   const [selectedChildId, setSelectedChildId] = useState(routeChildId || "");
   const [child, setChild] = useState(null);
@@ -565,6 +570,52 @@ export default function DevelopmentalDelayAssessmentForm() {
   const [remarks, setRemarks] = useState({});
   const [redFlags, setRedFlags] = useState({});
   const [tierComments, setTierComments] = useState({});
+
+  const [intervalEligibility, setIntervalEligibility] = useState(null);
+  const [isIntervalLocked, setIsIntervalLocked] = useState(false);
+
+  const checkExistingReport = async (targetChildId, assessId) => {
+    try {
+      const [reports, assList] = await Promise.all([
+        reportService.getByChildId(targetChildId).catch(() => []),
+        assessmentService.getByChildId(targetChildId).catch(() => [])
+      ]);
+
+      if (assessId) {
+        let match = (reports || []).find(
+          (r) => r.assessment_id === assessId || r.assessmentId === assessId
+        );
+        if (match) {
+          setIsReadOnly(true);
+          setExistingReport(match);
+          setIsIntervalLocked(false);
+          return true;
+        } else {
+          setIsReadOnly(false);
+          setExistingReport(null);
+          setIsIntervalLocked(false);
+          return false;
+        }
+      } else {
+        const eligibility = checkReassessmentEligibility(assList, reports);
+        setIntervalEligibility(eligibility);
+        if (Array.isArray(assList) && assList.length > 0 && !eligibility.eligible) {
+          setIsIntervalLocked(true);
+          setIsReadOnly(true);
+          setExistingReport(null);
+          return true;
+        } else {
+          setIsIntervalLocked(false);
+          setIsReadOnly(false);
+          setExistingReport(null);
+          return false;
+        }
+      }
+    } catch (err) {
+      console.warn("Check existing report error:", err);
+      return false;
+    }
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -591,6 +642,8 @@ export default function DevelopmentalDelayAssessmentForm() {
           setChild(found || null);
           autoSelectTierForChild(found);
 
+          await checkExistingReport(targetId, queryAssessmentId);
+
           if (queryAssessmentId) {
             try {
               let existing = await therapyAssessmentService.getById(queryAssessmentId, "developmental_delay");
@@ -612,7 +665,15 @@ export default function DevelopmentalDelayAssessmentForm() {
               console.warn("Could not load existing developmental delay assessment:", err);
             }
           } else {
-            loadDraft(targetId);
+            // New assessment mode: clean slate
+            setMilestones({});
+            setDatesObserved({});
+            setRemarks({});
+            setRedFlags({});
+            setTierComments({});
+            setCurrentAssessmentId(null);
+            setIsEditingExisting(false);
+            setAssessmentDate(new Date().toISOString().split("T")[0]);
           }
         }
       } catch (err) {
@@ -694,10 +755,12 @@ export default function DevelopmentalDelayAssessmentForm() {
     const found = allChildren.find((c) => c.id === newId);
     setChild(found || null);
     autoSelectTierForChild(found);
+    checkExistingReport(newId, null);
     loadDraft(newId);
   };
 
   const setMilestoneStatus = (itemId, status) => {
+    if (isReadOnly) return;
     setMilestones((prev) => {
       const next = { ...prev, [itemId]: status };
       let nextDates = datesObserved;
@@ -711,6 +774,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const setItemDate = (itemId, dateStr) => {
+    if (isReadOnly) return;
     setDatesObserved((prev) => {
       const next = { ...prev, [itemId]: dateStr };
       saveCurrentDraft(milestones, next, remarks, redFlags, tierComments, assessorNotes);
@@ -719,6 +783,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const setItemRemark = (itemId, text) => {
+    if (isReadOnly) return;
     setRemarks((prev) => {
       const next = { ...prev, [itemId]: text };
       saveCurrentDraft(milestones, datesObserved, next, redFlags, tierComments, assessorNotes);
@@ -727,6 +792,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const toggleRedFlag = (rfId) => {
+    if (isReadOnly) return;
     setRedFlags((prev) => {
       const next = { ...prev, [rfId]: !prev[rfId] };
       saveCurrentDraft(milestones, datesObserved, remarks, next, tierComments, assessorNotes);
@@ -735,6 +801,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const setTierComment = (tierId, comment) => {
+    if (isReadOnly) return;
     setTierComments((prev) => {
       const next = { ...prev, [tierId]: comment };
       saveCurrentDraft(milestones, datesObserved, remarks, redFlags, next, assessorNotes);
@@ -743,6 +810,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const handleQuickFillTier = (tier, status) => {
+    if (isReadOnly) return;
     setMilestones((prev) => {
       const next = { ...prev };
       const nextDates = { ...datesObserved };
@@ -761,6 +829,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const handleClearAll = () => {
+    if (isReadOnly) return;
     if (window.confirm("Are you sure you want to clear all milestone observations for this child?")) {
       setMilestones({});
       setDatesObserved({});
@@ -956,6 +1025,18 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const handleSubmit = async () => {
+    if (isIntervalLocked) {
+      showToast(
+        `Clinical Protocol: Re-assessments can only be taken once every 3 months. Next eligible date: ${intervalEligibility?.nextEligibleDateFormatted}`,
+        "warning"
+      );
+      return;
+    }
+    if (isReadOnly) {
+      showToast("A clinical report has already been generated for this assessment.", "info");
+      navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`);
+      return;
+    }
     if (!selectedChildId) {
       showToast("Please select a child before submitting.", "danger");
       return;
@@ -1004,6 +1085,7 @@ export default function DevelopmentalDelayAssessmentForm() {
   };
 
   const handleDeleteAssessment = async () => {
+    if (isReadOnly) return;
     if (window.confirm("Are you sure you want to delete this Developmental Delay checklist form? All entered milestone ratings will be permanently removed.")) {
       try {
         setSavingOnly(true);
@@ -1025,6 +1107,36 @@ export default function DevelopmentalDelayAssessmentForm() {
 
   return (
     <div className="space-y-6 text-[#2C2C2A]">
+      {/* ═══ READ-ONLY BANNER IF REPORT GENERATED ═══ */}
+      {isReadOnly && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-[12px] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 rounded-full text-amber-800 shrink-0 mt-0.5">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900">
+                Assessment Form Finalized — Clinical Report Generated
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                This developmental checklist is locked in view-only mode because a clinical report has already been generated. The assessment form can no longer be edited.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="primary"
+              icon={FileText}
+              className="bg-amber-800 hover:bg-amber-900 text-white font-bold"
+              onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+            >
+              View Generated Report
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ═══ TOP BREADCRUMB & HEADER ═══ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[12px] border border-[#D3D1C7] shadow-2xs">
         <div className="space-y-1">
@@ -1037,7 +1149,14 @@ export default function DevelopmentalDelayAssessmentForm() {
             <span className="text-[#854F0B] font-bold">Developmental Delay</span>
             <ChevronRight className="h-3.5 w-3.5" />
             <span className="text-[#2C2C2A] font-bold">Checklists Birth to Five</span>
-            {isEditingExisting && (
+            {isReadOnly ? (
+              <Badge
+                variant="green"
+                size="sm"
+                icon={CheckCircle2}
+                label="Report Generated (View-Only)"
+              />
+            ) : isEditingExisting && (
               <Badge
                 variant="blue"
                 size="sm"
@@ -1083,39 +1202,79 @@ export default function DevelopmentalDelayAssessmentForm() {
           >
             Print Checklist
           </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Trash2}
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-            disabled={savingOnly}
-            onClick={handleDeleteAssessment}
-            title="Delete this assessment"
-          >
-            Delete Form
-          </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Save}
-            loading={savingOnly}
-            onClick={handleSaveAssessmentOnly}
-            title="Save the checklist data without generating report"
-          >
-            Save Assessment
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            icon={Send}
-            className="bg-[#854F0B] hover:bg-[#683C07]"
-            onClick={() => setShowConfirmModal(true)}
-            title="Save assessment and submit report for review"
-          >
-            Generate Report & Submit for Review
-          </Button>
+          {isReadOnly ? (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={FileText}
+              className="bg-[#854F0B] hover:bg-[#683C07]"
+              onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+              title="View the generated clinical report"
+            >
+              View Generated Report
+            </Button>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Trash2}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                disabled={savingOnly}
+                onClick={handleDeleteAssessment}
+                title="Delete this assessment"
+              >
+                Delete Form
+              </Button>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Save}
+                loading={savingOnly}
+                onClick={handleSaveAssessmentOnly}
+                title="Save the checklist data without generating report"
+              >
+                Save Assessment
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={Send}
+                className="bg-[#854F0B] hover:bg-[#683C07]"
+                onClick={() => setShowConfirmModal(true)}
+                title="Save assessment and submit report for review"
+              >
+                Generate Report & Submit for Review
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* ═══ 3-MONTH INTERVAL PROTOCOL RESTRICTION BANNER ═══ */}
+      {isIntervalLocked && intervalEligibility && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <Clock className="h-7 w-7 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <h4 className="text-sm sm:text-base font-bold text-amber-950 leading-snug">
+                Clinical Protocol Restriction: 3-Month Re-assessment Interval Active
+              </h4>
+              <p className="text-xs sm:text-[13px] text-amber-800 font-medium mt-0.5">
+                Clinical reassessments can only be conducted once every 3 months. Previous assessment was conducted on <strong>{intervalEligibility.lastAssessmentDateFormatted}</strong>. Next eligible assessment: <strong className="underline text-amber-950">{intervalEligibility.nextEligibleDateFormatted}</strong> ({intervalEligibility.daysRemaining} days remaining).
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navigate(`/children/${selectedChildId}`)}
+            className="shrink-0 font-bold shadow-xs text-xs"
+          >
+            Back to Child Profile
+          </Button>
+        </div>
+      )}
 
       {/* ═══ PATIENT METADATA BAR ═══ */}
       <div className="bg-white p-4 rounded-[12px] border border-[#854F0B]/30 shadow-2xs space-y-3">
@@ -1126,8 +1285,13 @@ export default function DevelopmentalDelayAssessmentForm() {
             </label>
             <select
               value={selectedChildId}
+              disabled={isReadOnly}
               onChange={(e) => handleChildChange(e.target.value)}
-              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#854F0B] focus:bg-white cursor-pointer"
+              className={`w-full h-9 px-3 border rounded-[6px] text-xs font-bold outline-none focus:border-[#854F0B] ${
+                isReadOnly
+                  ? "bg-gray-100 border-gray-300 text-gray-700 cursor-not-allowed"
+                  : "bg-[#F8F8F6] border-[#D3D1C7] text-[#2C2C2A] focus:bg-white cursor-pointer"
+              }`}
             >
               {allChildren.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -1164,8 +1328,13 @@ export default function DevelopmentalDelayAssessmentForm() {
             <input
               type="date"
               value={assessmentDate}
+              disabled={isReadOnly}
               onChange={(e) => setAssessmentDate(e.target.value)}
-              className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#854F0B]"
+              className={`w-full h-9 px-3 border rounded-[6px] text-xs font-bold outline-none focus:border-[#854F0B] ${
+                isReadOnly
+                  ? "bg-gray-100 border-gray-300 text-gray-700 cursor-not-allowed"
+                  : "bg-[#F8F8F6] border-[#D3D1C7] text-[#2C2C2A]"
+              }`}
             />
           </div>
         </div>
@@ -1272,15 +1441,25 @@ export default function DevelopmentalDelayAssessmentForm() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => handleQuickFillTier(currentTier, "yes")}
-              className="px-3 py-1 text-xs font-bold bg-[#854F0B]/10 text-[#854F0B] hover:bg-[#854F0B]/20 rounded-[6px] cursor-pointer transition-colors"
+              disabled={isReadOnly}
+              onClick={() => !isReadOnly && handleQuickFillTier(currentTier, "yes")}
+              className={`px-3 py-1 text-xs font-bold rounded-[6px] transition-colors ${
+                isReadOnly
+                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  : "bg-[#854F0B]/10 text-[#854F0B] hover:bg-[#854F0B]/20 cursor-pointer"
+              }`}
             >
               Mark All Achieved
             </button>
             <button
               type="button"
-              onClick={handleClearAll}
-              className="px-3 py-1 text-xs font-bold text-[#D85A5A] hover:underline cursor-pointer flex items-center gap-1"
+              disabled={isReadOnly}
+              onClick={() => !isReadOnly && handleClearAll()}
+              className={`px-3 py-1 text-xs font-bold flex items-center gap-1 ${
+                isReadOnly
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-[#D85A5A] hover:underline cursor-pointer"
+              }`}
             >
               <RotateCcw className="h-3 w-3" />
               Reset
@@ -1340,49 +1519,64 @@ export default function DevelopmentalDelayAssessmentForm() {
 
                         {/* Achieved */}
                         <td
-                          onClick={() => setMilestoneStatus(it.id, "yes")}
-                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 cursor-pointer ${
-                            status === "yes" ? "bg-emerald-100 font-bold" : "hover:bg-emerald-50"
+                          onClick={() => !isReadOnly && setMilestoneStatus(it.id, "yes")}
+                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 ${
+                            isReadOnly ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            status === "yes" ? "bg-emerald-100 font-bold" : isReadOnly ? "" : "hover:bg-emerald-50"
                           }`}
                         >
                           <input
                             type="radio"
                             name={`milestone-${it.id}`}
                             checked={status === "yes"}
-                            onChange={() => setMilestoneStatus(it.id, "yes")}
-                            className="h-4 w-4 text-emerald-600 focus:ring-emerald-600 cursor-pointer accent-emerald-600"
+                            disabled={isReadOnly}
+                            onChange={() => !isReadOnly && setMilestoneStatus(it.id, "yes")}
+                            className={`h-4 w-4 text-emerald-600 focus:ring-emerald-600 accent-emerald-600 ${
+                              isReadOnly ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                            }`}
                           />
                         </td>
 
                         {/* Emerging */}
                         <td
-                          onClick={() => setMilestoneStatus(it.id, "emerging")}
-                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 cursor-pointer ${
-                            status === "emerging" ? "bg-blue-100 font-bold" : "hover:bg-blue-50"
+                          onClick={() => !isReadOnly && setMilestoneStatus(it.id, "emerging")}
+                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 ${
+                            isReadOnly ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            status === "emerging" ? "bg-blue-100 font-bold" : isReadOnly ? "" : "hover:bg-blue-50"
                           }`}
                         >
                           <input
                             type="radio"
                             name={`milestone-${it.id}`}
                             checked={status === "emerging"}
-                            onChange={() => setMilestoneStatus(it.id, "emerging")}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-600 cursor-pointer accent-blue-600"
+                            disabled={isReadOnly}
+                            onChange={() => !isReadOnly && setMilestoneStatus(it.id, "emerging")}
+                            className={`h-4 w-4 text-blue-600 focus:ring-blue-600 accent-blue-600 ${
+                              isReadOnly ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                            }`}
                           />
                         </td>
 
                         {/* Delayed / Not Achieved */}
                         <td
-                          onClick={() => setMilestoneStatus(it.id, "no")}
-                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 cursor-pointer ${
-                            status === "no" ? "bg-amber-100 font-bold" : "hover:bg-amber-50"
+                          onClick={() => !isReadOnly && setMilestoneStatus(it.id, "no")}
+                          className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 ${
+                            isReadOnly ? "cursor-default" : "cursor-pointer"
+                          } ${
+                            status === "no" ? "bg-amber-100 font-bold" : isReadOnly ? "" : "hover:bg-amber-50"
                           }`}
                         >
                           <input
                             type="radio"
                             name={`milestone-${it.id}`}
                             checked={status === "no"}
-                            onChange={() => setMilestoneStatus(it.id, "no")}
-                            className="h-4 w-4 text-amber-600 focus:ring-amber-600 cursor-pointer accent-amber-600"
+                            disabled={isReadOnly}
+                            onChange={() => !isReadOnly && setMilestoneStatus(it.id, "no")}
+                            className={`h-4 w-4 text-amber-600 focus:ring-amber-600 accent-amber-600 ${
+                              isReadOnly ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                            }`}
                           />
                         </td>
 
@@ -1391,8 +1585,11 @@ export default function DevelopmentalDelayAssessmentForm() {
                           <input
                             type="date"
                             value={dateVal}
+                            disabled={isReadOnly}
                             onChange={(e) => setItemDate(it.id, e.target.value)}
-                            className="w-full h-7 px-2 bg-white border border-[#D3D1C7] rounded-[4px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#854F0B]"
+                            className={`w-full h-7 px-2 border rounded-[4px] text-xs font-medium outline-none focus:border-[#854F0B] ${
+                              isReadOnly ? "bg-gray-100 text-gray-600 cursor-not-allowed" : "bg-white text-[#2C2C2A]"
+                            }`}
                           />
                         </td>
 
@@ -1401,9 +1598,12 @@ export default function DevelopmentalDelayAssessmentForm() {
                           <input
                             type="text"
                             value={remarkVal}
+                            disabled={isReadOnly}
                             onChange={(e) => setItemRemark(it.id, e.target.value)}
                             placeholder="Observations, support required..."
-                            className="w-full h-7 px-2 bg-white border border-[#D3D1C7] rounded-[4px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#854F0B]"
+                            className={`w-full h-7 px-2 border rounded-[4px] text-xs font-medium outline-none focus:border-[#854F0B] ${
+                              isReadOnly ? "bg-gray-100 text-gray-600 cursor-not-allowed" : "bg-white text-[#2C2C2A]"
+                            }`}
                           />
                         </td>
                       </tr>
@@ -1439,18 +1639,23 @@ export default function DevelopmentalDelayAssessmentForm() {
                   return (
                     <label
                       key={rf.id}
-                      onClick={() => toggleRedFlag(rf.id)}
-                      className={`flex items-start gap-2.5 p-2.5 rounded-[8px] border transition-all cursor-pointer select-none ${
+                      onClick={() => !isReadOnly && toggleRedFlag(rf.id)}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-[8px] border transition-all select-none ${
+                        isReadOnly ? "cursor-default" : "cursor-pointer"
+                      } ${
                         isFlagged
                           ? "bg-red-100 border-red-400 text-red-900 font-bold"
-                          : "bg-white border-[#D3D1C7] text-[#2C2C2A] hover:bg-red-50"
+                          : isReadOnly ? "bg-gray-50 border-gray-200 text-gray-600" : "bg-white border-[#D3D1C7] text-[#2C2C2A] hover:bg-red-50"
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={isFlagged}
-                        onChange={() => toggleRedFlag(rf.id)}
-                        className="h-4 w-4 rounded border-[#D3D1C7] text-red-600 focus:ring-red-600 accent-red-600 mt-0.5 shrink-0 cursor-pointer"
+                        disabled={isReadOnly}
+                        onChange={() => !isReadOnly && toggleRedFlag(rf.id)}
+                        className={`h-4 w-4 rounded border-[#D3D1C7] text-red-600 focus:ring-red-600 accent-red-600 mt-0.5 shrink-0 ${
+                          isReadOnly ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                        }`}
                       />
                       <span className="text-xs leading-relaxed">{rf.text}</span>
                     </label>
@@ -1469,9 +1674,12 @@ export default function DevelopmentalDelayAssessmentForm() {
           <textarea
             rows={3}
             value={tierComments[currentTier.id] || ""}
+            disabled={isReadOnly}
             onChange={(e) => setTierComment(currentTier.id, e.target.value)}
             placeholder={`Enter qualitative observations, parent feedback, or functional milestone status for ${currentTier.title}...`}
-            className="w-full p-2.5 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs text-[#2C2C2A] outline-none focus:border-[#854F0B] focus:bg-white"
+            className={`w-full p-2.5 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs text-[#2C2C2A] outline-none focus:border-[#854F0B] focus:bg-white ${
+              isReadOnly ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
+            }`}
           />
         </Card>
       </div>
@@ -1485,9 +1693,12 @@ export default function DevelopmentalDelayAssessmentForm() {
         <textarea
           rows={3}
           value={assessorNotes}
+          disabled={isReadOnly}
           onChange={(e) => setAssessorNotes(e.target.value)}
           placeholder="Record overall posture control, muscle tone, primitive reflexes, gait development, and rehabilitation priorities..."
-          className="w-full p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[8px] text-xs text-[#2C2C2A] outline-none focus:border-[#854F0B] focus:bg-white"
+          className={`w-full p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[8px] text-xs text-[#2C2C2A] outline-none focus:border-[#854F0B] focus:bg-white ${
+            isReadOnly ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
+          }`}
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-[#D3D1C7]">
@@ -1496,47 +1707,72 @@ export default function DevelopmentalDelayAssessmentForm() {
               Developmental Status: <span className="text-[#854F0B] font-mono">{stats.achievedCount} Milestones Achieved</span> ({stats.delayLevel})
             </p>
             <p className="text-[11px] text-[#5F5E5A]">
-              Submitting records this developmental checklist and selects targeted physiotherapy &amp; motor exercises.
+              {isReadOnly
+                ? "This assessment form is locked in view-only mode because a clinical report has already been generated."
+                : "Submitting records this developmental checklist and selects targeted physiotherapy & motor exercises."}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              size="md"
-              variant="outlined"
-              icon={Trash2}
-              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-              disabled={savingOnly}
-              onClick={handleDeleteAssessment}
-            >
-              Delete
-            </Button>
-            <Button
-              size="md"
-              variant="outlined"
-              onClick={() => navigate("/therapy")}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="md"
-              variant="outlined"
-              icon={Save}
-              loading={savingOnly}
-              onClick={handleSaveAssessmentOnly}
-            >
-              Save Assessment
-            </Button>
-            <Button
-              size="md"
-              variant="primary"
-              icon={Send}
-              className="bg-[#854F0B] hover:bg-[#683C07]"
-              loading={submitting}
-              onClick={() => setShowConfirmModal(true)}
-            >
-              Generate Report &amp; Submit for Review
-            </Button>
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+            {isReadOnly ? (
+              <>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  onClick={() => navigate("/therapy")}
+                >
+                  Back to Assessments
+                </Button>
+                <Button
+                  size="md"
+                  variant="primary"
+                  icon={FileText}
+                  className="bg-[#854F0B] hover:bg-[#683C07]"
+                  onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+                >
+                  View Generated Clinical Report
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  icon={Trash2}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  disabled={savingOnly}
+                  onClick={handleDeleteAssessment}
+                >
+                  Delete
+                </Button>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  onClick={() => navigate("/therapy")}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  icon={Save}
+                  loading={savingOnly}
+                  onClick={handleSaveAssessmentOnly}
+                >
+                  Save Assessment
+                </Button>
+                <Button
+                  size="md"
+                  variant="primary"
+                  icon={Send}
+                  className="bg-[#854F0B] hover:bg-[#683C07]"
+                  loading={submitting}
+                  onClick={() => setShowConfirmModal(true)}
+                >
+                  Generate Report &amp; Submit for Review
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Card>

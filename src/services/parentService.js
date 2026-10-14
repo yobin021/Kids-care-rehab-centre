@@ -97,6 +97,22 @@ export const parentService = {
     }
   },
 
+  async updatePortalStatus(childId, phone, portalActive) {
+    try {
+      const activeBool = Boolean(portalActive)
+      if (phone) {
+        await db.update('parent_accounts', { portal_active: activeBool }, { match: { phone: String(phone) } }).catch(() => {})
+      }
+      if (childId) {
+        await db.update('parent_accounts', { portal_active: activeBool }, { match: { child_id: childId } }).catch(() => {})
+      }
+      return true
+    } catch (err) {
+      console.warn('parentService.updatePortalStatus error:', err.message)
+      return false
+    }
+  },
+
   async logExercise(childId, parentId, exerciseId, feedback) {
     const today = new Date().toISOString().split('T')[0]
 

@@ -27,7 +27,7 @@ import Badge from "../components/ui/Badge";
 import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
 import { reportService } from "../services/reportService";
-import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem, resolveExerciseList } from "../services/exerciseService";
 import { childrenService } from "../services/childrenService";
 import { assessmentService } from "../services/assessmentService";
 import { printReportWithFilename } from "../utils/printHelpers";
@@ -592,35 +592,36 @@ export default function ReportGenerationEditor() {
               clinicEx: initialForm.exercises.clinicExercises,
               homeEx: initialForm.exercises.homeExercises
             };
+            const reportIdToUse = existingDbReport?.id || `rep-${targetId}-${Date.now()}`;
             if (nextStatus === "published") {
               localStorage.setItem(`report_published_${targetId}`, JSON.stringify(initPayload));
               try {
                 reportService.publish(
-                  null,
+                  reportIdToUse,
                   user?.name || "Senior Clinical Specialist",
                   user?.id || null,
                   initPayload
-                ).then((res) => {
-                  if (res?.id) {
-                    setFormState((prev) => ({ ...prev, reportId: res.id }));
-                  }
-                }).catch(() => {});
+                ).catch(() => {});
               } catch (_) {}
+              if (showToast) showToast("Report published to both Parent and Staff portals.", "success");
+              navigate(`/reports/${targetId}/therapist`, { replace: true });
             } else {
               localStorage.setItem(`report_draft_${targetId}`, JSON.stringify(initPayload));
               try {
                 reportService.submitForReview(
-                  `rep-${targetId}-${Date.now()}`,
+                  reportIdToUse,
                   user?.name || "Therapist",
                   user?.id || null,
                   initPayload
-                ).then((res) => {
-                  if (res?.id) {
-                    setFormState((prev) => ({ ...prev, reportId: res.id }));
-                  }
-                }).catch(() => {});
+                ).catch(() => {});
               } catch (_) {}
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
+              }
+              if (showToast) showToast("Clinical report generated and submitted for Admin review.", "success");
+              navigate(`/reports/${targetId}/therapist`, { replace: true });
             }
+            return;
           }
         }
       } catch (err) {
@@ -632,12 +633,17 @@ export default function ReportGenerationEditor() {
     return () => {
       isMounted = false;
     };
-  }, [targetId, queryAssessmentId, childrenList, searchParams]);
+  }, [targetId, queryAssessmentId, childrenList, searchParams, isAdmin, navigate, showToast, user]);
 
-  // Protect report editing — only admin can edit existing/published reports
+  // Protect report editing — once published, report CANNOT be edited by anyone
   useEffect(() => {
-    if (!isAdmin && (reportStatus === "published" || (reportStatus === "pending_review" && searchParams.get("submitForReview") !== "true"))) {
-      if (showToast) showToast("Only administrators can edit reports.", "info");
+    if (reportStatus === "published") {
+      if (showToast) showToast("This clinical report has already been published and cannot be edited.", "warning");
+      navigate(`/reports/${targetId}/therapist`, { replace: true });
+      return;
+    }
+    if (!isAdmin && reportStatus === "pending_review" && searchParams.get("submitForReview") !== "true") {
+      if (showToast) showToast("Only administrators can review and edit pending reports.", "info");
       navigate(`/reports/${targetId}/therapist`, { replace: true });
     }
   }, [isAdmin, reportStatus, targetId, navigate, showToast, searchParams]);
@@ -1500,8 +1506,8 @@ export default function ReportGenerationEditor() {
               </div>
 
               <div className="space-y-2">
-                {formState.exercises.clinicExercises.map((exName, idx) => {
-                  const exObj = resolveExerciseItem(exName, availableDbExercises);
+                {resolveExerciseList(formState.exercises.clinicExercises, availableDbExercises).map((exObj, idx) => {
+                  const exName = exObj?.name || formState.exercises.clinicExercises[idx];
                   return (
                     <div key={idx} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -1566,8 +1572,8 @@ export default function ReportGenerationEditor() {
               )}
 
               <div className="space-y-2">
-                {formState.exercises.homeExercises.map((exName, idx) => {
-                  const exObj = resolveExerciseItem(exName, availableDbExercises);
+                {resolveExerciseList(formState.exercises.homeExercises, availableDbExercises).map((exObj, idx) => {
+                  const exName = exObj?.name || formState.exercises.homeExercises[idx];
                   return (
                     <div key={idx} className="flex items-center justify-between p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]/60 text-xs font-bold">
                       <div className="flex items-center gap-2.5 min-w-0">

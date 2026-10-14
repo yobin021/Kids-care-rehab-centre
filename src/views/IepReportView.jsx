@@ -139,17 +139,12 @@ export default function IepReportView() {
             <p className="text-xs font-semibold text-[#5F5E5A]">{child?.name || "Student"}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isPublished && <Badge label="Published" variant="green" />}
           {isPending && <Badge label="Pending Review" variant="amber" />}
           {isAdmin && isPending && (
             <Button size="sm" icon={Edit3} onClick={() => navigate(`/iep/report/${reportId}/review`)}>
               Review & Publish
-            </Button>
-          )}
-          {isAdmin && isPublished && (
-            <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/iep/report/${reportId}/review`)}>
-              Edit Report
             </Button>
           )}
           <Button

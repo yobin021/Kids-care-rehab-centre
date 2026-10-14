@@ -42,7 +42,9 @@ import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
 import { therapyService } from "../services/therapyService";
 import { childAssignmentService } from "../services/childAssignmentService";
+import { reportService } from "../services/reportService";
 import { printReportWithFilename } from "../utils/printHelpers";
+import { checkReassessmentEligibility } from "../utils/reassessmentHelpers";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS & TEST BATTERY DATA
@@ -219,6 +221,8 @@ export default function LearningDisabilityAssessmentForm() {
   const queryAssessmentId = searchParams.get("assessmentId");
   const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || "");
   const [isEditingExisting, setIsEditingExisting] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [existingReport, setExistingReport] = useState(null);
 
   const [activeTab, setActiveTab] = useState("level1"); // "level1" | "level2" | "memory" | "summary"
   const [childrenList, setChildrenList] = useState([]);
@@ -228,6 +232,52 @@ export default function LearningDisabilityAssessmentForm() {
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
   const [savedAssessmentId, setSavedAssessmentId] = useState(queryAssessmentId || "");
   const [autoSavedTime, setAutoSavedTime] = useState(null);
+
+  const [intervalEligibility, setIntervalEligibility] = useState(null);
+  const [isIntervalLocked, setIsIntervalLocked] = useState(false);
+
+  const checkExistingReport = async (targetChildId, assessId) => {
+    try {
+      const [reports, assList] = await Promise.all([
+        reportService.getByChildId(targetChildId).catch(() => []),
+        assessmentService.getByChildId(targetChildId).catch(() => [])
+      ]);
+
+      if (assessId) {
+        let match = (reports || []).find(
+          (r) => r.assessment_id === assessId || r.assessmentId === assessId
+        );
+        if (match) {
+          setIsReadOnly(true);
+          setExistingReport(match);
+          setIsIntervalLocked(false);
+          return true;
+        } else {
+          setIsReadOnly(false);
+          setExistingReport(null);
+          setIsIntervalLocked(false);
+          return false;
+        }
+      } else {
+        const eligibility = checkReassessmentEligibility(assList, reports);
+        setIntervalEligibility(eligibility);
+        if (Array.isArray(assList) && assList.length > 0 && !eligibility.eligible) {
+          setIsIntervalLocked(true);
+          setIsReadOnly(true);
+          setExistingReport(null);
+          return true;
+        } else {
+          setIsIntervalLocked(false);
+          setIsReadOnly(false);
+          setExistingReport(null);
+          return false;
+        }
+      }
+    } catch (err) {
+      console.warn("Check existing report error:", err);
+      return false;
+    }
+  };
 
   // Visual Memory Stimulus Presentation Timer State
   const [presentingRow, setPresentingRow] = useState(null);
@@ -564,6 +614,8 @@ export default function LearningDisabilityAssessmentForm() {
     // Check database first: if a completed assessment exists in the DB, load it; otherwise clean stale local data
     async function checkDbAssessment() {
       try {
+        await checkExistingReport(selectedChildId, queryAssessmentId);
+
         if (queryAssessmentId) {
           let specific = await therapyAssessmentService.getById(queryAssessmentId, 'learning_disability');
           if (!specific) specific = await assessmentService.getById(queryAssessmentId);
@@ -582,20 +634,22 @@ export default function LearningDisabilityAssessmentForm() {
           }
         }
 
-        const records = await therapyAssessmentService.getByChildId(selectedChildId, 'learning_disability');
-        if (Array.isArray(records) && records.length > 0) {
-          const latest = records[0];
-          setSavedAssessmentId(latest.id);
-          setCurrentAssessmentId(latest.id);
-          setIsEditingExisting(true);
-          if (latest.form_data) {
-            if (latest.form_data.caseInfo) setCaseInfo(latest.form_data.caseInfo);
-            if (latest.form_data.level1Data) setLevel1Data(latest.form_data.level1Data);
-            if (latest.form_data.level2Data) setLevel2Data(latest.form_data.level2Data);
-            if (latest.form_data.memoryData) setMemoryData(latest.form_data.memoryData);
-            if (latest.form_data.diagnosticSummary) setDiagnosticSummary(latest.form_data.diagnosticSummary);
+        if (!searchParams.get("new") && !queryAssessmentId) {
+          const records = await therapyAssessmentService.getByChildId(selectedChildId, 'learning_disability');
+          if (Array.isArray(records) && records.length > 0) {
+            const latest = records[0];
+            setSavedAssessmentId(latest.id);
+            setCurrentAssessmentId(latest.id);
+            setIsEditingExisting(true);
+            if (latest.form_data) {
+              if (latest.form_data.caseInfo) setCaseInfo(latest.form_data.caseInfo);
+              if (latest.form_data.level1Data) setLevel1Data(latest.form_data.level1Data);
+              if (latest.form_data.level2Data) setLevel2Data(latest.form_data.level2Data);
+              if (latest.form_data.memoryData) setMemoryData(latest.form_data.memoryData);
+              if (latest.form_data.diagnosticSummary) setDiagnosticSummary(latest.form_data.diagnosticSummary);
+            }
+            return;
           }
-          return;
         }
       } catch (e) {
         console.warn("Check DB assessment notice:", e.message);
@@ -659,9 +713,9 @@ export default function LearningDisabilityAssessmentForm() {
     checkDbAssessment();
   }, [selectedChildId, childrenList, queryAssessmentId]);
 
-  // Auto-save draft on changes (ONLY if at least one sub-test has actually been administered)
+  // Auto-save draft on changes (ONLY if at least one sub-test has actually been administered and not in read-only mode)
   useEffect(() => {
-    if (!selectedChildId) return;
+    if (!selectedChildId || isReadOnly) return;
     // Do not auto-save an un-administered blank form as a draft
     if (!computedScores.hasAnyAdministered) return;
 
@@ -681,7 +735,7 @@ export default function LearningDisabilityAssessmentForm() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId, computedScores.hasAnyAdministered]);
+  }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId, computedScores.hasAnyAdministered, isReadOnly]);
 
   const buildLdPayload = (status = "completed") => {
     const childId = selectedChildId || `child_sld_${Date.now()}`;
@@ -719,6 +773,7 @@ export default function LearningDisabilityAssessmentForm() {
 
   // Handle Save Assessment (keeps user on form)
   const handleSaveAssessment = async () => {
+    if (isReadOnly) return;
     if (!selectedChildId && !caseInfo.name) {
       alert("Please select or enter the child's name before submitting.");
       return;
@@ -777,6 +832,16 @@ export default function LearningDisabilityAssessmentForm() {
 
   // Handle Generate Report & Submit for Review
   const handleGenerateAndSubmitReport = async () => {
+    if (isIntervalLocked) {
+      if (showToast) {
+        showToast(
+          `Clinical Protocol: Re-assessments can only be taken once every 3 months. Next eligible date: ${intervalEligibility?.nextEligibleDateFormatted}`,
+          "warning"
+        );
+      }
+      return;
+    }
+    if (isReadOnly) return;
     if (!selectedChildId && !caseInfo.name) {
       alert("Please select or enter the child's name before submitting.");
       return;
@@ -834,6 +899,7 @@ export default function LearningDisabilityAssessmentForm() {
   };
 
   const handleDeleteAssessment = async () => {
+    if (isReadOnly) return;
     if (confirm("Are you sure you want to delete this Learning Disability (SLD) assessment form? All entered battery test scores will be permanently removed.")) {
       try {
         setSaving(true);
@@ -863,6 +929,7 @@ export default function LearningDisabilityAssessmentForm() {
   };
 
   const handleResetDraft = () => {
+    if (isReadOnly) return;
     if (confirm("Are you sure you want to clear this assessment draft? All entered responses will be reset.")) {
       if (selectedChildId) {
         localStorage.removeItem(`ldst_draft_${selectedChildId}`);
@@ -874,6 +941,61 @@ export default function LearningDisabilityAssessmentForm() {
 
   return (
     <div className="space-y-6 text-[#1f2a24] max-w-6xl mx-auto pb-24">
+      {/* ═══ 3-MONTH INTERVAL PROTOCOL RESTRICTION BANNER ═══ */}
+      {isIntervalLocked && intervalEligibility && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-[12px] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <Clock className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-bold text-amber-950">
+                Clinical Protocol Restriction: 3-Month Re-assessment Interval Active
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Clinical reassessments can only be conducted once every 3 months. Previous assessment was conducted on <strong>{intervalEligibility.lastAssessmentDateFormatted}</strong>. Next eligible assessment: <strong className="underline text-amber-950">{intervalEligibility.nextEligibleDateFormatted}</strong> ({intervalEligibility.daysRemaining} days remaining).
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navigate(`/children/${selectedChildId}`)}
+            className="shrink-0 font-bold shadow-xs text-xs"
+          >
+            Back to Child Profile
+          </Button>
+        </div>
+      )}
+
+      {/* ═══ READ-ONLY BANNER IF REPORT GENERATED ═══ */}
+      {!isIntervalLocked && isReadOnly && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-[12px] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 rounded-full text-amber-800 shrink-0 mt-0.5">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900">
+                Assessment Form Finalized — Clinical Report Generated
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                This learning disability screening form is locked in view-only mode because a clinical report has already been generated. The assessment form can no longer be edited.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="primary"
+              icon={FileText}
+              className="bg-amber-800 hover:bg-amber-900 text-white font-bold"
+              onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+            >
+              View Generated Report
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ════════════ TOP HEADER BAR ════════════ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[12px] border border-[#d9e0da] shadow-xs print:hidden">
         <div className="flex items-center gap-3.5">
@@ -903,14 +1025,14 @@ export default function LearningDisabilityAssessmentForm() {
           <div
             className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold"
             style={{
-              backgroundColor: savedAssessmentId ? "#e7f1ec" : computedScores.hasAnyAdministered ? "#FEF3C7" : "#F3F4F6",
-              color: savedAssessmentId ? "#0F6E56" : computedScores.hasAnyAdministered ? "#854F0B" : "#5F5E5A",
-              borderColor: savedAssessmentId ? "#0F6E56" : computedScores.hasAnyAdministered ? "#854F0B" : "#D1D5DB"
+              backgroundColor: isReadOnly ? "#e7f1ec" : savedAssessmentId ? "#e7f1ec" : computedScores.hasAnyAdministered ? "#FEF3C7" : "#F3F4F6",
+              color: isReadOnly ? "#0F6E56" : savedAssessmentId ? "#0F6E56" : computedScores.hasAnyAdministered ? "#854F0B" : "#5F5E5A",
+              borderColor: isReadOnly ? "#0F6E56" : savedAssessmentId ? "#0F6E56" : computedScores.hasAnyAdministered ? "#854F0B" : "#D1D5DB"
             }}
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                savedAssessmentId
+                isReadOnly || savedAssessmentId
                   ? "bg-emerald-600"
                   : computedScores.hasAnyAdministered
                   ? "bg-amber-500 animate-pulse"
@@ -918,7 +1040,9 @@ export default function LearningDisabilityAssessmentForm() {
               }`}
             />
             <span>
-              {savedAssessmentId
+              {isReadOnly
+                ? "Report Generated (View-Only)"
+                : savedAssessmentId
                 ? "Assessment Completed"
                 : computedScores.hasAnyAdministered
                 ? "Assessment In Progress"
@@ -926,7 +1050,7 @@ export default function LearningDisabilityAssessmentForm() {
             </span>
           </div>
 
-          {isEditingExisting && (
+          {!isReadOnly && isEditingExisting && (
             <Badge
               variant="blue"
               size="sm"
@@ -935,50 +1059,66 @@ export default function LearningDisabilityAssessmentForm() {
             />
           )}
 
-          {autoSavedTime && (
+          {autoSavedTime && !isReadOnly && (
             <span className="text-[11px] font-semibold text-[#4b5a52] bg-[#f3f6f2] px-2.5 py-1 rounded-full border border-[#d9e0da] flex items-center gap-1">
               <Clock className="h-3 w-3 text-[#2f6f5e]" />
               {autoSavedTime}
             </span>
           )}
-          <Button size="sm" variant="outlined" icon={RotateCcw} onClick={handleResetDraft}>
-            Reset
-          </Button>
-          <Button size="sm" variant="outlined" icon={Printer} onClick={handlePrint}>
-            Print Report
-          </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Trash2}
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-            disabled={saving}
-            onClick={handleDeleteAssessment}
-            title="Delete this assessment"
-          >
-            Delete Form
-          </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Save}
-            onClick={handleSaveAssessment}
-            disabled={saving}
-            title="Save the assessment data without generating report"
-          >
-            {saving ? "Saving..." : "Save Assessment"}
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            icon={Send}
-            className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
-            onClick={handleGenerateAndSubmitReport}
-            disabled={saving}
-            title="Save assessment and submit report for review"
-          >
-            Generate Report &amp; Submit for Review
-          </Button>
+
+          {isReadOnly ? (
+            <Button
+              size="sm"
+              variant="primary"
+              icon={FileText}
+              className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
+              onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+              title="View the generated clinical report"
+            >
+              View Generated Report
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" variant="outlined" icon={RotateCcw} onClick={handleResetDraft}>
+                Reset
+              </Button>
+              <Button size="sm" variant="outlined" icon={Printer} onClick={handlePrint}>
+                Print Report
+              </Button>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Trash2}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                disabled={saving}
+                onClick={handleDeleteAssessment}
+                title="Delete this assessment"
+              >
+                Delete Form
+              </Button>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Save}
+                onClick={handleSaveAssessment}
+                disabled={saving}
+                title="Save the assessment data without generating report"
+              >
+                {saving ? "Saving..." : "Save Assessment"}
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={Send}
+                className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
+                onClick={handleGenerateAndSubmitReport}
+                disabled={saving}
+                title="Save assessment and submit report for review"
+              >
+                Generate Report &amp; Submit for Review
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -997,8 +1137,13 @@ export default function LearningDisabilityAssessmentForm() {
               <label className="text-[11px] font-bold text-[#4b5a52]">Select Student:</label>
               <select
                 value={selectedChildId}
+                disabled={isReadOnly}
                 onChange={(e) => setSelectedChildId(e.target.value)}
-                className="text-xs font-semibold bg-[#fbfaf6] border border-[#d9e0da] rounded-md px-2.5 py-1 text-[#1f2a24] focus:outline-none focus:border-[#2f6f5e]"
+                className={`text-xs font-semibold border rounded-md px-2.5 py-1 focus:outline-none focus:border-[#2f6f5e] ${
+                  isReadOnly
+                    ? "bg-gray-100 text-gray-600 border-gray-300 cursor-not-allowed"
+                    : "bg-[#fbfaf6] border-[#d9e0da] text-[#1f2a24]"
+                }`}
               >
                 <option value="">-- Choose registered child --</option>
                 {childrenList.map((c) => (
@@ -2453,40 +2598,63 @@ export default function LearningDisabilityAssessmentForm() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outlined"
-              icon={Trash2}
-              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-              disabled={saving}
-              onClick={handleDeleteAssessment}
-            >
-              Delete
-            </Button>
-            <Button size="sm" variant="outlined" icon={Printer} onClick={handlePrint}>
-              Print Report
-            </Button>
-            <Button
-              size="sm"
-              variant="outlined"
-              icon={Save}
-              className="px-4"
-              onClick={handleSaveAssessment}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save Assessment"}
-            </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              icon={Send}
-              className="bg-[#2f6f5e] hover:bg-[#23584a] text-white px-5"
-              onClick={handleGenerateAndSubmitReport}
-              disabled={saving}
-            >
-              Generate Report &amp; Submit for Review
-            </Button>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+            {isReadOnly ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outlined"
+                  onClick={() => navigate("/therapy")}
+                >
+                  Back to Assessments
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={FileText}
+                  className="bg-[#2f6f5e] hover:bg-[#23584a] text-white px-5"
+                  onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+                >
+                  View Generated Clinical Report
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="outlined"
+                  icon={Trash2}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  disabled={saving}
+                  onClick={handleDeleteAssessment}
+                >
+                  Delete
+                </Button>
+                <Button size="sm" variant="outlined" icon={Printer} onClick={handlePrint}>
+                  Print Report
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outlined"
+                  icon={Save}
+                  className="px-4"
+                  onClick={handleSaveAssessment}
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save Assessment"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={Send}
+                  className="bg-[#2f6f5e] hover:bg-[#23584a] text-white px-5"
+                  onClick={handleGenerateAndSubmitReport}
+                  disabled={saving}
+                >
+                  Generate Report &amp; Submit for Review
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

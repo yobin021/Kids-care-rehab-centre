@@ -258,8 +258,8 @@ export default function ChildrenList() {
 
             {/* Assignment Status Filter (Admin Only) */}
             {isAdmin && (
-              <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                <span className="text-[11px] font-bold text-[#5F5E5A] uppercase tracking-wider mr-1">Assignment:</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll no-scrollbar touch-pan-x flex-nowrap w-full sm:w-auto pb-1">
+                <span className="text-[11px] font-bold text-[#5F5E5A] uppercase tracking-wider mr-1 shrink-0">Assignment:</span>
                 {[
                   { id: "all", label: "All Statuses" },
                   { id: "assigned", label: "Assigned to Staff" },
@@ -268,7 +268,7 @@ export default function ChildrenList() {
                   <button
                     key={af.id}
                     onClick={() => setAssignmentFilter(af.id)}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold cursor-pointer transition-all ${
+                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold cursor-pointer transition-all whitespace-nowrap shrink-0 active:scale-95 ${
                       assignmentFilter === af.id
                         ? "bg-[#0F6E56] text-white"
                         : "bg-[#F8F8F6] text-[#5F5E5A] hover:bg-slate-200 border border-[#D3D1C7]"
@@ -282,7 +282,7 @@ export default function ChildrenList() {
           </div>
 
           {/* Program Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full pb-1 pt-1 border-t border-[#D3D1C7]/50">
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll no-scrollbar touch-pan-x flex-nowrap w-full pb-1 pt-1 border-t border-[#D3D1C7]/50">
             <span className="text-[11px] font-bold text-[#5F5E5A] uppercase tracking-wider mr-1 shrink-0">Program:</span>
             {[
               { id: "all", label: "All Students" },
@@ -295,7 +295,7 @@ export default function ChildrenList() {
               <button
                 key={f.id}
                 onClick={() => setSelectedFilter(f.id)}
-                className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-95 ${
                   selectedFilter === f.id
                     ? "bg-[#185FA5] text-white shadow-xs"
                     : "bg-[#F8F8F6] text-[#5F5E5A] hover:bg-slate-200 border border-[#D3D1C7]"
@@ -473,7 +473,7 @@ export default function ChildrenList() {
                       })()}
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-[#D3D1C7]/60">
+                    <div className={`grid ${isAdmin ? "grid-cols-3" : "grid-cols-2"} gap-2 pt-2 border-t border-[#D3D1C7]/60`}>
                       {isAdmin && (
                         <Button
                           variant="outlined"
@@ -481,12 +481,20 @@ export default function ChildrenList() {
                           fullWidth
                           icon={UserCheck}
                           onClick={() => handleOpenForward(c)}
-                          className="text-[#0F6E56] border-[#0F6E56]/40"
+                          className="text-[#0F6E56] border-[#0F6E56]/40 px-1 text-[11px] justify-center"
+                          title="Manage Staff Access"
                         >
-                          Permissions
+                          Perms
                         </Button>
                       )}
-                      <Button variant="outlined" size="sm" fullWidth icon={Eye} onClick={() => navigate(`/children/${c.id}`)}>
+                      <Button
+                        variant="outlined"
+                        size="sm"
+                        fullWidth
+                        icon={Eye}
+                        onClick={() => navigate(`/children/${c.id}`)}
+                        className="justify-center text-[11px] px-1"
+                      >
                         Profile
                       </Button>
                       <Button
@@ -494,8 +502,9 @@ export default function ChildrenList() {
                         fullWidth
                         icon={FilePlus}
                         onClick={() => navigate(childCat.assessmentRoute)}
+                        className="justify-center text-[11px] px-1"
                       >
-                        + Assessment
+                        Assess
                       </Button>
                     </div>
                   </Card>

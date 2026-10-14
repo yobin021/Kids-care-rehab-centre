@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -25,8 +25,9 @@ import {
   Share2,
   MessageSquare,
   ShieldAlert,
-  Check,
-  Trash2
+  Trash2,
+  Dumbbell,
+  Home
 } from "lucide-react";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -40,7 +41,7 @@ import { childAssignmentService } from "../services/childAssignmentService";
 import { parentService } from "../services/parentService";
 import { assessmentService } from "../services/assessmentService";
 import { reportService } from "../services/reportService";
-import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
+import { exerciseService, resolveExerciseItem, resolveExerciseList } from "../services/exerciseService";
 import { MASTER_EXERCISES } from "../data/exercisesData";
 import { authService } from "../services/authService";
 import { appointmentService } from "../services/appointmentService";
@@ -48,6 +49,8 @@ import { hashPassword } from "../services/passwordService";
 import { BookAppointmentModal, AppointmentDetailModal } from "./AppointmentsPage";
 import { formatAppointmentDate, formatAppointmentTime, getTypeStyle, getStatusStyle, getTypeLabel, getStatusLabel, isToday, isPast } from "../utils/appointmentHelpers";
 import { detectChildCategory } from "../utils/categoryHelpers";
+import { checkReassessmentEligibility } from "../utils/reassessmentHelpers";
+import { db } from "../lib/db";
 
 export default function ChildProfile() {
   const { id } = useParams();
@@ -66,6 +69,7 @@ export default function ChildProfile() {
     getAuthorizedStaff,
     assignments,
     childrenList: contextChildren,
+    deleteRegisteredChild,
     showToast
   } = useAuth();
 
@@ -76,6 +80,11 @@ export default function ChildProfile() {
   const [pendingReports, setPendingReports] = useState([]);
   const [parentMessages, setParentMessages] = useState([]);
 
+  // 3-Month Re-assessment Interval Eligibility
+  const reassessmentEligibility = useMemo(() => {
+    return checkReassessmentEligibility(assessments, reports, data?.lastReportDate);
+  }, [assessments, reports, data?.lastReportDate]);
+
   // Multi-Staff Permissions & Assignment State
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedStaffToAdd, setSelectedStaffToAdd] = useState("");
@@ -84,6 +93,53 @@ export default function ChildProfile() {
   const [isRemovingStaff, setIsRemovingStaff] = useState(false);
   const [currentAssignment, setCurrentAssignment] = useState(() => childAssignmentService.getAssignment(id));
   const [authorizedStaffList, setAuthorizedStaffList] = useState(() => childAssignmentService.getAuthorizedStaff(id));
+
+  // Delete Child Profile State (Admin Only)
+  const [showDeleteChildModal, setShowDeleteChildModal] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [isDeletingChild, setIsDeletingChild] = useState(false);
+
+  const isDeleteNameMatched =
+    Boolean(data?.name) &&
+    deleteConfirmName.trim().length > 0 &&
+    deleteConfirmName.trim().toLowerCase() === data.name.trim().toLowerCase();
+
+  const handleDeleteChildProfile = async () => {
+    if (!isAdmin) {
+      showToast("Access Denied: Only administrators can delete child profiles.", "danger");
+      return;
+    }
+
+    if (!isDeleteNameMatched) {
+      showToast("Child name does not match. Please type the exact name to confirm deletion.", "danger");
+      return;
+    }
+
+    const targetId = id || data?.id;
+    if (!targetId) return;
+
+    try {
+      setIsDeletingChild(true);
+      await childrenService.delete(targetId);
+
+      // Clean up local assignments
+      try {
+        childAssignmentService.deleteAssignment(targetId);
+      } catch (_) {}
+
+      if (typeof deleteRegisteredChild === "function") {
+        deleteRegisteredChild(targetId);
+      }
+
+      showToast(`Child profile for "${data?.name}" has been permanently deleted.`, "success");
+      setShowDeleteChildModal(false);
+      navigate("/children", { replace: true });
+    } catch (err) {
+      console.error("Failed to delete child profile:", err);
+      showToast(`Failed to delete profile: ${err.message || "Unknown error"}`, "danger");
+      setIsDeletingChild(false);
+    }
+  };
 
   useEffect(() => {
     const targetId = id || data?.id;
@@ -368,8 +424,8 @@ export default function ChildProfile() {
         }
 
         if (cIds.length > 0 || hIds.length > 0) {
-          const cList = cIds.map((item) => resolveExerciseItem(item, MASTER_EXERCISES)).filter(Boolean);
-          const hList = hIds.map((item) => resolveExerciseItem(item, MASTER_EXERCISES)).filter(Boolean);
+          const cList = resolveExerciseList(cIds, MASTER_EXERCISES);
+          const hList = resolveExerciseList(hIds, MASTER_EXERCISES);
           setClinicExercisesList(cList);
           setHomeExercisesList(hList);
         } else {
@@ -478,8 +534,8 @@ export default function ChildProfile() {
 
       const available = (await exerciseService.getAll()) || [];
 
-      const clinicList = clinicIds.map(item => resolveExerciseItem(item, available)).filter(Boolean);
-      const homeList = homeIds.map(item => resolveExerciseItem(item, available)).filter(Boolean);
+      const clinicList = resolveExerciseList(clinicIds, available);
+      const homeList = resolveExerciseList(homeIds, available);
 
       setClinicExercisesList(clinicList);
       setHomeExercisesList(homeList);
@@ -660,12 +716,13 @@ export default function ChildProfile() {
     try {
       const childId = id || data?.id;
       const targetPhone = portalPhone || data?.parent?.phone || data?.parent_accounts?.phone;
-      if (targetPhone) {
-        await db.update('parent_accounts', { portal_active: nextStatus }, { match: { phone: String(targetPhone) } }).catch(() => {});
+      
+      try {
+        await parentService.updatePortalStatus(childId, targetPhone, nextStatus);
+      } catch (dbErr) {
+        console.warn("parentService.updatePortalStatus notice:", dbErr.message);
       }
-      if (childId) {
-        await db.update('parent_accounts', { portal_active: nextStatus }, { match: { child_id: childId } }).catch(() => {});
-      }
+
       setData((prev) => ({
         ...prev,
         parent: {
@@ -677,15 +734,26 @@ export default function ChildProfile() {
           portal_active: nextStatus
         }
       }));
+
       if (typeof window !== "undefined") {
         try {
           const registered = JSON.parse(localStorage.getItem("kcr_registered_children") || "[]");
-          const updated = registered.map(c => c.id === childId ? { ...c, parent: { ...(c.parent || {}), portalActive: nextStatus } } : c);
+          const updated = registered.map(c =>
+            c.id === childId
+              ? {
+                  ...c,
+                  parent: { ...(c.parent || {}), portalActive: nextStatus },
+                  parent_accounts: { ...(c.parent_accounts || {}), portal_active: nextStatus }
+                }
+              : c
+          );
           localStorage.setItem("kcr_registered_children", JSON.stringify(updated));
         } catch (_) {}
       }
+
       showToast(nextStatus ? "Parent portal access activated!" : "Parent portal access deactivated.", "success");
     } catch (err) {
+      console.error("Failed to update status:", err);
       showToast("Failed to update status: " + err.message, "error");
     }
   };
@@ -850,53 +918,60 @@ export default function ChildProfile() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid grid-cols-2 xs:flex xs:items-center gap-2 w-full md:w-auto">
           {isAdmin && (
             <Button
               variant="outlined"
               size="sm"
               icon={UserCheck}
-              className="border-[#0F6E56] text-[#0F6E56] hover:bg-emerald-50 font-bold"
+              className="border-[#0F6E56] text-[#0F6E56] hover:bg-emerald-50 font-bold justify-center"
               onClick={() => setShowPermissionsModal(true)}
               title="Manage staff members who can view this child profile"
             >
               Staff Permissions
             </Button>
           )}
-          <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/children/${data?.id}/edit`)}>
+          <Button
+            variant="outlined"
+            size="sm"
+            icon={Edit3}
+            className="justify-center"
+            onClick={() => navigate(`/children/${data?.id}/edit`)}
+          >
             Edit Child
           </Button>
-          {childCat.isIep ? (
-            <>
-              <Button variant="outlined" size="sm" icon={ClipboardList} onClick={() => navigate(`/iep/${data?.id}`)}>
-                IEP History
-              </Button>
-              <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(childCat.assessmentRoute)}>
-                + New Assessment
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="primary"
-                size="sm"
-                icon={childCat.category === 'developmental_delay' ? Clock : childCat.category === 'adhd' ? Zap : childCat.category === 'learning_disability' ? BookOpen : Brain}
-                style={{ backgroundColor: childCat.themeColor }}
-                onClick={() => navigate(childCat.assessmentRoute)}
-              >
-                {childCat.assessmentName}
-              </Button>
-              <Button variant="secondary" size="sm" icon={PlusCircle} onClick={() => navigate(`/reports/new/${data?.id}`)}>
-                + New Report
-              </Button>
-            </>
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={Trash2}
+              className="border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400 font-bold justify-center col-span-2 xs:col-span-1"
+              onClick={() => {
+                setDeleteConfirmName("");
+                setShowDeleteChildModal(true);
+              }}
+              title="Permanently delete this child profile (Admin only)"
+            >
+              Delete Profile
+            </Button>
+          )}
+          {childCat.isIep && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={ClipboardList}
+              className="justify-center col-span-2 xs:col-span-1"
+              onClick={() => navigate(`/iep/${data?.id}`)}
+            >
+              IEP History
+            </Button>
           )}
         </div>
       </div>
 
 
       {/* Tabs Row */}
-      <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center gap-1 overflow-x-auto">
+      <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center gap-1 overflow-x-auto touch-scroll no-scrollbar touch-pan-x">
         {[
           { id: "overview", label: "Overview" },
           { id: "assessments", label: `Assessments (${assessments.length})` },
@@ -913,7 +988,7 @@ export default function ChildProfile() {
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`px-5 py-2 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            className={`shrink-0 px-4 py-2 sm:px-5 rounded-[8px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
               activeTab === t.id
                 ? "bg-[#185FA5] text-white shadow-xs"
                 : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6] hover:text-[#2C2C2A]"
@@ -927,9 +1002,9 @@ export default function ChildProfile() {
       {/* Overview Tab */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <Card title="Child Details">
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 text-xs">
                 <div><span className="text-[#9B9A96] block uppercase text-[10px] font-bold">Full Name</span> <strong>{data?.name}</strong></div>
                 <div><span className="text-[#9B9A96] block uppercase text-[10px] font-bold">Child ID</span> <strong className="font-mono">{data?.id}</strong></div>
                 <div><span className="text-[#9B9A96] block uppercase text-[10px] font-bold">Date of Birth</span> <strong>{data?.date_of_birth || data?.dob || "N/A"}</strong></div>
@@ -955,23 +1030,77 @@ export default function ChildProfile() {
       {/* Assessments Tab */}
       {activeTab === "assessments" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2 bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs">
             <div>
               <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical Assessment History</h3>
               <p className="text-xs text-[#5F5E5A]">Evaluations and milestone progress records for {childCat.categoryLabel}</p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                size="sm"
-                variant="primary"
-                icon={childCat.isIep ? ClipboardList : (childCat.category === 'developmental_delay' ? Clock : childCat.category === 'adhd' ? Zap : childCat.category === 'learning_disability' ? BookOpen : Brain)}
-                style={{ backgroundColor: childCat.themeColor }}
-                onClick={() => navigate(childCat.assessmentRoute)}
-              >
-                + {childCat.shortAssessmentName}
-              </Button>
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+              {assessments.length === 0 ? (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={childCat.isIep ? ClipboardList : (childCat.category === 'developmental_delay' ? Clock : childCat.category === 'adhd' ? Zap : childCat.category === 'learning_disability' ? BookOpen : Brain)}
+                  style={{ backgroundColor: childCat.themeColor }}
+                  onClick={() => navigate(`${childCat.assessmentRoute}?new=true`)}
+                >
+                  + Perform Initial {childCat.shortAssessmentName}
+                </Button>
+              ) : reassessmentEligibility.eligible ? (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={childCat.isIep ? ClipboardList : (childCat.category === 'developmental_delay' ? Clock : childCat.category === 'adhd' ? Zap : childCat.category === 'learning_disability' ? BookOpen : Brain)}
+                  style={{ backgroundColor: childCat.themeColor }}
+                  onClick={() => navigate(`${childCat.assessmentRoute}?new=true`)}
+                  title="3-month clinical interval satisfied. Ready for next evaluation cycle."
+                >
+                  + Perform Re-assessment (Cycle {assessments.length + 1})
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={Clock}
+                  onClick={() => {
+                    showToast(
+                      `Clinical Protocol: Re-assessments can only be taken once every 3 months. Next eligible re-assessment for ${data?.name || "this child"} is on ${reassessmentEligibility.nextEligibleDateFormatted} (${reassessmentEligibility.daysRemaining} days remaining).`,
+                      "info"
+                    );
+                  }}
+                  className="bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100"
+                  title={`3-month cycle active. Next eligible date: ${reassessmentEligibility.nextEligibleDateFormatted}`}
+                >
+                  🔒 Next Re-assessment in {reassessmentEligibility.daysRemaining}d
+                </Button>
+              )}
             </div>
           </div>
+
+          {/* 3-Month Interval Protocol Banner */}
+          {assessments.length > 0 && (
+            reassessmentEligibility.eligible ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-[10px] p-3 text-xs text-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>3-Month Re-assessment Cycle Open:</strong> Previous assessment was on <strong>{reassessmentEligibility.lastAssessmentDateFormatted}</strong> (over 3 months ago). Eligible for Cycle {assessments.length + 1} evaluation.
+                  </span>
+                </div>
+                <Badge label="Cycle Open" variant="green" size="sm" />
+              </div>
+            ) : (
+              <div className="bg-amber-50/80 border border-amber-200 rounded-[10px] p-3 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>
+                    <strong>3-Month Re-assessment Protocol Active:</strong> Previous assessment completed on <strong>{reassessmentEligibility.lastAssessmentDateFormatted}</strong>. Next eligible re-assessment opens on <strong className="underline text-amber-950">{reassessmentEligibility.nextEligibleDateFormatted}</strong> ({reassessmentEligibility.daysRemaining} days remaining).
+                  </span>
+                </div>
+                <Badge label={`Eligible in ${reassessmentEligibility.daysRemaining}d`} variant="amber" size="sm" />
+              </div>
+            )
+          )}
 
           {assessments.length === 0 ? (
             <Card padding="p-8">
@@ -1008,6 +1137,12 @@ export default function ChildProfile() {
                   ? 'ISAA Autism Assessment'
                   : 'IEP Special School Assessment';
 
+                // Check if a report has been generated specifically for this assessment instance (1:1 constraint)
+                const allAvailableReports = [...(reports || []), ...(pendingReports || [])];
+                const matchingReport = allAvailableReports.find((r) => r.assessment_id === ass.id || r.assessmentId === ass.id);
+                const hasReport = Boolean(matchingReport);
+                const isReportPublished = matchingReport?.status === "published" || matchingReport?.review_status === "published";
+
                 return (
                   <div key={ass.id || idx} className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
@@ -1017,8 +1152,8 @@ export default function ChildProfile() {
                           Assessment Date: {ass.assessment_date || ass.created_at?.split("T")[0] || new Date().toISOString().split("T")[0]}
                         </span>
                         <Badge
-                          label={ass.status === "completed" ? "Completed" : ass.status === "draft" ? "Draft / In Progress" : ass.status || "In Progress"}
-                          variant={ass.status === "completed" ? "green" : ass.status === "draft" ? "amber" : "blue"}
+                          label={hasReport ? (isReportPublished ? "Report Published" : "Report Generated / In Review") : (ass.status === "completed" ? "Completed" : ass.status === "draft" ? "Draft / In Progress" : ass.status || "In Progress")}
+                          variant={hasReport ? (isReportPublished ? "green" : "amber") : (ass.status === "completed" ? "green" : "amber")}
                           size="sm"
                         />
                       </div>
@@ -1036,30 +1171,86 @@ export default function ChildProfile() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        size="sm"
-                        variant="outlined"
-                        icon={Edit3}
-                        onClick={() => {
-                          let editRoute = `/assessment/new/${data?.id}?assessmentId=${ass.id}`;
-                          if (isDelayAss) editRoute = `/therapy/delay/assessment/${data?.id}?assessmentId=${ass.id}`;
-                          else if (isAdhdAss) editRoute = `/therapy/adhd/assessment/${data?.id}?assessmentId=${ass.id}`;
-                          else if (isLdstAss) editRoute = `/therapy/sld/assessment/${data?.id}?assessmentId=${ass.id}`;
-                          else if (isAsdAss) editRoute = `/therapy/asd/assessment/${data?.id}?assessmentId=${ass.id}`;
-                          navigate(editRoute);
-                        }}
-                        className="border-[#185FA5] text-[#185FA5] hover:bg-blue-50"
-                      >
-                        Edit Assessment
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outlined"
-                        icon={FileText}
-                        onClick={() => navigate(`/reports/new/${data?.id}?assessmentId=${ass.id}`)}
-                      >
-                        Create / View Report
-                      </Button>
+                      {hasReport ? (
+                        <Button
+                          size="sm"
+                          variant="outlined"
+                          icon={Eye}
+                          onClick={() => {
+                            let viewRoute = `/assessment/new/${data?.id}?assessmentId=${ass.id}`;
+                            if (isDelayAss) viewRoute = `/therapy/delay/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            else if (isAdhdAss) viewRoute = `/therapy/adhd/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            else if (isLdstAss) viewRoute = `/therapy/sld/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            else if (isAsdAss) viewRoute = `/therapy/asd/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            navigate(viewRoute);
+                          }}
+                          className="border-[#185FA5] text-[#185FA5] hover:bg-blue-50"
+                          title="Assessment form finalized. View only mode."
+                        >
+                          View Assessment
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outlined"
+                          icon={Edit3}
+                          onClick={() => {
+                            let editRoute = `/assessment/new/${data?.id}?assessmentId=${ass.id}`;
+                            if (isDelayAss) editRoute = `/therapy/delay/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            else if (isAdhdAss) editRoute = `/therapy/adhd/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            else if (isLdstAss) editRoute = `/therapy/sld/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            else if (isAsdAss) editRoute = `/therapy/asd/assessment/${data?.id}?assessmentId=${ass.id}`;
+                            navigate(editRoute);
+                          }}
+                          className="border-[#185FA5] text-[#185FA5] hover:bg-blue-50"
+                        >
+                          Edit Assessment
+                        </Button>
+                      )}
+
+                      {hasReport ? (
+                        isReportPublished ? (
+                          <Button
+                            size="sm"
+                            variant="outlined"
+                            icon={CheckCircle2}
+                            onClick={() => navigate(matchingReport.iep_report ? `/iep/report/${matchingReport.id}` : `/reports/${matchingReport.id || data?.id}/therapist`)}
+                            className="border-[#0F6E56] text-[#0F6E56] hover:bg-emerald-50"
+                          >
+                            View Clinical Report
+                          </Button>
+                        ) : isAdmin ? (
+                          <Button
+                            size="sm"
+                            variant="outlined"
+                            icon={Edit3}
+                            onClick={() => navigate(`/reports/${matchingReport.id || data?.id}/review`)}
+                            className="border-amber-600 text-amber-700 hover:bg-amber-50"
+                          >
+                            Review &amp; Edit Report
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outlined"
+                            icon={Eye}
+                            onClick={() => navigate(`/reports/${matchingReport.id || data?.id}/therapist`)}
+                            className="border-amber-600 text-amber-700 hover:bg-amber-50"
+                          >
+                            View Report (In Review)
+                          </Button>
+                        )
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outlined"
+                          icon={FileText}
+                          onClick={() => navigate(`/reports/new/${data?.id}?assessmentId=${ass.id}`)}
+                        >
+                          + Generate Report
+                        </Button>
+                      )}
+
                       <Button
                         size="sm"
                         variant="outlined"
@@ -1079,9 +1270,9 @@ export default function ChildProfile() {
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* ────────────────────────────────────────────────────────── */}
       {/* EXERCISES TAB (Clinic Exercises & Home Exercises)           */}
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* ────────────────────────────────────────────────────────── */}
       {activeTab === "exercises" && (
         <div className="space-y-6">
           {loadingExercises ? (
@@ -1134,7 +1325,8 @@ export default function ChildProfile() {
                 <div className="p-4 border-b border-[#D3D1C7]/60 flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-[15px] font-bold text-[#185FA5] flex items-center gap-2">
-                      <span>ðŸ¥ Clinic Exercises</span>
+                      <Dumbbell className="h-4 w-4 text-[#185FA5]" />
+                      <span>Clinic Exercises</span>
                     </h3>
                     <p className="text-[12px] text-[#5F5E5A]">Done during therapy sessions</p>
                   </div>
@@ -1167,7 +1359,7 @@ export default function ChildProfile() {
                                 }}
                               />
                               <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 hover:bg-black/85 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
-                                ðŸ” View Full Guide
+                                <Eye className="h-3 w-3" /> View Full Guide
                               </span>
                             </div>
                           )}
@@ -1227,7 +1419,8 @@ export default function ChildProfile() {
                 <div className="flex items-center justify-between gap-3 border-b border-[#D3D1C7]/60 pb-3">
                   <div>
                     <h3 className="text-[15px] font-bold text-[#0F6E56] flex items-center gap-2">
-                      <span>ðŸ  Home Exercises</span>
+                      <Home className="h-4 w-4 text-[#0F6E56]" />
+                      <span>Home Exercises</span>
                     </h3>
                     <p className="text-[12px] text-[#5F5E5A]">Parent does these daily at home</p>
                   </div>
@@ -1282,7 +1475,7 @@ export default function ChildProfile() {
                                 }}
                               />
                               <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 hover:bg-black/85 text-white text-[10px] font-bold rounded-md flex items-center gap-1 shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
-                                ðŸ” View Full Guide
+                                <Eye className="h-3 w-3" /> View Full Guide
                               </span>
                             </div>
                           )}
@@ -1405,48 +1598,6 @@ export default function ChildProfile() {
               <p className="text-xs text-[#5F5E5A]">Official assessment &amp; IEP progress reports published by Admin</p>
             </div>
           </div>
-
-          {/* Pending Admin Review Alert */}
-          {pendingReports.length > 0 && (
-            <div className="bg-amber-50/90 border border-amber-300 rounded-[12px] p-4 sm:p-5 shadow-xs space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start sm:items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-amber-950 flex items-center gap-2">
-                      Report Generated — Awaiting Admin Review &amp; Submission
-                    </h4>
-                    <p className="text-xs text-amber-900/80 mt-0.5">
-                      Staff have completed the assessment report. Once reviewed and submitted by the administrator, it will become published and visible to therapists and parents.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="self-end sm:self-auto shrink-0">
-                  {isAdmin ? (
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/reports/${id}/review`)}
-                      className="bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold"
-                    >
-                      Review &amp; Submit / Publish
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outlined"
-                      onClick={() => navigate(`/reports/${id}/therapist`)}
-                      className="border-amber-300 text-amber-900 hover:bg-amber-100 font-semibold"
-                    >
-                      View Submitted Draft
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {reports.length === 0 ? (
             <Card padding="p-8">
@@ -1748,8 +1899,8 @@ export default function ChildProfile() {
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#E6F1FB] text-[#185FA5]">
                 {previewExerciseModal?.category}
               </span>
-              <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded">
-                â± {previewExerciseModal?.duration || "15 mins"}
+              <span className="px-2 py-0.5 bg-[#F0EFEA] text-[#5F5E5A] text-[11px] font-bold rounded flex items-center gap-1">
+                <Clock className="h-3 w-3 text-[#5F5E5A]" /> {previewExerciseModal?.duration || "15 mins"}
               </span>
               {previewExerciseModal?.frequency && (
                 <span className="px-2 py-0.5 bg-amber-50 text-[#854F0B] text-[11px] font-bold rounded border border-amber-200/60">
@@ -1968,6 +2119,106 @@ export default function ChildProfile() {
           </div>
         </div>
       </Modal>
+
+      {/* Admin Delete Child Profile Confirmation Modal */}
+      {isAdmin && (
+        <Modal
+          isOpen={showDeleteChildModal}
+          onClose={() => {
+            if (!isDeletingChild) {
+              setShowDeleteChildModal(false);
+              setDeleteConfirmName("");
+            }
+          }}
+          title="Delete Child Profile (Admin Only)"
+          size="md"
+        >
+          <div className="space-y-5 text-slate-800">
+            {/* Danger Warning Box */}
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200/90 shadow-2xs space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-rose-100 text-rose-600 shrink-0 mt-0.5">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-rose-900">
+                    Irreversible Permanent Deletion
+                  </h4>
+                  <p className="text-xs text-rose-800 leading-relaxed font-medium">
+                    You are deleting the entire profile for <strong className="font-black text-rose-950">{data?.name}</strong> (ID: {data?.id}). This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-rose-200/70 text-[11px] text-rose-700 space-y-1">
+                <p className="font-bold uppercase tracking-wider text-[10px] text-rose-800">The following records will be permanently erased:</p>
+                <ul className="list-disc list-inside space-y-0.5 pl-1 font-medium">
+                  <li>Complete child registration profile and clinical data</li>
+                  <li>All completed &amp; draft assessment forms (ISAA, Conners', DD, LDST, IEP)</li>
+                  <li>All clinical reports (therapist &amp; parent published reports)</li>
+                  <li>Prescribed clinic and home daily exercise routines</li>
+                  <li>Scheduled appointments, parent account login &amp; portal access</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Type name to confirm input */}
+            <div className="space-y-2.5">
+              <label className="block text-xs font-bold text-slate-700">
+                To confirm, type the child's exact name <span className="font-mono font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 select-all">{data?.name}</span> below:
+              </label>
+
+              <Input
+                type="text"
+                placeholder={`Type "${data?.name}" to confirm`}
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                autoFocus
+                disabled={isDeletingChild}
+                className={isDeleteNameMatched ? "border-emerald-500 focus:border-emerald-600 ring-1 ring-emerald-500" : ""}
+              />
+
+              {deleteConfirmName.trim() && !isDeleteNameMatched && (
+                <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Name doesn't match yet. Please type exactly: "{data?.name}"
+                </p>
+              )}
+
+              {isDeleteNameMatched && (
+                <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Name matches! Click the button below to permanently delete this profile.
+                </p>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col-reverse xs:flex-row xs:items-center xs:justify-end gap-2 sm:gap-2.5">
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setShowDeleteChildModal(false);
+                  setDeleteConfirmName("");
+                }}
+                disabled={isDeletingChild}
+                className="w-full xs:w-auto justify-center"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleDeleteChildProfile}
+                disabled={!isDeleteNameMatched || isDeletingChild}
+                className="w-full xs:w-auto justify-center bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+                icon={Trash2}
+              >
+                {isDeletingChild ? "Deleting Profile..." : "Permanently Delete Profile"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

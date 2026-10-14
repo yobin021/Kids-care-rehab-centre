@@ -14,13 +14,8 @@ import {
   CalendarDays,
   BookOpen,
   ChevronRight,
-  Bell,
-  CheckCircle2,
-  Clock,
-  ArrowRight
 } from "lucide-react";
 import Toast from "../ui/Toast";
-import { notificationService } from "../../services/notificationService";
 
 export default function AppShell({ children }) {
   const { user, isAdmin, isParent, logout, toasts, removeToast, childrenList } = useAuth();
@@ -28,45 +23,27 @@ export default function AppShell({ children }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [iepPendingCount, setIepPendingCount] = useState(0);
-  const [notifications, setNotifications] = useState([]);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const notifRef = React.useRef(null);
-
-  // Load pending notifications & IEP count for admin
-  const loadAdminNotifications = React.useCallback(async () => {
-    if (!isAdmin) return;
-    try {
-      const list = await notificationService.getAdminNotifications(childrenList);
-      setNotifications(list);
-    } catch (_) {}
-  }, [isAdmin, childrenList]);
 
   React.useEffect(() => {
     if (!isAdmin) return;
-    loadAdminNotifications();
     import("../../services/iepService").then(({ iepService }) => {
       iepService.getPendingReviewCount().then(n => setIepPendingCount(n)).catch(() => {});
     }).catch(() => {});
+  }, [isAdmin]);
 
-    const handleUpdate = () => loadAdminNotifications();
-    window.addEventListener("clinical_notifications_changed", handleUpdate);
-    return () => window.removeEventListener("clinical_notifications_changed", handleUpdate);
-  }, [isAdmin, loadAdminNotifications]);
-
-  // Click outside listener for notifications dropdown
+  // Auto-close mobile drawer on route changes
   React.useEffect(() => {
-    function handleClickOutside(event) {
-      if (notifRef.current && !notifRef.current.contains(event.target)) {
-        setNotifOpen(false);
-      }
-    }
-    if (notifOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [notifOpen]);
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  const getInitials = (name) => {
+    if (!name) return "KC";
+    const clean = name.replace(/\([^)]*\)/g, "").replace(/[^a-zA-Z\s]/g, "").trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "KC";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
 
   const handleLogout = () => {
     const isParentUser = isParent || location.pathname.startsWith("/parent") || location.pathname.includes("/parent");
@@ -95,7 +72,7 @@ export default function AppShell({ children }) {
     const isIep = activeChild?.program_type === "iep";
 
     return (
-      <div className="min-h-screen bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden">
+      <div className="min-h-screen bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden print:block print:overflow-visible print:h-auto print:min-h-0 print:bg-white">
         {/* Background Mesh */}
         <div className="absolute inset-0 bg-gradient-mesh opacity-50 pointer-events-none fixed" />
 
@@ -107,7 +84,7 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Parent Top Navigation Bar */}
-        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-3 shadow-sm">
+        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-3 shadow-sm no-print">
           <div className="max-w-[800px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
             
             {/* Left Logo */}
@@ -223,7 +200,7 @@ export default function AppShell({ children }) {
         </nav>
 
         {/* Parent Main Content Area */}
-        <main className="max-w-[800px] mx-auto p-3 sm:p-6 pb-24 sm:pb-8 min-h-[calc(100vh-70px)] relative z-10 animate-fade-in">
+        <main className="max-w-[800px] mx-auto p-3 sm:p-6 pb-24 sm:pb-8 min-h-[calc(100vh-70px)] relative z-10 animate-fade-in print:block print:min-h-0 print:h-auto print:p-0 print:max-w-none print:w-full print:overflow-visible print:opacity-100 print:transform-none print:animate-none">
           {children}
         </main>
       </div>
@@ -231,10 +208,10 @@ export default function AppShell({ children }) {
   }
 
   // Staff + Admin Shell
-  const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("") : "KC";
+  const initials = getInitials(user?.name);
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden">
+    <div className="flex min-h-screen w-full bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden print:block print:overflow-visible print:h-auto print:min-h-0 print:bg-white">
       {/* Background Mesh */}
       <div className="absolute inset-0 bg-gradient-mesh opacity-40 pointer-events-none fixed" />
 
@@ -255,7 +232,7 @@ export default function AppShell({ children }) {
 
       {/* LEFT SIDEBAR (Dark Theme - 260px) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col bg-[#0F172A] border-r border-slate-800 transition-transform duration-300 md:static md:translate-x-0 shadow-[4px_0_24px_rgba(0,0,0,0.1)] ${
+        className={`fixed top-0 bottom-0 left-0 z-40 flex w-[260px] flex-col bg-[#0F172A] border-r border-slate-800 transition-transform duration-300 md:static md:translate-x-0 shadow-[4px_0_24px_rgba(0,0,0,0.1)] no-print ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -306,12 +283,7 @@ export default function AppShell({ children }) {
               className={`sidebar-nav-item ${location.pathname.startsWith("/children") ? "active" : ""}`}
             >
               <Users className="h-4 w-4 shrink-0" />
-              <span className="flex-1">Children & Reports</span>
-              {isAdmin && notifications.length > 0 && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white shadow-[0_0_8px_rgba(245,158,11,0.5)]">
-                  {notifications.length}
-                </span>
-              )}
+              <span>Children & Reports</span>
             </Link>
 
             <Link
@@ -395,14 +367,14 @@ export default function AppShell({ children }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0 relative z-10">
+      <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible print:h-auto print:block print:w-full print:static min-w-0 relative z-10">
         
         {/* Top Header Bar (Glass) */}
-        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)] no-print">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setMobileOpen(true)}
-              className="md:hidden p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm shrink-0"
+              className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm shrink-0 cursor-pointer active:scale-95 transition-transform"
               aria-label="Open sidebar menu"
             >
               <Menu className="h-5 w-5" />
@@ -410,109 +382,23 @@ export default function AppShell({ children }) {
             
             {/* Animated Title */}
             <div className="flex items-center gap-2 min-w-0">
-              <h1 className="text-base sm:text-[20px] font-black tracking-tight text-slate-800 flex items-center gap-2 truncate max-w-[170px] xs:max-w-[240px] sm:max-w-none">
+              <h1 className="text-sm xs:text-base sm:text-[20px] font-black tracking-tight text-slate-800 flex items-center gap-2 truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
                 {getPageTitle()}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Admin Notifications Bell */}
-            {isAdmin && (
-              <div className="relative" ref={notifRef}>
-                <button
-                  type="button"
-                  onClick={() => setNotifOpen(!notifOpen)}
-                  className={`relative p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
-                    notifOpen
-                      ? "bg-amber-100 text-amber-800 border border-amber-300 shadow-xs"
-                      : notifications.length > 0
-                      ? "bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 shadow-2xs"
-                      : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-2xs"
-                  }`}
-                  title="Clinical Notifications & Report Approvals"
-                  aria-label="Clinical Notifications"
-                >
-                  <Bell className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-black rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center shadow-xs animate-pulse">
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-
-                {/* Notifications Dropdown Panel */}
-                {notifOpen && (
-                  <div className="absolute right-0 mt-2 w-[340px] sm:w-[420px] bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.18)] border border-slate-200 z-50 overflow-hidden animate-slide-up">
-                    <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Bell className="h-4 w-4 text-amber-400" />
-                        <h3 className="text-sm font-bold tracking-tight">Clinical Notifications</h3>
-                      </div>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
-                        {notifications.length} {notifications.length === 1 ? 'Pending Review' : 'Pending Reviews'}
-                      </span>
-                    </div>
-
-                    <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
-                      {notifications.length === 0 ? (
-                        <div className="p-8 text-center space-y-2">
-                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
-                          <p className="text-xs font-bold text-slate-800">All Reports Reviewed</p>
-                          <p className="text-[11px] text-slate-500">No reports are currently waiting for admin review or submission.</p>
-                        </div>
-                      ) : (
-                        notifications.map((notif) => (
-                          <div key={notif.id} className="p-4 hover:bg-slate-50 transition-colors space-y-2.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 mb-1">
-                                  {notif.pathway}
-                                </span>
-                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                                  Report Generated: <span className="text-blue-600">{notif.childName}</span>
-                                </h4>
-                              </div>
-                              <span className="text-[10px] font-medium text-slate-400 shrink-0 flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                              </span>
-                            </div>
-
-                            <p className="text-xs text-slate-600 leading-relaxed">
-                              Generated by <strong className="text-slate-800">{notif.preparedBy}</strong>. Please review and submit/publish it to make it visible to therapists and parents.
-                            </p>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNotifOpen(false);
-                                navigate(notif.reviewUrl);
-                              }}
-                              className="w-full mt-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer"
-                            >
-                              <span>Review & Submit / Publish</span>
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-[13px] font-bold text-slate-800 leading-tight">{user?.name}</span>
               <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{isAdmin ? 'Admin' : 'Staff'} Role</span>
             </div>
-            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white border-2 border-slate-100 shadow-sm text-blue-600 font-bold text-xs flex items-center justify-center">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white border-2 border-slate-100 shadow-sm text-blue-600 font-bold text-xs flex items-center justify-center shrink-0">
               {initials}
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200/80 hover:border-rose-600 rounded-xl transition-all shadow-2xs hover:shadow-sm cursor-pointer ml-1 sm:ml-2"
+              className="flex items-center justify-center min-h-[38px] sm:min-h-0 gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200/80 hover:border-rose-600 rounded-xl transition-all shadow-2xs hover:shadow-sm cursor-pointer ml-1 sm:ml-2 active:scale-95"
               title="Logout"
               aria-label="Logout"
             >
@@ -523,8 +409,8 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
-          <div className="animate-slide-up">
+        <main className="flex-1 overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:m-0 print:max-w-none print:w-full print:block print:opacity-100 print:transform-none touch-scroll p-3 sm:p-6 lg:p-8 pb-16 sm:pb-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
+          <div className="animate-slide-up print:animate-none print:opacity-100 print:transform-none print:block print:w-full">
             {children}
           </div>
         </main>

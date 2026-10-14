@@ -20,7 +20,9 @@ import {
   UserCheck,
   Send,
   Edit3,
-  Trash2
+  Trash2,
+  ShieldCheck,
+  Clock
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -32,6 +34,8 @@ import { therapyAssessmentService } from "../services/therapyAssessmentService";
 import { childAssignmentService } from "../services/childAssignmentService";
 import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
+import { reportService } from "../services/reportService";
+import { checkReassessmentEligibility } from "../utils/reassessmentHelpers";
 
 export const ISAA_SECTIONS = [
   {
@@ -153,8 +157,56 @@ export default function IsaaAssessmentForm() {
   const [assessorNotes, setAssessorNotes] = useState("");
   const [assessorName, setAssessorName] = useState(user?.name || "Occupational Therapist");
 
+  // Read-only Lock Flag: Set to true if a report has already been generated
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [existingReport, setExistingReport] = useState(null);
+  const [intervalEligibility, setIntervalEligibility] = useState(null);
+  const [isIntervalLocked, setIsIntervalLocked] = useState(false);
+
   // Ratings map: { item1: 1..5, ..., item40: 1..5 }
   const [ratings, setRatings] = useState({});
+
+  const checkExistingReport = async (cId, aId) => {
+    if (!cId) return;
+    try {
+      const [reps, assList] = await Promise.all([
+        reportService.getByChildId(cId).catch(() => []),
+        assessmentService.getByChildId(cId).catch(() => [])
+      ]);
+
+      if (aId) {
+        // Specific assessment requested: check if this assessment has a report
+        let matched = null;
+        if (Array.isArray(reps)) {
+          matched = reps.find((r) => r.assessment_id === aId || r.assessmentId === aId);
+        }
+        if (matched) {
+          setIsReadOnly(true);
+          setExistingReport(matched);
+          setIsIntervalLocked(false);
+        } else {
+          setIsReadOnly(false);
+          setExistingReport(null);
+          setIsIntervalLocked(false);
+        }
+      } else {
+        // New assessment requested: check 3-month reassessment interval
+        const eligibility = checkReassessmentEligibility(assList, reps);
+        setIntervalEligibility(eligibility);
+        if (Array.isArray(assList) && assList.length > 0 && !eligibility.eligible) {
+          setIsIntervalLocked(true);
+          setIsReadOnly(true);
+          setExistingReport(null);
+        } else {
+          setIsIntervalLocked(false);
+          setIsReadOnly(false);
+          setExistingReport(null);
+        }
+      }
+    } catch (err) {
+      console.warn("Isaa check existing report notice:", err);
+    }
+  };
 
   // Load children and selected child / existing assessment
   useEffect(() => {
@@ -200,8 +252,16 @@ export default function IsaaAssessmentForm() {
               console.warn("Could not load existing ISAA assessment:", err);
             }
           } else {
-            loadDraft(targetId);
+            // New assessment mode: reset form
+            setRatings({});
+            setAssessorNotes("");
+            setCurrentAssessmentId(null);
+            setIsEditingExisting(false);
+            setAssessmentDate(new Date().toISOString().split("T")[0]);
           }
+
+          // Check if report has already been generated or if 3-month interval is active
+          await checkExistingReport(targetId, queryAssessmentId);
         }
       } catch (err) {
         console.warn("IsaaAssessmentForm load error:", err.message);
@@ -236,9 +296,11 @@ export default function IsaaAssessmentForm() {
     const found = allChildren.find(c => c.id === newId);
     setChild(found || null);
     loadDraft(newId);
+    checkExistingReport(newId, null);
   };
 
   const setItemRating = (itemNum, score) => {
+    if (isReadOnly) return;
     setRatings(prev => {
       const next = { ...prev, [`item${itemNum}`]: score };
       if (selectedChildId) {
@@ -255,6 +317,7 @@ export default function IsaaAssessmentForm() {
   };
 
   const handleQuickFillSection = (sectionItems, score) => {
+    if (isReadOnly) return;
     setRatings(prev => {
       const next = { ...prev };
       sectionItems.forEach(it => {
@@ -274,6 +337,7 @@ export default function IsaaAssessmentForm() {
   };
 
   const handleClearAll = () => {
+    if (isReadOnly) return;
     if (window.confirm("Are you sure you want to clear all ratings in this form?")) {
       setRatings({});
       if (selectedChildId) {
@@ -379,6 +443,10 @@ export default function IsaaAssessmentForm() {
 
   // Action 1: Save Assessment Only (Updates existing or creates draft, keeps user on form)
   const handleSaveAssessmentOnly = async () => {
+    if (isReadOnly) {
+      showToast("This assessment is finalized and cannot be modified.", "warning");
+      return;
+    }
     if (!selectedChildId) {
       showToast("Please select a child before saving.", "danger");
       return;
@@ -416,6 +484,18 @@ export default function IsaaAssessmentForm() {
 
   // Action 2: Generate Report & Submit for Review
   const handleSubmit = async () => {
+    if (isIntervalLocked) {
+      showToast(
+        `Clinical Protocol: Re-assessments can only be taken once every 3 months. Next eligible date: ${intervalEligibility?.nextEligibleDateFormatted}`,
+        "warning"
+      );
+      return;
+    }
+    if (isReadOnly) {
+      showToast("A clinical report has already been generated for this assessment.", "info");
+      navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`);
+      return;
+    }
     if (!selectedChildId) {
       showToast("Please select a child before submitting.", "danger");
       return;
@@ -531,9 +611,9 @@ export default function IsaaAssessmentForm() {
             size="sm"
             variant="outlined"
             icon={ArrowLeft}
-            onClick={() => navigate("/therapy")}
+            onClick={() => navigate(selectedChildId ? `/children/${selectedChildId}` : "/therapy")}
           >
-            Back to Therapy
+            Back
           </Button>
           <Button
             size="sm"
@@ -548,37 +628,100 @@ export default function IsaaAssessmentForm() {
           >
             Print Form
           </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Trash2}
-            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-            disabled={submitting}
-            onClick={handleDeleteAssessment}
-            title="Delete this assessment"
-          >
-            Delete Form
-          </Button>
-          <Button
-            size="sm"
-            variant="outlined"
-            icon={Save}
-            loading={submitting}
-            onClick={handleSaveAssessmentOnly}
-          >
-            Save Assessment
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            icon={Send}
-            className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs"
-            onClick={() => setShowConfirmModal(true)}
-          >
-            Generate Report &amp; Submit for Review
-          </Button>
+          {isReadOnly ? (
+            <Button
+              size="sm"
+              icon={FileText}
+              className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs font-bold"
+              onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+            >
+              View Generated Report
+            </Button>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Trash2}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                disabled={submitting}
+                onClick={handleDeleteAssessment}
+                title="Delete this assessment"
+              >
+                Delete Form
+              </Button>
+              <Button
+                size="sm"
+                variant="outlined"
+                icon={Save}
+                loading={submitting}
+                onClick={handleSaveAssessmentOnly}
+              >
+                Save Assessment
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={Send}
+                className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs font-bold"
+                onClick={() => setShowConfirmModal(true)}
+              >
+                Generate Report &amp; Submit for Review
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* ═══ 3-MONTH INTERVAL PROTOCOL RESTRICTION BANNER ═══ */}
+      {isIntervalLocked && intervalEligibility && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <Clock className="h-7 w-7 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <h4 className="text-sm sm:text-base font-bold text-amber-950 leading-snug">
+                Clinical Protocol Restriction: 3-Month Re-assessment Interval Active
+              </h4>
+              <p className="text-xs sm:text-[13px] text-amber-800 font-medium mt-0.5">
+                Clinical reassessments can only be conducted once every 3 months. Previous assessment was conducted on <strong>{intervalEligibility.lastAssessmentDateFormatted}</strong>. Next eligible assessment: <strong className="underline text-amber-950">{intervalEligibility.nextEligibleDateFormatted}</strong> ({intervalEligibility.daysRemaining} days remaining).
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => navigate(`/children/${selectedChildId}`)}
+            className="shrink-0 font-bold shadow-xs text-xs"
+          >
+            Back to Child Profile
+          </Button>
+        </div>
+      )}
+
+      {/* ═══ READ-ONLY FINALIZED BANNER ═══ */}
+      {!isIntervalLocked && isReadOnly && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <ShieldCheck className="h-7 w-7 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <h4 className="text-sm sm:text-base font-bold text-amber-900 leading-snug">
+                Assessment Form Finalized — Clinical Report Generated
+              </h4>
+              <p className="text-xs sm:text-[13px] text-amber-700 font-medium mt-0.5">
+                This assessment form is in <strong>view-only mode</strong> because a clinical report has already been generated. Responses cannot be modified.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            icon={FileText}
+            onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+            className="bg-amber-600 hover:bg-amber-700 text-white border-none shrink-0 font-bold shadow-xs"
+          >
+            View Generated Report
+          </Button>
+        </div>
+      )}
 
       {/* ═══ PATIENT SELECTOR & META BAR ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-2xs">
@@ -588,8 +731,9 @@ export default function IsaaAssessmentForm() {
           </label>
           <select
             value={selectedChildId}
+            disabled={isReadOnly}
             onChange={(e) => handleChildChange(e.target.value)}
-            className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#185FA5] focus:bg-white cursor-pointer"
+            className="w-full h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#185FA5] focus:bg-white cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
           >
             {allChildren.map((c) => (
               <option key={c.id} value={c.id}>
@@ -607,15 +751,17 @@ export default function IsaaAssessmentForm() {
             <input
               type="date"
               value={assessmentDate}
+              disabled={isReadOnly}
               onChange={(e) => setAssessmentDate(e.target.value)}
-              className="h-9 px-2.5 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#185FA5]"
+              className="h-9 px-2.5 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-bold text-[#2C2C2A] outline-none focus:border-[#185FA5] disabled:opacity-75 disabled:cursor-not-allowed"
             />
             <input
               type="text"
               value={assessorName}
+              disabled={isReadOnly}
               onChange={(e) => setAssessorName(e.target.value)}
               placeholder="Assessor Name"
-              className="flex-1 h-9 px-2.5 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#185FA5]"
+              className="flex-1 h-9 px-2.5 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs font-medium text-[#2C2C2A] outline-none focus:border-[#185FA5] disabled:opacity-75 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -626,15 +772,17 @@ export default function IsaaAssessmentForm() {
           </label>
           <div className="flex items-center justify-between h-9 px-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[6px] text-xs">
             <span className="font-semibold text-[#5F5E5A]">
-              {lastSavedTime ? `Autosaved at ${lastSavedTime}` : "No draft saved"}
+              {isReadOnly ? "Finalized (Locked)" : lastSavedTime ? `Autosaved at ${lastSavedTime}` : "No draft saved"}
             </span>
-            <button
-              onClick={handleClearAll}
-              className="text-xs font-bold text-[#D85A5A] hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Reset Form
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={handleClearAll}
+                className="text-xs font-bold text-[#D85A5A] hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset Form
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -810,9 +958,15 @@ export default function IsaaAssessmentForm() {
                             return (
                               <td
                                 key={opt.score}
-                                onClick={() => setItemRating(it.id, opt.score)}
-                                className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 cursor-pointer transition-all ${
-                                  isSelected ? "bg-[#185FA5]/15 font-bold" : "hover:bg-[#185FA5]/5"
+                                onClick={() => !isReadOnly && setItemRating(it.id, opt.score)}
+                                className={`py-3 px-2 text-center border-l border-[#D3D1C7]/60 transition-all ${
+                                  isReadOnly
+                                    ? isSelected
+                                      ? "bg-[#185FA5]/15 font-bold cursor-default"
+                                      : "opacity-60 cursor-not-allowed"
+                                    : isSelected
+                                    ? "bg-[#185FA5]/15 font-bold cursor-pointer"
+                                    : "hover:bg-[#185FA5]/5 cursor-pointer"
                                 }`}
                               >
                                 <div className="flex items-center justify-center">
@@ -820,8 +974,9 @@ export default function IsaaAssessmentForm() {
                                     type="radio"
                                     name={`isaa-item-${it.id}`}
                                     checked={isSelected}
+                                    disabled={isReadOnly}
                                     onChange={() => setItemRating(it.id, opt.score)}
-                                    className="h-4.5 w-4.5 text-[#185FA5] focus:ring-[#185FA5] cursor-pointer accent-[#185FA5]"
+                                    className="h-4.5 w-4.5 text-[#185FA5] focus:ring-[#185FA5] accent-[#185FA5] disabled:cursor-not-allowed"
                                   />
                                 </div>
                               </td>
@@ -847,9 +1002,10 @@ export default function IsaaAssessmentForm() {
         <textarea
           rows={4}
           value={assessorNotes}
+          disabled={isReadOnly}
           onChange={(e) => setAssessorNotes(e.target.value)}
           placeholder="Enter qualitative clinical impressions, sensory observations, behavioral triggers, or therapy recommendations..."
-          className="w-full p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[8px] text-xs text-[#2C2C2A] outline-none focus:border-[#185FA5] focus:bg-white"
+          className="w-full p-3 bg-[#F8F8F6] border border-[#D3D1C7] rounded-[8px] text-xs text-[#2C2C2A] outline-none focus:border-[#185FA5] focus:bg-white disabled:opacity-75 disabled:cursor-not-allowed"
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-[#D3D1C7]">
@@ -858,40 +1014,56 @@ export default function IsaaAssessmentForm() {
               ISAA Score Summary: <span className="text-[#185FA5] font-mono">{isaaResults.totalScore}/200</span> ({isaaResults.severity})
             </p>
             <p className="text-[11px] text-[#5F5E5A]">
-              Submitting this assessment will record the ISAA evaluation and link it to the child's therapy profile.
+              {isReadOnly
+                ? "This assessment is locked and linked to the finalized clinical report."
+                : "Submitting this assessment will record the ISAA evaluation and link it to the child's therapy profile."}
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            <Button
-              size="md"
-              variant="outlined"
-              icon={Trash2}
-              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
-              disabled={submitting}
-              onClick={handleDeleteAssessment}
-            >
-              Delete
-            </Button>
-            <Button
-              size="md"
-              variant="outlined"
-              icon={Save}
-              loading={submitting}
-              onClick={handleSaveAssessmentOnly}
-            >
-              Save Assessment
-            </Button>
-            <Button
-              size="md"
-              variant="primary"
-              icon={Send}
-              className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs"
-              loading={submitting}
-              onClick={() => setShowConfirmModal(true)}
-            >
-              Generate Report &amp; Submit for Review
-            </Button>
+            {isReadOnly ? (
+              <Button
+                size="md"
+                variant="primary"
+                icon={FileText}
+                className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs font-bold"
+                onClick={() => navigate(`/reports/${existingReport?.id || selectedChildId}/therapist`)}
+              >
+                View Generated Report
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  icon={Trash2}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  disabled={submitting}
+                  onClick={handleDeleteAssessment}
+                >
+                  Delete
+                </Button>
+                <Button
+                  size="md"
+                  variant="outlined"
+                  icon={Save}
+                  loading={submitting}
+                  onClick={handleSaveAssessmentOnly}
+                >
+                  Save Assessment
+                </Button>
+                <Button
+                  size="md"
+                  variant="primary"
+                  icon={Send}
+                  className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs font-bold"
+                  loading={submitting}
+                  onClick={() => setShowConfirmModal(true)}
+                >
+                  Generate Report &amp; Submit for Review
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Card>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft,
@@ -28,15 +28,20 @@ import {
   AlertTriangle,
   UserCheck,
   Save,
-  HelpCircle
+  Send,
+  Edit3,
+  HelpCircle,
+  Trash2
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import { therapyAssessmentService } from "../services/therapyAssessmentService";
+import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
 import { therapyService } from "../services/therapyService";
+import { childAssignmentService } from "../services/childAssignmentService";
 import { printReportWithFilename } from "../utils/printHelpers";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -207,8 +212,13 @@ export const ARITHMETIC_PROBLEMS = [
 
 export default function LearningDisabilityAssessmentForm() {
   const { childId: routeChildId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, showToast } = useAuth();
+
+  const queryAssessmentId = searchParams.get("assessmentId");
+  const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || "");
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
 
   const [activeTab, setActiveTab] = useState("level1"); // "level1" | "level2" | "memory" | "summary"
   const [childrenList, setChildrenList] = useState([]);
@@ -216,7 +226,7 @@ export default function LearningDisabilityAssessmentForm() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccessModal, setSaveSuccessModal] = useState(false);
-  const [savedAssessmentId, setSavedAssessmentId] = useState("");
+  const [savedAssessmentId, setSavedAssessmentId] = useState(queryAssessmentId || "");
   const [autoSavedTime, setAutoSavedTime] = useState(null);
 
   // Visual Memory Stimulus Presentation Timer State
@@ -554,10 +564,30 @@ export default function LearningDisabilityAssessmentForm() {
     // Check database first: if a completed assessment exists in the DB, load it; otherwise clean stale local data
     async function checkDbAssessment() {
       try {
+        if (queryAssessmentId) {
+          let specific = await therapyAssessmentService.getById(queryAssessmentId, 'learning_disability');
+          if (!specific) specific = await assessmentService.getById(queryAssessmentId);
+          if (specific) {
+            setCurrentAssessmentId(specific.id);
+            setSavedAssessmentId(specific.id);
+            setIsEditingExisting(true);
+            if (specific.form_data) {
+              if (specific.form_data.caseInfo) setCaseInfo(specific.form_data.caseInfo);
+              if (specific.form_data.level1Data) setLevel1Data(specific.form_data.level1Data);
+              if (specific.form_data.level2Data) setLevel2Data(specific.form_data.level2Data);
+              if (specific.form_data.memoryData) setMemoryData(specific.form_data.memoryData);
+              if (specific.form_data.diagnosticSummary) setDiagnosticSummary(specific.form_data.diagnosticSummary);
+            }
+            return;
+          }
+        }
+
         const records = await therapyAssessmentService.getByChildId(selectedChildId, 'learning_disability');
         if (Array.isArray(records) && records.length > 0) {
           const latest = records[0];
           setSavedAssessmentId(latest.id);
+          setCurrentAssessmentId(latest.id);
+          setIsEditingExisting(true);
           if (latest.form_data) {
             if (latest.form_data.caseInfo) setCaseInfo(latest.form_data.caseInfo);
             if (latest.form_data.level1Data) setLevel1Data(latest.form_data.level1Data);
@@ -627,7 +657,7 @@ export default function LearningDisabilityAssessmentForm() {
     }
 
     checkDbAssessment();
-  }, [selectedChildId, childrenList]);
+  }, [selectedChildId, childrenList, queryAssessmentId]);
 
   // Auto-save draft on changes (ONLY if at least one sub-test has actually been administered)
   useEffect(() => {
@@ -653,7 +683,41 @@ export default function LearningDisabilityAssessmentForm() {
     return () => clearTimeout(timer);
   }, [caseInfo, level1Data, level2Data, memoryData, diagnosticSummary, selectedChildId, computedScores.hasAnyAdministered]);
 
-  // Handle Submit / Save
+  const buildLdPayload = (status = "completed") => {
+    const childId = selectedChildId || `child_sld_${Date.now()}`;
+    const payload = {
+      child_id: childId,
+      childId: childId,
+      assessment_date: caseInfo.dateOfAssessment,
+      status,
+      form_data: {
+        testName: "Learning Disability Screening Test (LDST)",
+        caseInfo,
+        level1Data,
+        level2Data,
+        memoryData,
+        computedScores,
+        diagnosticSummary: {
+          ...diagnosticSummary,
+          dyslexiaRisk: computedScores.dyslexiaRiskLabel,
+          dysgraphiaRisk: computedScores.dysgraphiaRiskLabel,
+          dyscalculiaRisk: computedScores.dyscalculiaRiskLabel
+        }
+      },
+      isaa_score: computedScores.dyslexiaScore + computedScores.dyscalculiaScore + computedScores.dysgraphiaScore,
+      isaa_severity: computedScores.dyslexiaRiskLabel,
+      profile: "SLD",
+      profile_description: `Learning Disability Screening Battery completed. Dyslexia: ${computedScores.dyslexiaRiskLabel}, Dysgraphia: ${computedScores.dysgraphiaRiskLabel}, Dyscalculia: ${computedScores.dyscalculiaRiskLabel}. Digit Span: Fwd ${computedScores.maxFwd}, Bwd ${computedScores.maxBwd}.`
+    };
+
+    if (currentAssessmentId) {
+      payload.id = currentAssessmentId;
+    }
+
+    return { childId, payload };
+  };
+
+  // Handle Save Assessment (keeps user on form)
   const handleSaveAssessment = async () => {
     if (!selectedChildId && !caseInfo.name) {
       alert("Please select or enter the child's name before submitting.");
@@ -662,9 +726,8 @@ export default function LearningDisabilityAssessmentForm() {
 
     try {
       setSaving(true);
-      const childId = selectedChildId || `child_sld_${Date.now()}`;
+      const { childId, payload } = buildLdPayload("draft");
 
-      // Ensure child exists in db
       await therapyAssessmentService.ensureChildExists(childId, {
         name: caseInfo.name || "SLD Assessment Child",
         gender: caseInfo.sex || "Male",
@@ -673,30 +736,63 @@ export default function LearningDisabilityAssessmentForm() {
         therapy_category: "Learning Disability"
       });
 
-      const payload = {
-        child_id: childId,
-        childId: childId,
-        assessment_date: caseInfo.dateOfAssessment,
-        status: "completed",
-        form_data: {
-          testName: "Learning Disability Screening Test (LDST)",
-          caseInfo,
-          level1Data,
-          level2Data,
-          memoryData,
-          computedScores,
-          diagnosticSummary: {
-            ...diagnosticSummary,
-            dyslexiaRisk: computedScores.dyslexiaRiskLabel,
-            dysgraphiaRisk: computedScores.dysgraphiaRiskLabel,
-            dyscalculiaRisk: computedScores.dyscalculiaRiskLabel
-          }
-        },
-        isaa_score: computedScores.dyslexiaScore + computedScores.dyscalculiaScore + computedScores.dysgraphiaScore,
-        isaa_severity: computedScores.dyslexiaRiskLabel,
+      let res = null;
+      try {
+        res = await therapyAssessmentService.saveLearningDisability(payload);
+      } catch (saveErr) {
+        console.warn("DB save warning, saving locally:", saveErr);
+      }
+
+      const assessmentId = res?.id || currentAssessmentId || `local-sld-${Date.now()}`;
+      setSavedAssessmentId(assessmentId);
+      setCurrentAssessmentId(assessmentId);
+      setIsEditingExisting(true);
+
+      const savedPayload = { ...payload, id: assessmentId };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`assessment_result_${selectedChildId}`, JSON.stringify(savedPayload));
+        localStorage.setItem(`assessment_result_${assessmentId}`, JSON.stringify(savedPayload));
+      }
+
+      // Automatically link child to assessing staff
+      if (user && (childId || selectedChildId)) {
+        await childAssignmentService.recordStaffAssessment(childId || selectedChildId, user, "Learning Disability (SLD) Assessment");
+      }
+
+      const now = new Date();
+      setAutoSavedTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (showToast) {
+        showToast(isEditingExisting ? "Assessment updated successfully!" : "Assessment saved successfully as draft!", "success");
+      }
+    } catch (err) {
+      console.error("Save SLD Assessment error:", err);
+      if (user && (selectedChildId || caseInfo.name)) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "Learning Disability (SLD) Assessment");
+      }
+      if (showToast) showToast("Assessment saved locally.", "info");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Handle Generate Report & Submit for Review
+  const handleGenerateAndSubmitReport = async () => {
+    if (!selectedChildId && !caseInfo.name) {
+      alert("Please select or enter the child's name before submitting.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const { childId, payload } = buildLdPayload("completed");
+
+      await therapyAssessmentService.ensureChildExists(childId, {
+        name: caseInfo.name || "SLD Assessment Child",
+        gender: caseInfo.sex || "Male",
+        diagnosis: "Learning Disability (SLD)",
         profile: "SLD",
-        profile_description: `Learning Disability Screening Battery completed. Dyslexia: ${computedScores.dyslexiaRiskLabel}, Dysgraphia: ${computedScores.dysgraphiaRiskLabel}, Dyscalculia: ${computedScores.dyscalculiaRiskLabel}. Digit Span: Fwd ${computedScores.maxFwd}, Bwd ${computedScores.maxBwd}.`
-      };
+        therapy_category: "Learning Disability"
+      });
 
       let res = null;
       try {
@@ -705,8 +801,9 @@ export default function LearningDisabilityAssessmentForm() {
         console.warn("DB save warning, saving locally:", saveErr);
       }
 
-      const assessmentId = res?.id || `local-sld-${Date.now()}`;
+      const assessmentId = res?.id || currentAssessmentId || `local-sld-${Date.now()}`;
       setSavedAssessmentId(assessmentId);
+      setCurrentAssessmentId(assessmentId);
 
       const savedPayload = { ...payload, id: assessmentId };
       if (typeof window !== "undefined") {
@@ -715,14 +812,45 @@ export default function LearningDisabilityAssessmentForm() {
         localStorage.removeItem(`ldst_draft_${selectedChildId}`);
       }
 
-      setSaveSuccessModal(true);
+      // Automatically link child to assessing staff
+      if (user && (childId || selectedChildId)) {
+        await childAssignmentService.recordStaffAssessment(childId || selectedChildId, user, "Learning Disability (SLD) Assessment");
+      }
+
+      if (showToast) {
+        showToast("Assessment evaluation saved! Submitting for report review...", "success");
+      }
+      navigate(`/reports/new/${selectedChildId}?assessmentId=${assessmentId}&submitForReview=true`);
     } catch (err) {
-      console.error("Save SLD Assessment error:", err);
-      const fallbackId = `local-sld-${Date.now()}`;
-      setSavedAssessmentId(fallbackId);
-      setSaveSuccessModal(true);
+      console.error("Save & Submit SLD Assessment error:", err);
+      const fallbackId = currentAssessmentId || `local-sld-${Date.now()}`;
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "Learning Disability (SLD) Assessment");
+      }
+      navigate(`/reports/new/${selectedChildId}?assessmentId=${fallbackId}&submitForReview=true`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAssessment = async () => {
+    if (confirm("Are you sure you want to delete this Learning Disability (SLD) assessment form? All entered battery test scores will be permanently removed.")) {
+      try {
+        setSaving(true);
+        const activeId = savedAssessmentId || currentAssessmentId;
+        if (activeId) {
+          await assessmentService.delete(activeId, selectedChildId);
+        } else if (selectedChildId) {
+          localStorage.removeItem(`ldst_draft_${selectedChildId}`);
+          localStorage.removeItem(`assessment_result_${selectedChildId}`);
+        }
+        if (showToast) showToast("SLD Assessment deleted successfully.", "success");
+        navigate(selectedChildId ? `/children/${selectedChildId}` : "/therapy");
+      } catch (err) {
+        if (showToast) showToast("Failed to delete assessment: " + err.message, "danger");
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -798,6 +926,15 @@ export default function LearningDisabilityAssessmentForm() {
             </span>
           </div>
 
+          {isEditingExisting && (
+            <Badge
+              variant="blue"
+              size="sm"
+              icon={Edit3}
+              label={`Editing Assessment #${String(currentAssessmentId).slice(0, 8)}`}
+            />
+          )}
+
           {autoSavedTime && (
             <span className="text-[11px] font-semibold text-[#4b5a52] bg-[#f3f6f2] px-2.5 py-1 rounded-full border border-[#d9e0da] flex items-center gap-1">
               <Clock className="h-3 w-3 text-[#2f6f5e]" />
@@ -812,13 +949,35 @@ export default function LearningDisabilityAssessmentForm() {
           </Button>
           <Button
             size="sm"
-            variant="primary"
+            variant="outlined"
+            icon={Trash2}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            disabled={saving}
+            onClick={handleDeleteAssessment}
+            title="Delete this assessment"
+          >
+            Delete Form
+          </Button>
+          <Button
+            size="sm"
+            variant="outlined"
             icon={Save}
-            className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
             onClick={handleSaveAssessment}
             disabled={saving}
+            title="Save the assessment data without generating report"
           >
             {saving ? "Saving..." : "Save Assessment"}
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={Send}
+            className="bg-[#2f6f5e] hover:bg-[#23584a] text-white"
+            onClick={handleGenerateAndSubmitReport}
+            disabled={saving}
+            title="Save assessment and submit report for review"
+          >
+            Generate Report &amp; Submit for Review
           </Button>
         </div>
       </div>
@@ -2295,18 +2454,38 @@ export default function LearningDisabilityAssessmentForm() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outlined"
+              icon={Trash2}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              disabled={saving}
+              onClick={handleDeleteAssessment}
+            >
+              Delete
+            </Button>
             <Button size="sm" variant="outlined" icon={Printer} onClick={handlePrint}>
               Print Report
             </Button>
             <Button
               size="sm"
-              variant="primary"
+              variant="outlined"
               icon={Save}
-              className="bg-[#2f6f5e] hover:bg-[#23584a] text-white px-5"
+              className="px-4"
               onClick={handleSaveAssessment}
               disabled={saving}
             >
-              {saving ? "Saving..." : "Save Assessment Report"}
+              {saving ? "Saving..." : "Save Assessment"}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              icon={Send}
+              className="bg-[#2f6f5e] hover:bg-[#23584a] text-white px-5"
+              onClick={handleGenerateAndSubmitReport}
+              disabled={saving}
+            >
+              Generate Report &amp; Submit for Review
             </Button>
           </div>
         </div>

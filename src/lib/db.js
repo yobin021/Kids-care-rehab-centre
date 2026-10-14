@@ -126,7 +126,22 @@ export const db = {
   },
 
   /** DELETE rows matching `match` or `id` */
-  async remove(table, { id, match } = {}) {
+  async remove(table, criteria = {}) {
+    if (typeof criteria === 'string' || typeof criteria === 'number') {
+      return dbFetch({ action: 'delete', table, id: criteria, match: { id: criteria } })
+    }
+    const id = criteria?.id
+    const match = criteria?.match || (criteria && !criteria.match && !criteria.id ? criteria : (id ? { id } : undefined))
+    return dbFetch({ action: 'delete', table, id, match })
+  },
+
+  /** DELETE rows matching `match` or `id` */
+  async delete(table, criteria = {}) {
+    if (typeof criteria === 'string' || typeof criteria === 'number') {
+      return dbFetch({ action: 'delete', table, id: criteria, match: { id: criteria } })
+    }
+    const id = criteria?.id
+    const match = criteria?.match || (criteria && !criteria.match && !criteria.id ? criteria : (id ? { id } : undefined))
     return dbFetch({ action: 'delete', table, id, match })
   },
 

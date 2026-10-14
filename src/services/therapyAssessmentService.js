@@ -90,6 +90,7 @@ export const therapyAssessmentService = {
   /** Save an IEP Special School assessment */
   async saveSpecialSchool(payload) {
     return this._save('special_school', {
+      id:                  payload.id,
       child_id:            payload.child_id,
       assessment_date:     payload.assessment_date || new Date().toISOString().split('T')[0],
       domain_scores:       payload.domain_scores || {},
@@ -106,6 +107,7 @@ export const therapyAssessmentService = {
   /** Save an ISAA / ASD assessment */
   async saveASD(payload) {
     return this._save('asd', {
+      id:                  payload.id,
       child_id:            payload.child_id,
       assessment_date:     payload.assessment_date || new Date().toISOString().split('T')[0],
       isaa_score:          payload.isaa_score ?? null,
@@ -126,6 +128,7 @@ export const therapyAssessmentService = {
   /** Save a Conners / ADHD assessment */
   async saveADHD(payload) {
     return this._save('adhd', {
+      id:                  payload.id,
       child_id:            payload.child_id,
       assessment_date:     payload.assessment_date || new Date().toISOString().split('T')[0],
       conners_total_score: payload.conners_total_score ?? payload.isaa_score ?? null,
@@ -148,6 +151,7 @@ export const therapyAssessmentService = {
   /** Save a Developmental Delay assessment */
   async saveDelay(payload) {
     return this._save('developmental_delay', {
+      id:                  payload.id,
       child_id:            payload.child_id,
       assessment_date:     payload.assessment_date || new Date().toISOString().split('T')[0],
       delay_total_score:   payload.delay_total_score ?? payload.isaa_score ?? null,
@@ -169,6 +173,7 @@ export const therapyAssessmentService = {
   /** Save an LDST / Learning Disability assessment */
   async saveLearningDisability(payload) {
     return this._save('learning_disability', {
+      id:                  payload.id,
       child_id:            payload.child_id,
       assessment_date:     payload.assessment_date || new Date().toISOString().split('T')[0],
       ldst_total_score:    payload.ldst_total_score ?? payload.isaa_score ?? null,
@@ -277,24 +282,94 @@ export const therapyAssessmentService = {
     return counts
   },
 
+  /** Update an existing assessment directly */
+  async update(id, formType, updates) {
+    const table = resolveTable(formType)
+    if (!toUUID(id)) return null
+    return await db.update(table, updates, { id })
+  },
+
   /** Re-export for convenience */
   ensureChildExists,
   TABLE_MAP,
 
   /**
    * ──────────────────────────────────────────────
-   *  INTERNAL: unified insert with FK retry
+   *  INTERNAL: unified save (insert or update) with FK retry
    * ──────────────────────────────────────────────
    */
   async _save(formType, dbPayload) {
     const table = resolveTable(formType)
     const childId = dbPayload.child_id
+    const existingId = dbPayload.id || dbPayload.assessment_id
 
     // Remove null assessed_by (FK to users — must be null or valid UUID)
     if (!dbPayload.assessed_by) delete dbPayload.assessed_by
 
+    // 1. If an existing assessment ID is provided (EDIT MODE)
+    // ALWAYS update the original record in place — NEVER create a duplicate copy!
+    if (existingId) {
+      if (toUUID(existingId)) {
+        const updatePayload = { ...dbPayload }
+        delete updatePayload.id
+        delete updatePayload.assessment_id
+        delete updatePayload._table
+        delete updatePayload.created_at
+
+        // Try updating in primary table first
+        try {
+          const updated = await db.update(table, updatePayload, { id: existingId })
+          if (updated && updated.id) {
+            const resObj = { ...updated, id: existingId, _table: table }
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(`assessment_result_${existingId}`, JSON.stringify(resObj))
+              localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(resObj))
+            }
+            return resObj
+          }
+        } catch (updErr) {
+          console.warn(`therapyAssessmentService._save update (${table}) notice:`, updErr.message)
+        }
+
+        // If not found in primary table, try other assessment tables in case of table migration
+        for (const altTable of Object.values(TABLE_MAP)) {
+          if (altTable === table) continue
+          try {
+            const updated = await db.update(altTable, updatePayload, { id: existingId })
+            if (updated && updated.id) {
+              const resObj = { ...updated, id: existingId, _table: altTable }
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(`assessment_result_${existingId}`, JSON.stringify(resObj))
+                localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(resObj))
+              }
+              return resObj
+            }
+          } catch (_) {}
+        }
+      }
+
+      // If database update returned null or if it's a local ID:
+      // DO NOT insert a new duplicate record! Update local storage under original ID
+      console.warn(`therapyAssessmentService._save: edit mode for ${existingId}, updating local record only`)
+      const localResult = {
+        ...dbPayload,
+        id: existingId,
+        _table: table,
+        updated_at: new Date().toISOString()
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`assessment_result_${existingId}`, JSON.stringify(localResult))
+        localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(localResult))
+      }
+      return localResult
+    }
+
+    // 2. Otherwise insert new record (NEW ASSESSMENT MODE)
     try {
-      const res = await db.insert(table, dbPayload)
+      const insertPayload = { ...dbPayload }
+      if (!toUUID(insertPayload.id)) delete insertPayload.id
+      delete insertPayload._table
+      const res = await db.insert(table, insertPayload)
       if (res && res.id) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`assessment_result_${res.id}`, JSON.stringify({ ...res, _table: table }))
@@ -309,7 +384,10 @@ export const therapyAssessmentService = {
         console.warn(`therapyAssessmentService._save(${table}): auto-creating missing child...`)
         await ensureChildExists(childId)
         try {
-          const retryRes = await db.insert(table, dbPayload)
+          const insertPayload = { ...dbPayload }
+          if (!toUUID(insertPayload.id)) delete insertPayload.id
+          delete insertPayload._table
+          const retryRes = await db.insert(table, insertPayload)
           if (retryRes && retryRes.id) {
             if (typeof window !== 'undefined') {
               localStorage.setItem(`assessment_result_${retryRes.id}`, JSON.stringify({ ...retryRes, _table: table }))
@@ -322,10 +400,10 @@ export const therapyAssessmentService = {
         }
       }
 
-      // Local storage fallback
+      // Local storage fallback for new assessments
       console.warn(`therapyAssessmentService._save(${table}) using local storage:`, err.message)
       const localResult = {
-        id: `local-${Date.now()}`,
+        id: dbPayload.id || `local-${Date.now()}`,
         ...dbPayload,
         _table: table,
         created_at: new Date().toISOString()

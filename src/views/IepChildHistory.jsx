@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft, PlusCircle, ClipboardList, FileText,
-  CheckCircle2, Clock, AlertTriangle, Eye, Edit3
+  CheckCircle2, Clock, AlertTriangle, Eye, Edit3, Trash2
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -13,6 +13,7 @@ import Badge from "../components/ui/Badge";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { iepService } from "../services/iepService";
+import { assessmentService } from "../services/assessmentService";
 
 const STATUS_CONFIG = {
   published: { label: "Published", variant: "green", icon: CheckCircle2 },
@@ -24,13 +25,39 @@ const STATUS_CONFIG = {
 export default function IepChildHistory() {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const { childrenList, isAdmin } = useAuth();
+  const { childrenList, isAdmin, showToast } = useAuth();
 
   const child = childrenList.find(c => c.id === childId) || null;
 
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleDeleteReport = async (reportId) => {
+    if (window.confirm("Are you sure you want to delete this IEP report? This action cannot be undone.")) {
+      try {
+        await iepService.deleteReport(reportId);
+        if (showToast) showToast("IEP report deleted successfully", "success");
+        fetchHistory();
+      } catch (err) {
+        console.error("Failed to delete IEP report:", err);
+        if (showToast) showToast("Failed to delete report.", "danger");
+      }
+    }
+  };
+
+  const handleDeleteAssessment = async (assessmentId) => {
+    if (window.confirm("Are you sure you want to delete this IEP assessment? This will permanently delete the assessment record.")) {
+      try {
+        await assessmentService.delete(assessmentId, childId);
+        if (showToast) showToast("IEP assessment deleted successfully", "success");
+        fetchHistory();
+      } catch (err) {
+        console.error("Failed to delete IEP assessment:", err);
+        if (showToast) showToast("Failed to delete assessment.", "danger");
+      }
+    }
+  };
 
   const fetchHistory = async () => {
     try {
@@ -211,13 +238,28 @@ export default function IepChildHistory() {
                       Awaiting Admin Review
                     </span>
                   )}
-                  {item.assessment && (
+                  {hasReport && (
                     <Button
                       variant="outlined"
                       size="sm"
-                      onClick={() => navigate(`/iep/${childId}/generate/${item.assessment.id}`)}
+                      icon={Trash2}
+                      onClick={() => handleDeleteReport(item.report.id)}
+                      className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                      title="Delete IEP Report"
                     >
-                      IEP Draft
+                      Delete
+                    </Button>
+                  )}
+                  {!hasReport && item.assessment && (
+                    <Button
+                      variant="outlined"
+                      size="sm"
+                      icon={Trash2}
+                      onClick={() => handleDeleteAssessment(item.assessment.id)}
+                      className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                      title="Delete IEP Assessment"
+                    >
+                      Delete
                     </Button>
                   )}
                 </div>

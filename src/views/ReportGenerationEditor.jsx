@@ -18,7 +18,8 @@ import {
   Trash2,
   Search,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Shield
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -38,6 +39,18 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
   const gender = child?.gender || "Male";
   const concern = child?.primaryConcern || "developmental challenges";
   const today = new Date().toISOString().split("T")[0];
+
+  const assClinic = (Array.isArray(assessment?.clinic_exercises) && assessment.clinic_exercises.length > 0)
+    ? assessment.clinic_exercises
+    : (Array.isArray(assessment?.clinicExercises) && assessment.clinicExercises.length > 0)
+    ? assessment.clinicExercises
+    : null;
+
+  const assHome = (Array.isArray(assessment?.home_exercises) && assessment.home_exercises.length > 0)
+    ? assessment.home_exercises
+    : (Array.isArray(assessment?.homeExercises) && assessment.homeExercises.length > 0)
+    ? assessment.homeExercises
+    : null;
 
   if (category === "special_school" || category === "iep") {
     const profile = assessment?.profile_classification || "Profile 2: Moderate Functional Support";
@@ -81,14 +94,14 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
         encouragement: `Every milestone ${name} achieves builds a foundation for greater independence and confidence. We are honored to partner with your family on this journey.`
       },
       exercises: {
-        clinicExercises: [
+        clinicExercises: assClinic || [
           "Communication Cards",
           "Behaviour Cards",
           "Balance Beam Walking",
           "Tunnel Crawl",
           "Obstacle Course"
         ],
-        homeExercises: [
+        homeExercises: assHome || [
           "Behaviour Cards",
           "Communication Cards",
           "Stretching Exercises"
@@ -146,14 +159,14 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
         encouragement: `With consistent routines and your encouragement at home, ${name}'s vibrant energy will become their greatest strength.`
       },
       exercises: {
-        clinicExercises: [
+        clinicExercises: assClinic || [
           "Brain Gym Exercises",
           "Trampoline Bouncing",
           "Obstacle Course",
           "Single Leg Stance",
           "Ball Catching & Throwing"
         ],
-        homeExercises: [
+        homeExercises: assHome || [
           "Brain Gym Exercises",
           "Jumping Jacks",
           "Frog Jumps"
@@ -212,14 +225,14 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
         encouragement: `Every child develops at their own unique pace. With early intervention and your love, ${name} will make wonderful strides.`
       },
       exercises: {
-        clinicExercises: [
+        clinicExercises: assClinic || [
           "Reflex Integration Exercises",
           "Wedge Exercises",
           "Standing Frame Activities",
           "Step-Ups",
           "Swiss Ball Exercises"
         ],
-        homeExercises: [
+        homeExercises: assHome || [
           "Wedge Exercises",
           "Stretching Exercises",
           "Crab Walk"
@@ -279,14 +292,14 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
         encouragement: `With the right multisensory tools and school accommodations, ${name}'s unique strengths and intellect will shine brightly.`
       },
       exercises: {
-        clinicExercises: [
+        clinicExercises: assClinic || [
           "Brain Gym Exercises",
           "Theraband Exercises",
           "Ball Catching & Throwing",
           "Obstacle Course",
           "Balloon Volleyball"
         ],
-        homeExercises: [
+        homeExercises: assHome || [
           "Brain Gym Exercises",
           "Balloon Volleyball",
           "Wall Push-Ups"
@@ -345,14 +358,14 @@ function getDefaultFormState(child, category = "asd", assessment = null) {
       encouragement: `With your support at home and our guidance at the clinic, ${name} will continue to grow beautifully.`
     },
     exercises: {
-      clinicExercises: [
+      clinicExercises: assClinic || [
         "Sensory Integration Activities",
         "Behaviour Cards",
         "Obstacle Course",
         "Balance Board Exercises",
         "Speech Therapy Exercises"
       ],
-      homeExercises: [
+      homeExercises: assHome || [
         "Communication Cards",
         "Bear Walk",
         "Sensory Integration Activities"
@@ -463,22 +476,64 @@ export default function ReportGenerationEditor() {
 
         if (isMounted) setDetectedCategory(pathway);
 
+        let existingDbReport = null;
+        if (targetId) {
+          try {
+            const reps = await reportService.getByChildId(targetId);
+            if (Array.isArray(reps) && reps.length > 0) {
+              if (queryAssessmentId) {
+                existingDbReport = reps.find((r) => r.assessment_id === queryAssessmentId) || null;
+              } else {
+                existingDbReport = reps[0];
+              }
+            }
+          } catch (_) {}
+        }
+
         // Check if there is already a published report or saved draft in localStorage (only if not newly arriving from an assessment)
         const saved = !queryAssessmentId ? (localStorage.getItem(`report_published_${targetId}`) || localStorage.getItem(`report_draft_${targetId}`)) : null;
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
+            const cEx = (Array.isArray(parsed.clinicEx) && parsed.clinicEx.length > 0)
+              ? parsed.clinicEx
+              : (Array.isArray(parsed.clinic_exercises) && parsed.clinic_exercises.length > 0)
+              ? parsed.clinic_exercises
+              : (Array.isArray(existingDbReport?.clinic_exercises) && existingDbReport.clinic_exercises.length > 0)
+              ? existingDbReport.clinic_exercises
+              : (Array.isArray(a?.clinic_exercises) && a.clinic_exercises.length > 0)
+              ? a.clinic_exercises
+              : null;
+            const hEx = (Array.isArray(parsed.homeEx) && parsed.homeEx.length > 0)
+              ? parsed.homeEx
+              : (Array.isArray(parsed.home_exercises) && parsed.home_exercises.length > 0)
+              ? parsed.home_exercises
+              : (Array.isArray(existingDbReport?.home_exercises) && existingDbReport.home_exercises.length > 0)
+              ? existingDbReport.home_exercises
+              : (Array.isArray(a?.home_exercises) && a.home_exercises.length > 0)
+              ? a.home_exercises
+              : null;
+
             if (parsed.formState && isMounted) {
-              setFormState(parsed.formState);
+              setFormState({
+                ...parsed.formState,
+                reportId: parsed.formState.reportId || existingDbReport?.id || null,
+                exercises: {
+                  ...parsed.formState.exercises,
+                  clinicExercises: cEx || parsed.formState.exercises?.clinicExercises || [],
+                  homeExercises: hEx || parsed.formState.exercises?.homeExercises || []
+                }
+              });
             } else if (isMounted) {
               setFormState((prev) => ({
                 ...prev,
-                therapistReport: { ...prev.therapistReport, ...(parsed.therapistReport || {}) },
-                parentReport: { ...prev.parentReport, ...(parsed.parentReport || {}) },
+                reportId: existingDbReport?.id || prev.reportId || null,
+                therapistReport: { ...prev.therapistReport, ...(parsed.therapistReport || existingDbReport?.therapist_report || {}) },
+                parentReport: { ...prev.parentReport, ...(parsed.parentReport || existingDbReport?.parent_report || {}) },
                 exercises: {
                   ...prev.exercises,
-                  clinicExercises: parsed.clinicEx || prev.exercises.clinicExercises,
-                  homeExercises: parsed.homeEx || prev.exercises.homeExercises
+                  clinicExercises: cEx || prev.exercises.clinicExercises,
+                  homeExercises: hEx || prev.exercises.homeExercises
                 }
               }));
             }
@@ -487,8 +542,86 @@ export default function ReportGenerationEditor() {
             }
           } catch (_) {}
         } else if (isMounted) {
-          // Initialize fresh form with category-tailored initial template
-          setFormState(getDefaultFormState(c || activeChild, pathway, a));
+          // Initialize fresh form with category-tailored initial template or existing DB report
+          const initialForm = getDefaultFormState(c || activeChild, pathway, a);
+          if (existingDbReport) {
+            const cEx = (Array.isArray(existingDbReport.clinic_exercises) && existingDbReport.clinic_exercises.length > 0)
+              ? existingDbReport.clinic_exercises
+              : (Array.isArray(existingDbReport.clinicExercises) && existingDbReport.clinicExercises.length > 0)
+              ? existingDbReport.clinicExercises
+              : initialForm.exercises.clinicExercises;
+            const hEx = (Array.isArray(existingDbReport.home_exercises) && existingDbReport.home_exercises.length > 0)
+              ? existingDbReport.home_exercises
+              : (Array.isArray(existingDbReport.homeExercises) && existingDbReport.homeExercises.length > 0)
+              ? existingDbReport.homeExercises
+              : initialForm.exercises.homeExercises;
+
+            setFormState({
+              ...initialForm,
+              reportId: existingDbReport.id,
+              therapistReport: { ...initialForm.therapistReport, ...(existingDbReport.therapist_report || existingDbReport.therapistReport || {}) },
+              parentReport: { ...initialForm.parentReport, ...(existingDbReport.parent_report || existingDbReport.parentReport || {}) },
+              exercises: {
+                ...initialForm.exercises,
+                clinicExercises: cEx,
+                homeExercises: hEx
+              }
+            });
+            if (existingDbReport.status === "published") {
+              setReportStatus("published");
+            }
+          } else {
+            setFormState(initialForm);
+          }
+
+          if (searchParams.get("submitForReview") === "true") {
+            const nextStatus = isAdmin ? "published" : "pending_review";
+            setReportStatus(nextStatus);
+            const initPayload = {
+              childId: targetId,
+              child_id: targetId,
+              childName: (c || activeChild)?.name,
+              assessment_id: queryAssessmentId || a?.id || null,
+              assessment_type: pathway,
+              status: nextStatus,
+              formState: initialForm,
+              therapistReport: initialForm.therapistReport,
+              parentReport: initialForm.parentReport,
+              clinic_exercises: initialForm.exercises.clinicExercises,
+              home_exercises: initialForm.exercises.homeExercises,
+              clinicEx: initialForm.exercises.clinicExercises,
+              homeEx: initialForm.exercises.homeExercises
+            };
+            if (nextStatus === "published") {
+              localStorage.setItem(`report_published_${targetId}`, JSON.stringify(initPayload));
+              try {
+                reportService.publish(
+                  null,
+                  user?.name || "Senior Clinical Specialist",
+                  user?.id || null,
+                  initPayload
+                ).then((res) => {
+                  if (res?.id) {
+                    setFormState((prev) => ({ ...prev, reportId: res.id }));
+                  }
+                }).catch(() => {});
+              } catch (_) {}
+            } else {
+              localStorage.setItem(`report_draft_${targetId}`, JSON.stringify(initPayload));
+              try {
+                reportService.submitForReview(
+                  `rep-${targetId}-${Date.now()}`,
+                  user?.name || "Therapist",
+                  user?.id || null,
+                  initPayload
+                ).then((res) => {
+                  if (res?.id) {
+                    setFormState((prev) => ({ ...prev, reportId: res.id }));
+                  }
+                }).catch(() => {});
+              } catch (_) {}
+            }
+          }
         }
       } catch (err) {
         console.warn("ReportGenerationEditor data load notice:", err);
@@ -499,12 +632,21 @@ export default function ReportGenerationEditor() {
     return () => {
       isMounted = false;
     };
-  }, [targetId, queryAssessmentId, childrenList]);
+  }, [targetId, queryAssessmentId, childrenList, searchParams]);
+
+  // Protect report editing — only admin can edit existing/published reports
+  useEffect(() => {
+    if (!isAdmin && (reportStatus === "published" || (reportStatus === "pending_review" && searchParams.get("submitForReview") !== "true"))) {
+      if (showToast) showToast("Only administrators can edit reports.", "info");
+      navigate(`/reports/${targetId}/therapist`, { replace: true });
+    }
+  }, [isAdmin, reportStatus, targetId, navigate, showToast, searchParams]);
 
   // Auto-Save Debounce Handler (3 seconds)
   const autoSaveTimer = useRef(null);
 
   const triggerAutoSave = (nextState) => {
+    if (!isAdmin) return; // Only administrators can save report modifications
     setSaveStatus("unsaved");
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
 
@@ -560,6 +702,7 @@ export default function ReportGenerationEditor() {
 
   // State Update Helpers
   const updateTherapist = (field, val) => {
+    if (!isAdmin) return;
     const next = {
       ...formState,
       therapistReport: { ...formState.therapistReport, [field]: val }
@@ -572,6 +715,7 @@ export default function ReportGenerationEditor() {
   };
 
   const updateParent = (field, val) => {
+    if (!isAdmin) return;
     const next = {
       ...formState,
       parentReport: { ...formState.parentReport, [field]: val }
@@ -584,6 +728,7 @@ export default function ReportGenerationEditor() {
   };
 
   const updateExercises = (field, val) => {
+    if (!isAdmin) return;
     const next = {
       ...formState,
       exercises: { ...formState.exercises, [field]: val }
@@ -592,8 +737,12 @@ export default function ReportGenerationEditor() {
     triggerAutoSave(next);
   };
 
-  // Single Section Rewrite API Call
+  // Single Section Rewrite API Call (Admin Only)
   const handleRewriteSection = async (sectionKey, promptText, targetTab = "therapist") => {
+    if (!isAdmin) {
+      if (showToast) showToast("Only administrators can rewrite report sections.", "info");
+      return;
+    }
     setSectionLoading((prev) => ({ ...prev, [sectionKey]: true }));
     try {
       const res = await fetch("/api/generate-report", {
@@ -629,8 +778,12 @@ export default function ReportGenerationEditor() {
     }
   };
 
-  // Full Tab Regeneration API Call
+  // Full Tab Regeneration API Call (Admin Only)
   const handleRegenerateEntireReport = async (targetTab) => {
+    if (!isAdmin) {
+      if (showToast) showToast("Only administrators can regenerate reports.", "info");
+      return;
+    }
     if (targetTab === "therapist") setShowRegenTherapistModal(false);
     else setShowRegenParentModal(false);
 
@@ -796,18 +949,37 @@ export default function ReportGenerationEditor() {
         }
 
         const fullPublishedData = {
+          id: currentReportId || `rep-${Date.now()}`,
           childId: currentChildId,
+          child_id: currentChildId,
           childName: activeChild?.name || child?.name,
           publishedDate: pubDate,
+          published_at: pubDate,
           status: "published",
+          review_status: "published",
+          assessment_type: detectedCategory,
           formState,
           therapistReport: formState.therapistReport,
+          therapist_report: formState.therapistReport,
           parentReport: formState.parentReport,
+          parent_report: formState.parentReport,
           clinicEx: formState.exercises.clinicExercises,
-          homeEx: formState.exercises.homeExercises
+          clinic_exercises: formState.exercises.clinicExercises,
+          homeEx: formState.exercises.homeExercises,
+          home_exercises: formState.exercises.homeExercises
         };
         if (currentChildId) {
           localStorage.setItem(`report_published_${currentChildId}`, JSON.stringify(fullPublishedData));
+          try {
+            const histKey = `reports_history_${currentChildId}`;
+            const existingHist = JSON.parse(localStorage.getItem(histKey) || "[]");
+            const histArr = Array.isArray(existingHist) ? existingHist : [];
+            const updatedHist = [
+              fullPublishedData,
+              ...histArr.filter((h) => h.id !== fullPublishedData.id && h.publishedDate !== fullPublishedData.publishedDate)
+            ];
+            localStorage.setItem(histKey, JSON.stringify(updatedHist));
+          } catch (_) {}
         }
 
         if (currentChildId) {
@@ -815,6 +987,10 @@ export default function ReportGenerationEditor() {
             reportsCount: ((activeChild || child)?.reportsCount || 0) + 1,
             lastReportDate: pubDate
           });
+          localStorage.removeItem(`report_draft_${currentChildId}`);
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
         }
 
         setReportStatus("published");
@@ -845,6 +1021,9 @@ export default function ReportGenerationEditor() {
         if (currentChildId) {
           localStorage.setItem(`report_draft_${currentChildId}`, JSON.stringify(fullDraftData));
         }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("clinical_notifications_changed"));
+        }
 
         setReportStatus("pending_review");
         showToast(`Report submitted for Admin review. Once approved by Admin, it will be published to the Parent Portal.`, "success");
@@ -866,6 +1045,24 @@ export default function ReportGenerationEditor() {
     const diffMins = Math.floor((new Date() - lastSavedTime) / 60000);
     if (diffMins < 1) return "Just now";
     return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+  };
+
+  const handleDeleteReport = async () => {
+    const activeChildId = activeChild?.id || child?.id || targetId;
+    if (window.confirm(`Are you sure you want to delete this clinical report for ${activeChild?.name || child?.name}? This action cannot be undone.`)) {
+      try {
+        const repId = reportId || id;
+        await reportService.delete(repId, detectedCategory);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(`report_draft_${activeChildId}`);
+          localStorage.removeItem(`report_published_${activeChildId}`);
+        }
+        showToast("Clinical report deleted successfully.", "success");
+        navigate(`/children/${activeChildId}`);
+      } catch (err) {
+        showToast("Failed to delete report: " + err.message, "danger");
+      }
+    }
   };
 
   return (
@@ -979,45 +1176,67 @@ export default function ReportGenerationEditor() {
             <span>Print / PDF</span>
           </button>
 
-          {/* 4. [Save Draft] button */}
-          <Button
-            variant="outlined"
-            size="sm"
-            icon={Save}
-            disabled={saveStatus === "saving" || isManualSaving}
-            onClick={handleManualSave}
-          >
-            {isManualSaving ? "Saving..." : manualSaveSuccess ? "Saved ✓" : "Save Draft"}
-          </Button>
+          {/* Delete Report button (Admin Only) */}
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={Trash2}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              onClick={handleDeleteReport}
+              title="Delete this report"
+            >
+              Delete Report
+            </Button>
+          )}
+
+          {/* 4. [Save Draft] button (Admin Only) */}
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={Save}
+              disabled={saveStatus === "saving" || isManualSaving}
+              onClick={handleManualSave}
+            >
+              {isManualSaving ? "Saving..." : manualSaveSuccess ? "Saved ✓" : "Save Draft"}
+            </Button>
+          )}
 
           {/* 5. [Submit for Review (Staff) or Approve & Publish (Admin)] button */}
-          <Button
-            variant={reportStatus === "published" ? "secondary" : "primary"}
-            size="sm"
-            icon={isAdmin ? CheckCircle2 : Send}
-            onClick={handleValidateAndPublish}
-          >
-            {isAdmin
-              ? reportStatus === "published"
-                ? "Update & Republish"
-                : "Approve & Publish"
-              : reportStatus === "pending_review"
-              ? "Update Submission"
-              : "Submit for Review"}
-          </Button>
+          {isAdmin ? (
+            <Button
+              variant={reportStatus === "published" ? "secondary" : "primary"}
+              size="sm"
+              icon={CheckCircle2}
+              onClick={handleValidateAndPublish}
+            >
+              {reportStatus === "published" ? "Update & Republish" : "Approve & Publish"}
+            </Button>
+          ) : reportStatus !== "pending_review" ? (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Send}
+              onClick={handleValidateAndPublish}
+            >
+              Submit for Admin Review
+            </Button>
+          ) : null}
         </div>
-
 
       </div>
 
-      {/* PUBLISHED REPORT EDIT BANNER */}
-      {reportStatus === "published" && (
-        <div className="bg-[#FEF3C7] border-l-4 border-[#854F0B] p-4 rounded-r-[8px] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+      {/* ─── ADMIN BANNER NOTICES ─── */}
+
+      {/* 3. Admin Published Report Edit Banner */}
+      {isAdmin && reportStatus === "published" && (
+        <div className="bg-[#FEF3C7] border-l-4 border-[#854F0B] p-4 rounded-r-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-start gap-2.5">
             <AlertTriangle className="h-5 w-5 text-[#854F0B] shrink-0 mt-0.5" />
             <div className="text-xs text-[#854F0B]">
               <strong className="font-bold block">You are editing a published report.</strong>
-              <span>Any changes you save will immediately update what {child?.parent?.name} sees on their portal.</span>
+              <span>Any changes you save will immediately update what {child?.parent?.name || "the parent"} sees on their portal.</span>
             </div>
           </div>
 
@@ -1030,6 +1249,41 @@ export default function ReportGenerationEditor() {
           >
             View Current Parent Version
           </Button>
+        </div>
+      )}
+
+      {/* 4. Admin Pending Review Banner */}
+      {isAdmin && reportStatus === "pending_review" && (
+        <div className="bg-[#EEF2FF] border-l-4 border-[#4F46E5] p-4 rounded-r-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-start gap-2.5">
+            <Send className="h-5 w-5 text-[#4F46E5] shrink-0 mt-0.5" />
+            <div className="text-xs text-[#312E81]">
+              <strong className="font-bold block">Assessment Submitted for Admin Review</strong>
+              <span>
+                This report is currently in <span className="font-semibold text-[#4F46E5]">Pending Review</span> status. Once reviewed and approved by you, it will be published to the Parent Portal.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outlined"
+              size="sm"
+              className="border-[#4F46E5] text-[#4F46E5] hover:bg-indigo-50"
+              icon={Eye}
+              onClick={() => setShowParentPreviewModal(true)}
+            >
+              Preview Parent View
+            </Button>
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              icon={CheckCircle2}
+              onClick={handleValidateAndPublish}
+            >
+              Approve &amp; Publish
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1053,7 +1307,7 @@ export default function ReportGenerationEditor() {
             activeTab === "therapist" ? "bg-[#185FA5] text-white shadow-xs" : "bg-transparent text-[#5F5E5A] hover:bg-[#F8F8F6]"
           }`}
         >
-          Clinical Report (Editable)
+          {isAdmin ? "Clinical Report (Editable)" : "Clinical Report"}
         </button>
 
         <button
@@ -1073,15 +1327,19 @@ export default function ReportGenerationEditor() {
           
           {/* TOOLBAR */}
           <div className="flex items-center justify-between border-b border-[#D3D1C7]/60 pb-2 text-xs">
-            <span className="text-[12px] text-[#5F5E5A] font-medium">AI Generated — Edit as needed</span>
-            <Button
-              variant="outlined"
-              size="sm"
-              icon={RotateCcw}
-              onClick={() => setShowRegenTherapistModal(true)}
-            >
-              🔄 Regenerate Entire Report
-            </Button>
+            <span className="text-[12px] text-[#5F5E5A] font-medium">
+              {isAdmin ? "AI Generated — Edit as needed" : "AI Generated — Clinical Narrative (Read-Only for Staff)"}
+            </span>
+            {isAdmin && (
+              <Button
+                variant="outlined"
+                size="sm"
+                icon={RotateCcw}
+                onClick={() => setShowRegenTherapistModal(true)}
+              >
+                🔄 Regenerate Entire Report
+              </Button>
+            )}
           </div>
 
           {/* DEDICATED ASSESSMENT REPORT FINDINGS REFERENCE TABLE */}
@@ -1166,15 +1424,17 @@ export default function ReportGenerationEditor() {
                 {/* Section Top Bar */}
                 <div className="flex items-center justify-between border-b border-[#D3D1C7]/40 pb-2">
                   <span className="text-[11px] font-bold text-[#9B9A96] tracking-wider uppercase">{sec.label}</span>
-                  <button
-                    type="button"
-                    disabled={isSecLoading}
-                    onClick={() => handleRewriteSection(sec.key, sec.prompt, "therapist")}
-                    className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                  >
-                    <RotateCcw className={`h-3.5 w-3.5 ${isSecLoading ? "animate-spin" : ""}`} />
-                    <span>↺ Rewrite</span>
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={isSecLoading}
+                      onClick={() => handleRewriteSection(sec.key, sec.prompt, "therapist")}
+                      className="text-xs font-bold text-[#185FA5] hover:text-[#0F6E56] flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RotateCcw className={`h-3.5 w-3.5 ${isSecLoading ? "animate-spin" : ""}`} />
+                      <span>↺ Rewrite</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Section Textarea Area with Loading Overlay */}
@@ -1182,9 +1442,14 @@ export default function ReportGenerationEditor() {
                   <textarea
                     rows={4}
                     value={textVal}
+                    readOnly={!isAdmin}
                     onChange={(e) => updateTherapist(sec.key, e.target.value)}
-                    className={`w-full p-3 text-xs font-medium text-[#2C2C2A] bg-white rounded-[8px] border outline-none resize-none transition-colors ${
-                      hasError ? "border-red-500" : "border-[#D3D1C7] focus:border-[#185FA5]"
+                    className={`w-full p-3 text-xs font-medium text-[#2C2C2A] rounded-[8px] border outline-none resize-none transition-colors ${
+                      !isAdmin
+                        ? "bg-[#F8F8F6] border-[#D3D1C7]/70 cursor-default"
+                        : hasError
+                        ? "border-red-500 bg-red-50/20"
+                        : "border-[#D3D1C7] focus:border-[#185FA5] bg-white"
                     }`}
                   />
 
@@ -1199,13 +1464,15 @@ export default function ReportGenerationEditor() {
 
                 {/* Section Bottom Bar */}
                 <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#D3D1C7]/30">
-                  <button
-                    type="button"
-                    onClick={() => updateTherapist(sec.key, "")}
-                    className="text-[#993C1D] hover:underline font-semibold cursor-pointer"
-                  >
-                    Clear text
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => updateTherapist(sec.key, "")}
+                      className="text-[#993C1D] hover:underline font-semibold cursor-pointer"
+                    >
+                      Clear text
+                    </button>
+                  ) : <span className="text-[10px] text-[#9B9A96] italic">Admin editable</span>}
                   <span className="text-[#9B9A96] font-mono">{textVal.length} characters</span>
                 </div>
 
@@ -1251,33 +1518,38 @@ export default function ReportGenerationEditor() {
                           {exObj?.category && <span className="text-[10px] text-[#9B9A96] block font-medium">{exObj.category}</span>}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
-                          updateExercises("clinicExercises", next);
-                        }}
-                        className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = formState.exercises.clinicExercises.filter((_, i) => i !== idx);
+                            updateExercises("clinicExercises", next);
+                          }}
+                          className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
+                          title="Remove Exercise"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              <Button
-                variant="outlined"
-                fullWidth
-                size="sm"
-                icon={Plus}
-                onClick={() => {
-                  setAddExType("clinic");
-                  setShowAddExModal(true);
-                }}
-              >
-                + Add Clinic Exercise
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => {
+                    setAddExType("clinic");
+                    setShowAddExModal(true);
+                  }}
+                >
+                  + Add Clinic Exercise
+                </Button>
+              )}
             </div>
 
             {/* HOME EXERCISES COLUMN */}
@@ -1312,33 +1584,38 @@ export default function ReportGenerationEditor() {
                           {exObj?.category && <span className="text-[10px] text-[#9B9A96] block font-medium">{exObj.category}</span>}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
-                          updateExercises("homeExercises", next);
-                        }}
-                        className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = formState.exercises.homeExercises.filter((_, i) => i !== idx);
+                            updateExercises("homeExercises", next);
+                          }}
+                          className="text-[#993C1D] hover:bg-red-50 p-1.5 rounded cursor-pointer shrink-0 ml-2"
+                          title="Remove Exercise"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              <Button
-                variant="outlined"
-                fullWidth
-                size="sm"
-                icon={Plus}
-                onClick={() => {
-                  setAddExType("home");
-                  setShowAddExModal(true);
-                }}
-              >
-                + Add Home Exercise
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => {
+                    setAddExType("home");
+                    setShowAddExModal(true);
+                  }}
+                >
+                  + Add Home Exercise
+                </Button>
+              )}
             </div>
 
           </div>
@@ -1356,12 +1633,16 @@ export default function ReportGenerationEditor() {
                     <button
                       key={day}
                       type="button"
+                      disabled={!isAdmin}
                       onClick={() => {
+                        if (!isAdmin) return;
                         const arr = [...formState.exercises.therapyDays];
                         const next = isSel ? arr.filter((d) => d !== day) : [...arr, day];
                         updateExercises("therapyDays", next);
                       }}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                        !isAdmin ? "cursor-default opacity-85" : "cursor-pointer"
+                      } ${
                         isSel ? "bg-[#185FA5] text-white shadow-xs" : "bg-[#F8F8F6] text-[#5F5E5A] border border-[#D3D1C7]"
                       }`}
                     >
@@ -1376,6 +1657,7 @@ export default function ReportGenerationEditor() {
               <Input
                 label="Session Time"
                 type="time"
+                disabled={!isAdmin}
                 value={formState.exercises.sessionTime}
                 onChange={(e) => updateExercises("sessionTime", e.target.value)}
               />
@@ -1384,8 +1666,11 @@ export default function ReportGenerationEditor() {
                 <label className="block text-xs font-bold text-[#2C2C2A]">Duration</label>
                 <select
                   value={formState.exercises.sessionDuration}
+                  disabled={!isAdmin}
                   onChange={(e) => updateExercises("sessionDuration", e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-[#D3D1C7] rounded-[8px] text-xs font-medium text-[#2C2C2A] outline-none"
+                  className={`w-full h-10 px-3 border border-[#D3D1C7] rounded-[8px] text-xs font-medium outline-none ${
+                    !isAdmin ? "bg-[#F8F8F6] text-[#5F5E5A] cursor-not-allowed" : "bg-white text-[#2C2C2A]"
+                  }`}
                 >
                   <option value="30">30 minutes</option>
                   <option value="45">45 minutes</option>
@@ -1398,6 +1683,7 @@ export default function ReportGenerationEditor() {
                 type="number"
                 min="1"
                 max="7"
+                disabled={!isAdmin}
                 value={formState.exercises.frequencyPerWeek}
                 onChange={(e) => updateExercises("frequencyPerWeek", e.target.value)}
               />
@@ -1405,6 +1691,7 @@ export default function ReportGenerationEditor() {
               <Input
                 label="Start Date"
                 type="date"
+                disabled={!isAdmin}
                 value={formState.exercises.startDate}
                 onChange={(e) => updateExercises("startDate", e.target.value)}
               />

@@ -5,7 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft, Save, CheckCircle2, Send, Edit3,
-  AlertTriangle, User, Calendar
+  AlertTriangle, User, Calendar, Trash2
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -28,8 +28,25 @@ export default function IepReportEditor() {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
+  const handleDeleteReport = async () => {
+    if (window.confirm("Are you sure you want to delete this IEP report? This action cannot be undone.")) {
+      setDeleting(true);
+      try {
+        await iepService.deleteReport(reportId);
+        showToast("IEP report deleted successfully", "success");
+        navigate(reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep");
+      } catch (err) {
+        console.error("Failed to delete IEP report:", err);
+        showToast("Failed to delete report.", "danger");
+      } finally {
+        setDeleting(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) {
@@ -173,6 +190,17 @@ export default function IepReportEditor() {
             </Button>
           )}
           {isPublished && <Badge label="Published" variant="green" />}
+          <Button
+            variant="outlined"
+            size="sm"
+            icon={Trash2}
+            onClick={handleDeleteReport}
+            loading={deleting}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            title="Delete this IEP report"
+          >
+            Delete Report
+          </Button>
         </div>
       </div>
 

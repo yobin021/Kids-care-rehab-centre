@@ -435,6 +435,34 @@ export const iepService = {
       console.warn('iepService.getReportsByChildId:', err.message)
       return []
     }
+  },
+
+  /**
+   * Delete an IEP report
+   */
+  async deleteReport(id) {
+    if (!id) return { success: false }
+    try {
+      await db.delete('reports_special_school', { id })
+    } catch (_) {}
+    try {
+      await db.delete('reports', { id })
+    } catch (_) {}
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(`report_draft_${id}`)
+        localStorage.removeItem(`report_${id}`)
+        localStorage.removeItem(`iep_report_${id}`)
+        localStorage.removeItem(`report_published_${id}`)
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.includes(id)) {
+            localStorage.removeItem(key)
+          }
+        }
+      } catch (_) {}
+    }
+    return { success: true, id }
   }
 }
 

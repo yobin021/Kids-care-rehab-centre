@@ -110,86 +110,120 @@ export const authService = {
 
   async loginParent(phone, password) {
     try {
-      // Find active parent account by phone
+      // Find parent account by phone
       const accounts = await db.select('parent_accounts', {
         select: '*, children(id, name, diagnosis, profile)',
-        match: { phone, portal_active: true }
+        match: { phone }
       })
 
       const list = Array.isArray(accounts) ? accounts : (accounts ? [accounts] : [])
       const data = list[0]
 
-      if (data && data.password_hash) {
-        const isValid = await verifyPassword(password, data.password_hash)
-
-        if (isValid) {
-          // If legacy plain text password was matched, seamlessly upgrade to bcrypt hash
-          if (!isHashed(data.password_hash)) {
-            hashPassword(password)
-              .then(newHash => db.update('parent_accounts', { password_hash: newHash }, { id: data.id }))
-              .catch(err => console.warn('Auto-rehash parent password notice:', err.message))
+      if (data) {
+        if (!data.portal_active) {
+          return {
+            success: false,
+            error: "Parent portal access has not been activated for this account yet. Please contact clinic staff or administrator to set up portal access."
           }
+        }
 
-          const child = Array.isArray(data.children) ? data.children[0] : data.children
-          const diag = (child?.diagnosis || "").toUpperCase()
-          const isTherapy = diag.includes("ADHD") || diag.includes("DELAY") || diag.includes("DEVELOPMENTAL") || diag.includes("LEARNING") || diag.includes("DISABILITY") || diag.includes("ASD") || diag.includes("AUTISM")
-          const isIep = !isTherapy && (data.child_id === "KCR-2024-001" || diag.includes("IEP") || diag.includes("INTELLECTUAL") || diag.includes("SPECIAL SCHOOL"))
+        if (data.password_hash) {
+          const isValid = await verifyPassword(password, data.password_hash)
 
-          const user = {
-            id: data.id,                // uuid
-            name: data.parent_name,
-            phone: data.phone,
-            role: 'parent',
-            childId: data.child_id,
-            childName: child?.name || null,
-            childDiagnosis: child?.diagnosis || null,
-            childProfile: child?.profile || null,
-            programType: isIep ? "iep" : "therapy"
+          if (isValid) {
+            // If legacy plain text password was matched, seamlessly upgrade to bcrypt hash
+            if (!isHashed(data.password_hash)) {
+              hashPassword(password)
+                .then(newHash => db.update('parent_accounts', { password_hash: newHash }, { id: data.id }))
+                .catch(err => console.warn('Auto-rehash parent password notice:', err.message))
+            }
+
+            const child = Array.isArray(data.children) ? data.children[0] : data.children
+            const diag = (child?.diagnosis || "").toUpperCase()
+            const isTherapy = diag.includes("ADHD") || diag.includes("DELAY") || diag.includes("DEVELOPMENTAL") || diag.includes("LEARNING") || diag.includes("DISABILITY") || diag.includes("ASD") || diag.includes("AUTISM")
+            const isIep = !isTherapy && (data.child_id === "KCR-2024-001" || diag.includes("IEP") || diag.includes("INTELLECTUAL") || diag.includes("SPECIAL SCHOOL"))
+
+            const user = {
+              id: data.id,                // uuid
+              name: data.parent_name,
+              phone: data.phone,
+              role: 'parent',
+              childId: data.child_id,
+              childName: child?.name || null,
+              childDiagnosis: child?.diagnosis || null,
+              childProfile: child?.profile || null,
+              programType: isIep ? "iep" : "therapy"
+            }
+
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('kcr_user', JSON.stringify(user))
+            }
+
+            return { success: true, user }
+          } else {
+            return { success: false, error: "Incorrect password. Please verify your portal password or request a reset from staff." }
           }
-
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('kcr_user', JSON.stringify(user))
-          }
-
-          return { success: true, user }
         }
       }
     } catch (err) {
       console.warn('authService.loginParent network notice:', err.message)
     }
 
-    // Local fallback for registered children / demo parent sign-ins
+    // Local fallback for registered children / offline mode
     if (typeof window !== 'undefined') {
       try {
+        const registeredList = JSON.parse(localStorage.getItem('kcr_registered_children') || '[]')
         const localList = JSON.parse(localStorage.getItem('local_children_list') || '[]')
-        const match = localList.find(c => {
-          if (c.parent?.phone !== phone) return false
-          const pPass = c.parent?.portalPassword
-          if (!password) return true
-          if (password === '123456' || password === 'password') return true
-          if (!pPass) return false
-          if (isHashed(pPass)) {
-            try { return bcrypt.compareSync(password, pPass) } catch (_) { return false }
-          }
-          return pPass === password
-        })
+        const allChildren = [...registeredList, ...localList]
+
+        const match = allChildren.find(c => c.parent?.phone === phone)
         if (match) {
-          const user = {
-            id: match.parent.id || `parent-${match.id}`,
-            name: match.parent.name || 'Parent',
-            phone: match.parent.phone,
-            role: 'parent',
-            childId: match.id,
-            childName: match.name
+          const isPortalActive = Boolean(match.parent?.portalActive || match.parent_accounts?.portal_active)
+          if (!isPortalActive) {
+            return {
+              success: false,
+              error: "Parent portal access has not been activated for this account yet. Please contact clinic staff or administrator to set up portal access."
+            }
           }
-          localStorage.setItem('kcr_user', JSON.stringify(user))
-          return { success: true, user }
+
+          const pPass = match.parent?.portalPassword || match.parent_accounts?.password_hash
+          if (!pPass) {
+            return {
+              success: false,
+              error: "Parent portal access has not been configured with a password. Please request staff to set up access."
+            }
+          }
+
+          let isValid = false
+          if (isHashed(pPass)) {
+            try { isValid = bcrypt.compareSync(password, pPass) } catch (_) { isValid = false }
+          } else {
+            isValid = (pPass === password)
+          }
+
+          if (isValid) {
+            const diag = (match.diagnosis || "").toUpperCase()
+            const isTherapy = match.program_type === 'therapy' || diag.includes("ADHD") || diag.includes("DELAY") || diag.includes("DEVELOPMENTAL") || diag.includes("LEARNING") || diag.includes("DISABILITY") || diag.includes("ASD") || diag.includes("AUTISM")
+            const user = {
+              id: match.parent.id || `parent-${match.id}`,
+              name: match.parent.name || 'Parent',
+              phone: match.parent.phone,
+              role: 'parent',
+              childId: match.id,
+              childName: match.name,
+              childDiagnosis: match.diagnosis || null,
+              programType: isTherapy ? "therapy" : "iep"
+            }
+            localStorage.setItem('kcr_user', JSON.stringify(user))
+            return { success: true, user }
+          } else {
+            return { success: false, error: "Incorrect password. Please verify your portal password or request a reset from staff." }
+          }
         }
       } catch (_) {}
     }
 
-
-    return { success: false, error: 'Invalid phone or password' }
+    return { success: false, error: 'Invalid phone number or password. Please check with your therapist.' }
   },
 
   logout() {

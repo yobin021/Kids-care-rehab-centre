@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { CheckCircle2, Target, Printer, Phone, School, FileText, AlertTriangle, ArrowLeft, Activity, Dumbbell } from "lucide-react";
+import { CheckCircle2, Target, Printer, Phone, School, FileText, AlertTriangle, ArrowLeft, Activity, Dumbbell, History, Calendar, Check, Sparkles } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import IepDomainRadarGraph from "../components/assessment/IepDomainRadarGraph";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { reportService } from "../services/reportService";
 import { iepService } from "../services/iepService";
 import { exerciseService, resolveExerciseItem } from "../services/exerciseService";
@@ -21,8 +21,11 @@ import { CATEGORY_CONFIG } from "./TherapistReportView";
 
 export default function ParentReportView() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, childrenList } = useAuth();
+  const urlReportId = searchParams.get("reportId") || id;
+
   const targetChildId = id || user?.childId;
   const child = childrenList.find((c) => c.id === targetChildId) || (targetChildId ? { id: targetChildId } : childrenList[0]);
   const isIep = isIepProgram(child) || isIepProgram(user);
@@ -30,6 +33,8 @@ export default function ParentReportView() {
   const activeChildId = id || user?.childId || user?.child_id || child?.id;
 
   const [data, setData] = useState(null);
+  const [reportsList, setReportsList] = useState([]);
+  const [selectedReportId, setSelectedReportId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeViewTab, setActiveViewTab] = useState("parent");
@@ -54,68 +59,165 @@ export default function ParentReportView() {
       setLoading(true);
       setError(null);
 
-      let result = null;
-      if (activeChildId) {
-        // 1. Try IEP report first (must be published)
+      const targetRepId = searchParams.get("reportId") || id;
+
+      let directReport = null;
+      if (targetRepId) {
         try {
-          const iepReps = await iepService.getReportsByChildId(activeChildId);
-          if (Array.isArray(iepReps) && iepReps.length > 0) {
-            result = iepReps.find((r) => r.status === "published" || r.review_status === "published") || null;
+          directReport = await reportService.getById(targetRepId);
+          if (!directReport) {
+            directReport = await iepService.getReportById(targetRepId);
+          }
+        } catch (_) {}
+      }
+
+      // Collect all possible candidate IDs for this child
+      const candidateIds = Array.from(new Set([
+        directReport?.child_id,
+        directReport?.childId,
+        activeChildId,
+        targetChildId,
+        child?.id,
+        child?.custom_id,
+        user?.childId,
+        user?.child_id
+      ].filter(Boolean)));
+
+      const reportMap = new Map();
+
+      // 1. Fetch IEP reports from database across candidate IDs
+      for (const cid of candidateIds) {
+        try {
+          const iepReps = await iepService.getReportsByChildId(cid);
+          if (Array.isArray(iepReps)) {
+            iepReps.forEach((r) => {
+              if (r && r.id && (r.status === "published" || r.review_status === "published" || r.published_at || r.publishedDate)) {
+                reportMap.set(r.id, { ...r, source_type: "iep" });
+              }
+            });
           }
         } catch (e) {
           console.warn("IEP report lookup notice:", e.message);
         }
+      }
 
-        // 2. Try Clinical Therapy reports (must be published)
-        if (!result || (!result.iep_report && !result.iepReport)) {
-          try {
-            result = await reportService.getPublishedByChildId(activeChildId);
-            if (!result || (!result.therapist_report && !result.therapistReport)) {
-              const allReps = await reportService.getByChildId(activeChildId);
-              if (Array.isArray(allReps) && allReps.length > 0) {
-                result = allReps.find((r) => r.status === "published" && (r.therapist_report || r.therapistReport)) || null;
+      // 2. Fetch Clinical Therapy reports from database across candidate IDs
+      for (const cid of candidateIds) {
+        try {
+          const therapyReps = await reportService.getByChildId(cid);
+          if (Array.isArray(therapyReps)) {
+            therapyReps.forEach((r) => {
+              if (r && r.id && (r.status === "published" || r.review_status === "published" || r.published_at || r.publishedDate)) {
+                if (!reportMap.has(r.id)) {
+                  reportMap.set(r.id, { ...r, source_type: "clinical" });
+                }
               }
-            }
-          } catch (e) {
-            console.warn("Therapy report lookup notice:", e.message);
+            });
           }
+        } catch (e) {
+          console.warn("Therapy report lookup notice:", e.message);
         }
       }
 
-      // Calculate how many reports/assessments this child has taken
-      if (activeChildId) {
+      // 3. Fallback: getPublishedByChildId across candidate IDs
+      for (const cid of candidateIds) {
         try {
-          const [reps, asses] = await Promise.all([
-            reportService.getByChildId(activeChildId),
-            assessmentService.getByChildId(activeChildId)
-          ]);
-          const count = Math.max(
-            Array.isArray(reps) ? reps.length : 0,
-            Array.isArray(asses) ? asses.length : 0,
-            1
-          );
-          setChildReportsCount(count);
+          const singlePub = await reportService.getPublishedByChildId(cid);
+          if (singlePub && singlePub.id && (singlePub.status === "published" || singlePub.review_status === "published" || singlePub.published_at || singlePub.publishedDate)) {
+            if (!reportMap.has(singlePub.id)) {
+              reportMap.set(singlePub.id, singlePub);
+            }
+          }
         } catch (_) {}
       }
 
-      // Check that report is genuinely approved and published before displaying to parents
-      const isApproved = result && (result.status === "published" || result.review_status === "published");
-      const hasContent = result && (result.iep_report || result.iepReport || result.therapist_report || result.therapistReport || result.parent_report || result.parentReport);
+      // 4. LocalStorage history fallback (preserves all historical reports)
+      if (typeof window !== "undefined") {
+        for (const cid of candidateIds) {
+          try {
+            const histRaw = localStorage.getItem(`reports_history_${cid}`);
+            if (histRaw) {
+              const histList = JSON.parse(histRaw);
+              if (Array.isArray(histList)) {
+                histList.forEach((h, idx) => {
+                  if (h) {
+                    const hId = h.id || `local-rep-${cid}-${idx}`;
+                    if (!reportMap.has(hId)) {
+                      reportMap.set(hId, { ...h, id: hId });
+                    }
+                  }
+                });
+              }
+            }
 
-      if (isApproved && hasContent) {
-        if (!result.assessments && result.assessment_id) {
-          try {
-            const assObj = await assessmentService.getById(result.assessment_id);
-            if (assObj) result.assessments = assObj;
+            const pubRaw = localStorage.getItem(`report_published_${cid}`);
+            if (pubRaw) {
+              const pubObj = JSON.parse(pubRaw);
+              if (pubObj) {
+                const pId = pubObj.id || `local-pub-${cid}`;
+                if (!reportMap.has(pId)) {
+                  reportMap.set(pId, { ...pubObj, id: pId });
+                }
+              }
+            }
+
+            const iepRaw = localStorage.getItem(`iep_report_${cid}`);
+            if (iepRaw) {
+              const iepObj = JSON.parse(iepRaw);
+              if (iepObj && (iepObj.status === "published" || iepObj.review_status === "published")) {
+                const iId = iepObj.id || `local-iep-${cid}`;
+                if (!reportMap.has(iId)) {
+                  reportMap.set(iId, { ...iepObj, id: iId });
+                }
+              }
+            }
           } catch (_) {}
         }
-        if (!result.assessments && activeChildId) {
+      }
+
+      if (directReport && directReport.id) {
+        reportMap.set(directReport.id, directReport);
+      }
+
+      const allPubList = Array.from(reportMap.values()).sort((a, b) => {
+        const dateA = new Date(a.published_at || a.publishedDate || a.created_at || a.last_edited_at || 0).getTime();
+        const dateB = new Date(b.published_at || b.publishedDate || b.created_at || b.last_edited_at || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setReportsList(allPubList);
+      setChildReportsCount(Math.max(allPubList.length, 1));
+
+      // Choose which report to show:
+      let activeRep = null;
+      if (targetRepId) {
+        activeRep = allPubList.find((r) => r.id === targetRepId) || directReport || allPubList[0] || null;
+      } else if (selectedReportId) {
+        activeRep = allPubList.find((r) => r.id === selectedReportId) || allPubList[0] || null;
+      } else {
+        activeRep = allPubList[0] || null;
+      }
+
+      if (activeRep) {
+        setSelectedReportId(activeRep.id);
+        if (!activeRep.assessments && activeRep.assessment_id) {
           try {
-            const assList = await assessmentService.getByChildId(activeChildId);
-            if (Array.isArray(assList) && assList.length > 0) result.assessments = assList[0];
+            const assObj = await assessmentService.getById(activeRep.assessment_id);
+            if (assObj) activeRep.assessments = assObj;
           } catch (_) {}
         }
-        setData(result);
+        for (const cid of candidateIds) {
+          if (!activeRep.assessments) {
+            try {
+              const assList = await assessmentService.getByChildId(cid);
+              if (Array.isArray(assList) && assList.length > 0) {
+                activeRep.assessments = assList[0];
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+        setData(activeRep);
       } else {
         setData(null);
       }
@@ -125,12 +227,64 @@ export default function ParentReportView() {
     } finally {
       setLoading(false);
     }
+  };
 
+  const handleSelectReport = async (rep) => {
+    if (!rep || rep.id === data?.id) return;
+    setSelectedReportId(rep.id);
+    setSearchParams({ reportId: rep.id });
+
+    // Enrich assessment if needed
+    if (!rep.assessments && rep.assessment_id) {
+      try {
+        const assObj = await assessmentService.getById(rep.assessment_id);
+        if (assObj) rep.assessments = assObj;
+      } catch (_) {}
+    }
+    if (!rep.assessments && (child?.id || activeChildId)) {
+      try {
+        const assList = await assessmentService.getByChildId(child?.id || activeChildId);
+        if (Array.isArray(assList) && assList.length > 0) rep.assessments = assList[0];
+      } catch (_) {}
+    }
+
+    setData(rep);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const selectedReportIndex = useMemo(() => {
+    if (!data?.id || !reportsList.length) return 0;
+    const idx = reportsList.findIndex((r) => r.id === data.id);
+    return idx >= 0 ? idx : 0;
+  }, [data, reportsList]);
+
+  const getReportLabel = (rep, index, total) => {
+    const isLatest = index === 0;
+    const isOldest = index === total - 1 && total > 1;
+    const isIepRep = Boolean(rep.iep_report || rep.iepReport || rep.source_report_table === "reports_special_school");
+
+    let typeLabel = "Clinical Report";
+    if (isIepRep) {
+      const cycle = rep.cycle || rep.iep_cycle || (total - index);
+      typeLabel = `IEP Progress Report — Cycle ${cycle}`;
+    } else if (rep.assessment_type) {
+      typeLabel = `${rep.assessment_type.toUpperCase().replace(/_/g, " ")} Progress Report`;
+    }
+
+    let statusTag = isLatest ? "Latest Report (New)" : isOldest ? "Initial Report (Old)" : `Previous Report #${total - index}`;
+    const dateStr = rep.published_at?.split("T")[0] || rep.created_at?.split("T")[0] || "Archived";
+
+    return {
+      typeLabel,
+      statusTag,
+      isLatest,
+      dateStr
+    };
   };
 
   useEffect(() => {
     fetchReport();
-  }, [activeChildId]);
+  }, [activeChildId, urlReportId]);
 
   const iep = data?.iep_report || data?.iepReport;
   const report =
@@ -154,6 +308,65 @@ export default function ParentReportView() {
       }
     }
   }, [data, child, activeChildId, childReportsCount, iep]);
+
+  const parentRep =
+    data?.parent_report ||
+    data?.parentReport ||
+    data?.formState?.parentReport ||
+    null;
+
+  const therapistRep =
+    data?.therapist_report ||
+    data?.therapistReport ||
+    data?.formState?.therapistReport ||
+    report;
+
+  const assignedClinicExercises =
+    data?.clinic_exercises ||
+    data?.clinicExercises ||
+    data?.formState?.exercises?.clinicExercises ||
+    data?.clinicEx ||
+    [];
+
+  const assignedHomeExercises =
+    data?.home_exercises ||
+    data?.homeExercises ||
+    data?.formState?.exercises?.homeExercises ||
+    data?.homeEx ||
+    [];
+
+  const detectedCategory = useMemo(() => {
+    const raw = (
+      data?.assessment_type ||
+      child?.therapy_category ||
+      child?.diagnosis ||
+      ""
+    ).toLowerCase();
+
+    if (raw.includes("adhd") || raw.includes("conner")) return "adhd";
+    if (raw.includes("delay") || raw.includes("developmental")) return "developmental_delay";
+    if (raw.includes("learn") || raw.includes("ldst") || raw.includes("sld") || raw.includes("dyslex")) return "learning_disability";
+    if (raw.includes("special") || raw.includes("iep")) return "special_school";
+    return "asd";
+  }, [data, child]);
+
+  const currentTheme = useMemo(() => {
+    return CATEGORY_CONFIG[detectedCategory] || CATEGORY_CONFIG.asd;
+  }, [detectedCategory]);
+
+  const activeClinicExercises = useMemo(() => {
+    if (Array.isArray(assignedClinicExercises) && assignedClinicExercises.length > 0) {
+      return assignedClinicExercises;
+    }
+    return currentTheme.defaultClinicExercises;
+  }, [assignedClinicExercises, currentTheme]);
+
+  const activeHomeExercises = useMemo(() => {
+    if (Array.isArray(assignedHomeExercises) && assignedHomeExercises.length > 0) {
+      return assignedHomeExercises;
+    }
+    return currentTheme.defaultHomeExercises;
+  }, [assignedHomeExercises, currentTheme]);
 
   if (loading) {
     return (
@@ -258,12 +471,140 @@ export default function ParentReportView() {
     return <p className="text-xs text-[#2C2C2A] leading-relaxed">{String(val)}</p>;
   };
 
+  const renderReportHistorySelector = () => {
+    if (!reportsList || reportsList.length === 0) return null;
+
+    if (reportsList.length === 1) {
+      return (
+        <div className="no-print bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 mb-2 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-emerald-950 truncate">
+                🟢 Official Published Progress Report
+              </p>
+              <p className="text-[11px] text-emerald-700 font-medium">
+                Published: {data?.published_at?.split("T")[0] || data?.publishedDate || "Recently Published"}
+              </p>
+            </div>
+          </div>
+          <Badge label="Active Report" variant="green" size="sm" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="no-print bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3.5 mb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-blue-50 text-[#185FA5] flex items-center justify-center font-bold shrink-0">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-slate-800">Child Progress Reports</h3>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-[#185FA5] border border-blue-100">
+                  {reportsList.length} Total Reports
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Switch between your child&apos;s latest progress evaluation and previous archived reports.
+              </p>
+            </div>
+          </div>
+          {selectedReportIndex > 0 && (
+            <button
+              type="button"
+              onClick={() => handleSelectReport(reportsList[0])}
+              className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition-all cursor-pointer border border-emerald-200 shadow-xs"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Switch to Latest Report</span>
+            </button>
+          )}
+        </div>
+
+        {/* Report selection cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+          {reportsList.map((rep, idx) => {
+            const isSelected = rep.id === data?.id;
+            const isLatest = idx === 0;
+            const { typeLabel, statusTag, dateStr } = getReportLabel(rep, idx, reportsList.length);
+
+            return (
+              <button
+                key={rep.id ? `rep-select-${rep.id}` : `rep-select-idx-${idx}`}
+                type="button"
+                onClick={() => handleSelectReport(rep)}
+                className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2 cursor-pointer ${
+                  isSelected
+                    ? "border-[#185FA5] bg-blue-50/50 shadow-xs ring-2 ring-[#185FA5]/25"
+                    : "border-slate-200 bg-white hover:bg-slate-50/80 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                      isLatest
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {isLatest ? "🟢 Latest Report" : `📄 ${statusTag}`}
+                  </span>
+                  {isSelected && (
+                    <span className="text-[11px] font-bold text-[#185FA5] flex items-center gap-1 bg-white px-1.5 py-0.5 rounded shadow-xs">
+                      <Check className="h-3 w-3 text-emerald-600" /> Active
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800 truncate" title={typeLabel}>
+                    {typeLabel}
+                  </p>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
+                    <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
+                    <span>Published: {dateStr}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Older Report Alert Banner */}
+        {selectedReportIndex > 0 && (
+          <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-900 mt-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <p>
+                <strong>Archived View:</strong> You are viewing an <strong>older report</strong> published on{" "}
+                <strong>{data?.published_at?.split("T")[0] || data?.created_at?.split("T")[0] || "earlier date"}</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleSelectReport(reportsList[0])}
+                className="text-[#185FA5] font-bold hover:underline whitespace-nowrap cursor-pointer text-xs"
+              >
+                View Latest Report &rarr;
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ══════════════════════════════════════════════════════════════════════════
   // 1. IEP PROGRESS REPORT VIEW (FOR IEP SPECIAL SCHOOL STUDENTS)
   // ══════════════════════════════════════════════════════════════════════════
   if (iep) {
     return (
       <div className="space-y-6 text-[#2C2C2A] py-2 print:p-0 max-w-3xl mx-auto">
+        {renderReportHistorySelector()}
+
         {/* Header Banner */}
         <div className="bg-[#185FA5] text-white p-4 sm:p-6 rounded-[12px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -362,65 +703,6 @@ export default function ParentReportView() {
   // ══════════════════════════════════════════════════════════════════════════
   // 2. CLINICAL THERAPY REPORT VIEW (FOR THERAPY CHILDREN: ASD, ADHD, DELAY, LD)
   // ══════════════════════════════════════════════════════════════════════════
-  const parentRep =
-    data?.parent_report ||
-    data?.parentReport ||
-    data?.formState?.parentReport ||
-    null;
-
-  const therapistRep =
-    data?.therapist_report ||
-    data?.therapistReport ||
-    data?.formState?.therapistReport ||
-    report;
-
-  const assignedClinicExercises =
-    data?.clinic_exercises ||
-    data?.clinicExercises ||
-    data?.formState?.exercises?.clinicExercises ||
-    data?.clinicEx ||
-    [];
-
-  const assignedHomeExercises =
-    data?.home_exercises ||
-    data?.homeExercises ||
-    data?.formState?.exercises?.homeExercises ||
-    data?.homeEx ||
-    [];
-
-  const detectedCategory = useMemo(() => {
-    const raw = (
-      data?.assessment_type ||
-      child?.therapy_category ||
-      child?.diagnosis ||
-      ""
-    ).toLowerCase();
-
-    if (raw.includes("adhd") || raw.includes("conner")) return "adhd";
-    if (raw.includes("delay") || raw.includes("developmental")) return "developmental_delay";
-    if (raw.includes("learn") || raw.includes("ldst") || raw.includes("sld") || raw.includes("dyslex")) return "learning_disability";
-    if (raw.includes("special") || raw.includes("iep")) return "special_school";
-    return "asd";
-  }, [data, child]);
-
-  const currentTheme = useMemo(() => {
-    return CATEGORY_CONFIG[detectedCategory] || CATEGORY_CONFIG.asd;
-  }, [detectedCategory]);
-
-  const activeClinicExercises = useMemo(() => {
-    if (Array.isArray(assignedClinicExercises) && assignedClinicExercises.length > 0) {
-      return assignedClinicExercises;
-    }
-    return currentTheme.defaultClinicExercises;
-  }, [assignedClinicExercises, currentTheme]);
-
-  const activeHomeExercises = useMemo(() => {
-    if (Array.isArray(assignedHomeExercises) && assignedHomeExercises.length > 0) {
-      return assignedHomeExercises;
-    }
-    return currentTheme.defaultHomeExercises;
-  }, [assignedHomeExercises, currentTheme]);
-
   const therapyPlanInfo =
     data?.therapy_details ||
     data?.therapyDetails ||
@@ -439,6 +721,8 @@ export default function ParentReportView() {
 
   return (
     <div className="space-y-6 text-[#2C2C2A] py-2 print:p-0 max-w-4xl mx-auto">
+      {renderReportHistorySelector()}
+
       {/* Header Banner Tailored to Assessment */}
       <div
         className="text-white p-4 sm:p-6 rounded-[14px] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"

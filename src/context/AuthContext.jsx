@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { authService } from "../services/authService";
 import { childrenService } from "../services/childrenService";
+import { childAssignmentService } from "../services/childAssignmentService";
 import { hashPassword, isHashed } from "../services/passwordService";
 import { db } from "../lib/db";
 
@@ -10,11 +11,19 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [childrenList, setChildrenList] = useState([]);
+  const [allChildrenList, setAllChildrenList] = useState([]);
+  const [assignments, setAssignments] = useState(() => childAssignmentService.getAllAssignments());
   const [staffList, setStaffList] = useState([]);
   const [toasts, setToasts] = useState([]);
   const toastIdRef = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Subscribe to assignment updates
+  useEffect(() => {
+    return childAssignmentService.subscribe((updated) => {
+      setAssignments({ ...updated });
+    });
+  }, []);
 
   const reloadStaff = useCallback(async () => {
     try {
@@ -52,12 +61,11 @@ export function AuthProvider({ children }) {
       } catch (_) {}
     }
 
-
     // Load children from Supabase
     childrenService.getAll()
       .then((data) => {
         if (Array.isArray(data)) {
-          setChildrenList(data);
+          setAllChildrenList(data);
         }
       })
       .catch((err) => {
@@ -70,6 +78,14 @@ export function AuthProvider({ children }) {
     // Load staff from DB so counts and list are always accurate (excluding admin)
     reloadStaff();
   }, [reloadStaff]);
+
+  // Dynamically filter children:
+  // Admin sees ALL children.
+  // Staff sees ONLY children assigned to them or assessed by them.
+  const childrenList = useMemo(() => {
+    if (!user || user.role === "admin") return allChildrenList;
+    return childAssignmentService.filterChildrenForUser(allChildrenList, user);
+  }, [allChildrenList, user, assignments]);
 
   const showToast = useCallback((message, type = "success") => {
     const id = ++toastIdRef.current;
@@ -153,21 +169,63 @@ export function AuthProvider({ children }) {
     showToast("Logged out successfully.", "info");
   };
 
-  const addRegisteredChild = (newChild) => {
-    setChildrenList((prev) => [newChild, ...prev]);
-  };
+  const addRegisteredChild = useCallback((newChild) => {
+    if (newChild && newChild.id && user) {
+      childAssignmentService.recordStaffRegistration(newChild.id, user);
+      setAssignments(childAssignmentService.getAllAssignments());
+    }
+    setAllChildrenList((prev) => [newChild, ...prev]);
+  }, [user]);
 
   const updateChildDetails = (childId, updatedFields) => {
-    setChildrenList((prev) =>
+    setAllChildrenList((prev) =>
       prev.map((c) => (c.id === childId ? { ...c, ...updatedFields } : c))
     );
   };
+
+  const addStaffPermission = useCallback(async (childId, staffMember, options) => {
+    const res = await childAssignmentService.addStaffPermission(childId, staffMember, options);
+    setAssignments(childAssignmentService.getAllAssignments());
+    return res;
+  }, []);
+
+  const removeStaffPermission = useCallback(async (childId, staffId, options) => {
+    const res = await childAssignmentService.removeStaffPermission(childId, staffId, options);
+    setAssignments(childAssignmentService.getAllAssignments());
+    return res;
+  }, []);
+
+  const getAuthorizedStaff = useCallback((childId) => {
+    return childAssignmentService.getAuthorizedStaff(childId);
+  }, [assignments]);
+
+  const assignChildToStaff = useCallback(async (childId, staffMember, options) => {
+    const res = await childAssignmentService.assignChild(childId, staffMember, options);
+    setAssignments(childAssignmentService.getAllAssignments());
+    return res;
+  }, []);
+
+  const forwardChildToStaff = useCallback(async (childId, staffMember, options) => {
+    const res = await childAssignmentService.forwardChild(childId, staffMember, options);
+    setAssignments(childAssignmentService.getAllAssignments());
+    return res;
+  }, []);
+
+  const unassignChild = useCallback(async (childId) => {
+    const res = await childAssignmentService.unassignChild(childId);
+    setAssignments(childAssignmentService.getAllAssignments());
+    return res;
+  }, []);
+
+  const isChildAccessible = useCallback((childId, childData = null) => {
+    return childAssignmentService.canStaffAccess(childId, user, childData);
+  }, [user, assignments]);
 
   const setupParentPortal = async (childId, phone, password) => {
     const hashedPassword = isHashed(password) ? password : await hashPassword(password);
     updateChildDetails(childId, {
       parent: {
-        ...(childrenList.find((c) => c.id === childId)?.parent || {}),
+        ...(allChildrenList.find((c) => c.id === childId)?.parent || {}),
         phone,
         portalActive: true,
         portalPassword: hashedPassword
@@ -180,7 +238,7 @@ export function AuthProvider({ children }) {
     const hashedPassword = isHashed(newPassword) ? newPassword : await hashPassword(newPassword);
     updateChildDetails(childId, {
       parent: {
-        ...(childrenList.find((c) => c.id === childId)?.parent || {}),
+        ...(allChildrenList.find((c) => c.id === childId)?.parent || {}),
         portalPassword: hashedPassword
       }
     });
@@ -219,7 +277,17 @@ export function AuthProvider({ children }) {
     loginParent,
     logout,
     childrenList,
-    setChildrenList,
+    allChildrenList,
+    assignments,
+    assignChildToStaff,
+    forwardChildToStaff,
+    unassignChild,
+    addStaffPermission,
+    removeStaffPermission,
+    getAuthorizedStaff,
+    recordStaffRegistration: childAssignmentService.recordStaffRegistration,
+    isChildAccessible,
+    setChildrenList: setAllChildrenList,
     staffList,
     reloadStaff,
     addRegisteredChild,

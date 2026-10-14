@@ -10,6 +10,7 @@ import Input from "../components/ui/Input";
 import Toggle from "../components/ui/Toggle";
 import Badge from "../components/ui/Badge";
 import { childrenService } from "../services/childrenService";
+import { childAssignmentService } from "../services/childAssignmentService";
 import { parentService } from "../services/parentService";
 import { hashPassword } from "../services/passwordService";
 import { THERAPY_CATEGORIES } from "../services/therapyService";
@@ -45,7 +46,7 @@ export default function ChildRegistration() {
     phone: "",
     email: "",
     address: "",
-    createParentAccess: true,
+    createParentAccess: false,
     parentPassword: ""
   });
 
@@ -152,6 +153,7 @@ export default function ChildRegistration() {
 
       const newChildObj = {
         ...res,
+        registered_by: user?.id,
         parent: {
           name: formData.parentName,
           relationship: formData.relationship,
@@ -163,6 +165,9 @@ export default function ChildRegistration() {
         }
       };
 
+      if (user) {
+        childAssignmentService.recordStaffRegistration(res?.id || newChildObj.id, user);
+      }
       addRegisteredChild(newChildObj);
       setCreatedChild(newChildObj);
       showToast(`${formData.name} registered under ${formData.program_type === 'iep' ? 'IEP Special School' : `Therapy (${formData.therapy_category})`}!`, "success");
@@ -175,6 +180,7 @@ export default function ChildRegistration() {
       const fallbackChildObj = {
         id: mockId,
         ...childPayload,
+        registered_by: user?.id,
         registeredDate: new Date().toISOString().split("T")[0],
         reportsCount: 0,
         lastReportDate: null,
@@ -188,6 +194,9 @@ export default function ChildRegistration() {
           portalPassword: hashedParentPass
         }
       };
+      if (user) {
+        childAssignmentService.recordStaffRegistration(mockId, user);
+      }
       addRegisteredChild(fallbackChildObj);
       setCreatedChild(fallbackChildObj);
       showToast(`${formData.name} registered successfully!`, "success");

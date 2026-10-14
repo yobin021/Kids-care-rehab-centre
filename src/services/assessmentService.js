@@ -35,6 +35,7 @@ export const assessmentService = {
     // form_data is NOT NULL in schema — must always be provided
     const formData = assessmentData.form_data || assessmentData.formData || {}
     const childId = assessmentData.child_id || assessmentData.childId
+    const existingId = assessmentData.id || assessmentData.assessment_id
 
     // Exact columns from assessments schema
     const payload = {
@@ -58,8 +59,44 @@ export const assessmentService = {
     // Remove null assessed_by (FK to users — must be null or valid UUID)
     if (!payload.assessed_by) delete payload.assessed_by
 
+    const ASSESSMENT_TABLES = [
+      'assessment_special_school',
+      'assessment_asd',
+      'assessment_adhd',
+      'assessment_developmental_delay',
+      'assessment_learning_disability'
+    ]
+
+    // 1. If editing an existing assessment, update in place
+    if (existingId) {
+      if (toUUID(existingId)) {
+        for (const table of ASSESSMENT_TABLES) {
+          try {
+            const updated = await db.update(table, payload, { id: existingId })
+            if (updated && updated.id) {
+              const resObj = { ...updated, id: existingId, _table: table }
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(`assessment_result_${existingId}`, JSON.stringify(resObj))
+                localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(resObj))
+              }
+              return resObj
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Local storage fallback for edit mode (never duplicate)
+      const localResult = { ...payload, id: existingId, updated_at: new Date().toISOString() }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`assessment_result_${existingId}`, JSON.stringify(localResult))
+        localStorage.setItem(`assessment_result_${childId}`, JSON.stringify(localResult))
+      }
+      return localResult
+    }
+
+    // 2. Otherwise insert new assessment record
     try {
-      const res = await db.insert('assessments', payload)
+      const res = await db.insert('assessment_special_school', payload)
       if (res && res.id) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`assessment_result_${res.id}`, JSON.stringify(res))
@@ -79,7 +116,7 @@ export const assessmentService = {
           profile: 'IEP'
         })
         try {
-          const retryRes = await db.insert('assessments', payload)
+          const retryRes = await db.insert('assessment_special_school', payload)
           if (retryRes && retryRes.id) {
             if (typeof window !== 'undefined') {
               localStorage.setItem(`assessment_result_${retryRes.id}`, JSON.stringify(retryRes))
@@ -191,7 +228,17 @@ export const assessmentService = {
     }
 
     if (allAssessments.length > 0) {
-      return allAssessments.sort((a, b) => new Date(b.assessment_date || b.created_at || 0) - new Date(a.assessment_date || a.created_at || 0))
+      const seenIds = new Set()
+      const uniqueAssessments = []
+      for (const a of allAssessments) {
+        if (a && a.id && !seenIds.has(a.id)) {
+          seenIds.add(a.id)
+          uniqueAssessments.push(a)
+        } else if (a && !a.id) {
+          uniqueAssessments.push(a)
+        }
+      }
+      return uniqueAssessments.sort((a, b) => new Date(b.assessment_date || b.created_at || 0) - new Date(a.assessment_date || a.created_at || 0))
     }
 
     // Database is authoritative: if no database assessment exists, purge any stale local cache and return []
@@ -252,5 +299,45 @@ export const assessmentService = {
     }
 
     return all
+  },
+
+  async delete(assessmentId, childId = null) {
+    if (!assessmentId) return { success: false, error: 'No assessment ID provided' }
+    const ASSESSMENT_TABLES = [
+      'assessments',
+      'assessment_special_school',
+      'assessment_asd',
+      'assessment_adhd',
+      'assessment_developmental_delay',
+      'assessment_learning_disability'
+    ]
+
+    for (const table of ASSESSMENT_TABLES) {
+      try {
+        await db.delete(table, { id: assessmentId })
+      } catch (_) {}
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(`assessment_result_${assessmentId}`)
+        if (childId) {
+          localStorage.removeItem(`assessment_result_${childId}`)
+          localStorage.removeItem(`iep_assessment_draft_${childId}`)
+          localStorage.removeItem(`isaa_draft_${childId}`)
+          localStorage.removeItem(`conners_draft_${childId}`)
+          localStorage.removeItem(`dev_delay_draft_${childId}`)
+          localStorage.removeItem(`ldst_draft_${childId}`)
+        }
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.includes(assessmentId)) {
+            localStorage.removeItem(key)
+          }
+        }
+      } catch (_) {}
+    }
+    return { success: true, id: assessmentId }
   }
 }
+

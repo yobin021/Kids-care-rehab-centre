@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate } from "react-router-dom";
@@ -25,7 +23,10 @@ import {
   ChevronDown,
   ChevronUp,
   Share2,
-  MessageSquare
+  MessageSquare,
+  ShieldAlert,
+  Check,
+  Trash2
 } from "lucide-react";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -35,6 +36,7 @@ import Input from "../components/ui/Input";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import { childrenService } from "../services/childrenService";
+import { childAssignmentService } from "../services/childAssignmentService";
 import { parentService } from "../services/parentService";
 import { assessmentService } from "../services/assessmentService";
 import { reportService } from "../services/reportService";
@@ -50,13 +52,130 @@ import { detectChildCategory } from "../utils/categoryHelpers";
 export default function ChildProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, childrenList: contextChildren, showToast } = useAuth();
+  const {
+    user,
+    isAdmin,
+    isStaff,
+    isChildAccessible,
+    staffList,
+    forwardChildToStaff,
+    assignChildToStaff,
+    unassignChild,
+    addStaffPermission,
+    removeStaffPermission,
+    getAuthorizedStaff,
+    assignments,
+    childrenList: contextChildren,
+    showToast
+  } = useAuth();
 
   const [data, setData] = useState(null);
   const childCat = detectChildCategory(data);
   const [assessments, setAssessments] = useState([]);
   const [reports, setReports] = useState([]);
+  const [pendingReports, setPendingReports] = useState([]);
   const [parentMessages, setParentMessages] = useState([]);
+
+  // Multi-Staff Permissions & Assignment State
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [selectedStaffToAdd, setSelectedStaffToAdd] = useState("");
+  const [permissionNotes, setPermissionNotes] = useState("");
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [isRemovingStaff, setIsRemovingStaff] = useState(false);
+  const [currentAssignment, setCurrentAssignment] = useState(() => childAssignmentService.getAssignment(id));
+  const [authorizedStaffList, setAuthorizedStaffList] = useState(() => childAssignmentService.getAuthorizedStaff(id));
+
+  useEffect(() => {
+    const targetId = id || data?.id;
+    if (targetId) {
+      const ass = childAssignmentService.getAssignment(targetId);
+      setCurrentAssignment(ass);
+      const authorized = childAssignmentService.getAuthorizedStaff(targetId);
+      setAuthorizedStaffList(authorized);
+    }
+  }, [id, data?.id, assignments]);
+
+  const handleAddStaffAccess = async () => {
+    if (!selectedStaffToAdd) {
+      showToast("Please select a staff member to grant access to.", "danger");
+      return;
+    }
+    const targetStaff = (staffList || []).find((s) => s.id === selectedStaffToAdd);
+    if (!targetStaff) {
+      showToast("Selected staff member was not found.", "danger");
+      return;
+    }
+
+    setIsAddingStaff(true);
+    try {
+      const targetId = id || data?.id;
+      await addStaffPermission(targetId, targetStaff, {
+        grantedBy: user?.name || "Admin",
+        notes: permissionNotes
+      });
+      const updatedAss = childAssignmentService.getAssignment(targetId);
+      setCurrentAssignment(updatedAss);
+      setAuthorizedStaffList(childAssignmentService.getAuthorizedStaff(targetId));
+      showToast(`Viewing access granted to ${targetStaff.name}!`, "success");
+      setSelectedStaffToAdd("");
+      setPermissionNotes("");
+    } catch (err) {
+      console.error("Add staff permission error:", err);
+      showToast("Failed to grant staff access: " + err.message, "danger");
+    } finally {
+      setIsAddingStaff(false);
+    }
+  };
+
+  const handleRemoveStaffAccess = async (staffMemberId, staffMemberName) => {
+    if (!window.confirm(`Are you sure you want to remove viewing access for ${staffMemberName || "this staff member"}? They will no longer be able to view this child's profile.`)) {
+      return;
+    }
+
+    setIsRemovingStaff(true);
+    try {
+      const targetId = id || data?.id;
+      await removeStaffPermission(targetId, staffMemberId, {
+        removedBy: user?.name || "Admin"
+      });
+      const updatedAss = childAssignmentService.getAssignment(targetId);
+      setCurrentAssignment(updatedAss);
+      setAuthorizedStaffList(childAssignmentService.getAuthorizedStaff(targetId));
+      showToast(`Removed viewing access for ${staffMemberName || "staff member"}.`, "info");
+    } catch (err) {
+      console.error("Remove staff permission error:", err);
+      showToast("Failed to remove staff access: " + err.message, "danger");
+    } finally {
+      setIsRemovingStaff(false);
+    }
+  };
+
+  const handleDeleteAssessment = async (assessmentId) => {
+    if (!assessmentId) return;
+    if (window.confirm("Are you sure you want to delete this assessment record? This action cannot be undone.")) {
+      try {
+        await assessmentService.delete(assessmentId, id || data?.id);
+        showToast("Assessment record deleted successfully.", "success");
+        fetchRelatedRecords();
+      } catch (err) {
+        showToast("Failed to delete assessment: " + err.message, "danger");
+      }
+    }
+  };
+
+  const handleDeleteReport = async (reportId, assessmentType) => {
+    if (!reportId) return;
+    if (window.confirm("Are you sure you want to delete this report? This action cannot be undone.")) {
+      try {
+        await reportService.delete(reportId, assessmentType);
+        showToast("Report deleted successfully.", "success");
+        fetchRelatedRecords();
+        fetchExercisesForTab();
+      } catch (err) {
+        showToast("Failed to delete report: " + err.message, "danger");
+      }
+    }
+  };
 
   // Exercises Tab State
   const [latestPublishedReport, setLatestPublishedReport] = useState(null);
@@ -165,26 +284,97 @@ export default function ChildProfile() {
         }
       });
       const uniqueReps = Array.from(reportMap.values());
-      // Only published reports should appear in the child profile reports tab
+      // Only published reports should appear in the published reports section
       const publishedOnly = uniqueReps.filter(
         (r) => r.status === "published" || r.review_status === "published"
       );
-      setReports(publishedOnly);
+      const pendingOnly = uniqueReps.filter(
+        (r) => r.status === "pending_review" || r.review_status === "pending_review"
+      );
+      if (typeof window !== "undefined") {
+        try {
+          const draftRaw = localStorage.getItem(`report_draft_${id}`);
+          if (draftRaw) {
+            const draftObj = JSON.parse(draftRaw);
+            if (draftObj && (draftObj.status === "pending_review" || draftObj.review_status === "pending_review")) {
+              if (!pendingOnly.some((p) => p.id === draftObj.reportId || p.id === draftObj.id)) {
+                pendingOnly.push({ ...draftObj, id: draftObj.reportId || draftObj.id || `draft-${id}` });
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      setPendingReports(pendingOnly);
 
-      // Eagerly resolve and populate exercises ONLY from published reports
-      const repWithExercises = publishedOnly.find(
-        (r) => (r.clinic_exercises?.length || r.home_exercises?.length || r.clinicExercises?.length || r.homeExercises?.length)
-      ) || publishedOnly[0];
+      const sortedPublished = [...publishedOnly].sort((a, b) => {
+        const dateA = new Date(a.published_at || a.created_at || a.last_edited_at || 0).getTime();
+        const dateB = new Date(b.published_at || b.created_at || b.last_edited_at || 0).getTime();
+        return dateB - dateA;
+      });
+      setReports(sortedPublished);
 
-      if (repWithExercises) {
-        setLatestPublishedReport(repWithExercises);
-        const cIds = repWithExercises.clinic_exercises || repWithExercises.clinicExercises || [];
-        const hIds = repWithExercises.home_exercises || repWithExercises.homeExercises || [];
+      // Eagerly resolve and populate active exercises from the NEWEST published report
+      if (sortedPublished.length > 0) {
+        const latestRep = sortedPublished[0];
+        setLatestPublishedReport(latestRep);
+        const extractEx = (arr) => Array.isArray(arr) && arr.length > 0 ? arr : null;
+
+        let cIds = extractEx(latestRep.clinic_exercises) ||
+                   extractEx(latestRep.clinicExercises) ||
+                   extractEx(latestRep.therapy_details?.clinic_exercises) ||
+                   extractEx(latestRep.formState?.exercises?.clinicExercises) ||
+                   extractEx(latestRep.formState?.clinicEx) ||
+                   extractEx(latestRep.clinicEx) ||
+                   [];
+        let hIds = extractEx(latestRep.home_exercises) ||
+                   extractEx(latestRep.homeExercises) ||
+                   extractEx(latestRep.therapy_details?.home_exercises) ||
+                   extractEx(latestRep.formState?.exercises?.homeExercises) ||
+                   extractEx(latestRep.formState?.homeEx) ||
+                   extractEx(latestRep.homeEx) ||
+                   [];
+
+        // Fallback to associated assessment exercises if report exercises were null
+        if ((cIds.length === 0 || hIds.length === 0) && assList && assList.length > 0) {
+          const linkedAss = latestRep.assessment_id
+            ? assList.find((a) => a.id === latestRep.assessment_id)
+            : null;
+          const targetAssList = linkedAss ? [linkedAss, ...assList] : assList;
+          for (const ass of targetAssList) {
+            if (cIds.length === 0 && (ass.clinic_exercises?.length || ass.clinicExercises?.length)) {
+              cIds = ass.clinic_exercises || ass.clinicExercises;
+            }
+            if (hIds.length === 0 && (ass.home_exercises?.length || ass.homeExercises?.length)) {
+              hIds = ass.home_exercises || ass.homeExercises;
+            }
+            if (cIds.length > 0 && hIds.length > 0) break;
+          }
+        }
+
+        // Fallback to localStorage published report cache
+        if ((cIds.length === 0 || hIds.length === 0) && typeof window !== 'undefined') {
+          try {
+            const cached = localStorage.getItem(`report_published_${id}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (cIds.length === 0) {
+                cIds = extractEx(parsed.clinic_exercises) || extractEx(parsed.clinicEx) || extractEx(parsed.formState?.exercises?.clinicExercises) || [];
+              }
+              if (hIds.length === 0) {
+                hIds = extractEx(parsed.home_exercises) || extractEx(parsed.homeEx) || extractEx(parsed.formState?.exercises?.homeExercises) || [];
+              }
+            }
+          } catch (_) {}
+        }
+
         if (cIds.length > 0 || hIds.length > 0) {
           const cList = cIds.map((item) => resolveExerciseItem(item, MASTER_EXERCISES)).filter(Boolean);
           const hList = hIds.map((item) => resolveExerciseItem(item, MASTER_EXERCISES)).filter(Boolean);
           setClinicExercisesList(cList);
           setHomeExercisesList(hList);
+        } else {
+          setClinicExercisesList([]);
+          setHomeExercisesList([]);
         }
       } else {
         // No published report — ensure exercises are cleared
@@ -211,9 +401,14 @@ export default function ChildProfile() {
       try {
         const allReps = await reportService.getByChildId(id);
         if (Array.isArray(allReps)) {
-          publishedRep = allReps.find(
+          const pubList = allReps.filter(
             (r) => r.status === 'published' || r.review_status === 'published'
-          ) || null;
+          ).sort((a, b) => {
+            const dateA = new Date(a.published_at || a.created_at || a.last_edited_at || 0).getTime();
+            const dateB = new Date(b.published_at || b.created_at || b.last_edited_at || 0).getTime();
+            return dateB - dateA;
+          });
+          publishedRep = pubList[0] || null;
         }
       } catch (_) {}
 
@@ -226,9 +421,60 @@ export default function ChildProfile() {
       }
 
       setLatestPublishedReport(publishedRep);
+      const extractEx = (arr) => Array.isArray(arr) && arr.length > 0 ? arr : null;
 
-      const clinicIds = publishedRep.clinic_exercises || publishedRep.clinicExercises || [];
-      const homeIds = publishedRep.home_exercises || publishedRep.homeExercises || [];
+      let clinicIds = extractEx(publishedRep.clinic_exercises) ||
+                      extractEx(publishedRep.clinicExercises) ||
+                      extractEx(publishedRep.therapy_details?.clinic_exercises) ||
+                      extractEx(publishedRep.formState?.exercises?.clinicExercises) ||
+                      extractEx(publishedRep.formState?.clinicEx) ||
+                      extractEx(publishedRep.clinicEx) ||
+                      [];
+      let homeIds = extractEx(publishedRep.home_exercises) ||
+                    extractEx(publishedRep.homeExercises) ||
+                    extractEx(publishedRep.therapy_details?.home_exercises) ||
+                    extractEx(publishedRep.formState?.exercises?.homeExercises) ||
+                    extractEx(publishedRep.formState?.homeEx) ||
+                    extractEx(publishedRep.homeEx) ||
+                    [];
+
+      // Fallback 1: Associated Assessment exercises
+      if (clinicIds.length === 0 || homeIds.length === 0) {
+        try {
+          const assList = await assessmentService.getByChildId(id);
+          if (Array.isArray(assList) && assList.length > 0) {
+            const linkedAss = publishedRep?.assessment_id
+              ? assList.find((a) => a.id === publishedRep.assessment_id)
+              : null;
+            const targetAssList = linkedAss ? [linkedAss, ...assList] : assList;
+            for (const ass of targetAssList) {
+              if (clinicIds.length === 0 && (ass.clinic_exercises?.length || ass.clinicExercises?.length)) {
+                clinicIds = ass.clinic_exercises || ass.clinicExercises;
+              }
+              if (homeIds.length === 0 && (ass.home_exercises?.length || ass.homeExercises?.length)) {
+                homeIds = ass.home_exercises || ass.homeExercises;
+              }
+              if (clinicIds.length > 0 && homeIds.length > 0) break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Fallback 2: localStorage published report cache
+      if ((clinicIds.length === 0 || homeIds.length === 0) && typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem(`report_published_${id}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (clinicIds.length === 0) {
+              clinicIds = extractEx(parsed.clinic_exercises) || extractEx(parsed.clinicEx) || extractEx(parsed.formState?.exercises?.clinicExercises) || [];
+            }
+            if (homeIds.length === 0) {
+              homeIds = extractEx(parsed.home_exercises) || extractEx(parsed.homeEx) || extractEx(parsed.formState?.exercises?.homeExercises) || [];
+            }
+          }
+        } catch (_) {}
+      }
 
       const available = (await exerciseService.getAll()) || [];
 
@@ -407,7 +653,42 @@ export default function ChildProfile() {
   const parentName = data?.parent?.name || data?.parent_accounts?.parent_name || "Parent";
   const parentPhone = data?.parent?.phone || data?.parent_accounts?.phone || portalPhone;
   const parentPassword = data?.parent?.portalPassword || data?.parent_accounts?.password_hash || portalPass;
-  const isPortalActive = data?.parent?.portalActive ?? data?.parent_accounts?.portal_active ?? true;
+  const isPortalActive = Boolean(data?.parent?.portalActive || data?.parent_accounts?.portal_active);
+
+  const handleTogglePortalStatus = async () => {
+    const nextStatus = !isPortalActive;
+    try {
+      const childId = id || data?.id;
+      const targetPhone = portalPhone || data?.parent?.phone || data?.parent_accounts?.phone;
+      if (targetPhone) {
+        await db.update('parent_accounts', { portal_active: nextStatus }, { match: { phone: String(targetPhone) } }).catch(() => {});
+      }
+      if (childId) {
+        await db.update('parent_accounts', { portal_active: nextStatus }, { match: { child_id: childId } }).catch(() => {});
+      }
+      setData((prev) => ({
+        ...prev,
+        parent: {
+          ...(prev?.parent || {}),
+          portalActive: nextStatus
+        },
+        parent_accounts: {
+          ...(prev?.parent_accounts || {}),
+          portal_active: nextStatus
+        }
+      }));
+      if (typeof window !== "undefined") {
+        try {
+          const registered = JSON.parse(localStorage.getItem("kcr_registered_children") || "[]");
+          const updated = registered.map(c => c.id === childId ? { ...c, parent: { ...(c.parent || {}), portalActive: nextStatus } } : c);
+          localStorage.setItem("kcr_registered_children", JSON.stringify(updated));
+        } catch (_) {}
+      }
+      showToast(nextStatus ? "Parent portal access activated!" : "Parent portal access deactivated.", "success");
+    } catch (err) {
+      showToast("Failed to update status: " + err.message, "error");
+    }
+  };
 
   const handleOpenSetupModal = () => {
     setPortalPhone(parentPhone || "");
@@ -432,6 +713,50 @@ export default function ChildProfile() {
 
   if (error) {
     return <ErrorMessage error={error} onRetry={fetchProfile} />;
+  }
+
+  const isAccessible = isAdmin || (isChildAccessible && isChildAccessible(id || data?.id, data));
+
+  if (!isAccessible) {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-4 text-center space-y-6">
+        <div className="h-20 w-20 mx-auto rounded-3xl bg-amber-50 border-2 border-amber-200 flex items-center justify-center text-amber-600 shadow-md">
+          <ShieldAlert className="h-10 w-10" />
+        </div>
+        <div className="space-y-2">
+          <Badge label="Restricted Access" variant="amber" size="md" />
+          <h2 className="text-2xl font-black text-[#2C2C2A] tracking-tight">
+            Child Profile Restricted to Permitted Staff
+          </h2>
+          <p className="text-sm text-[#5F5E5A] leading-relaxed">
+            This student's profile (<strong>{data?.name || id}</strong>) is currently private. Only the staff member who registered this child or clinical staff granted permission by Administrator <strong>Dr. Radha</strong> can view this profile.
+          </p>
+        </div>
+        <div className="p-4 bg-white rounded-xl border border-[#D3D1C7] text-xs text-left space-y-2">
+          <div className="flex items-center gap-2 font-bold text-[#2C2C2A]">
+            <Lock className="h-4 w-4 text-[#854F0B]" />
+            <span>Profile Access Rules:</span>
+          </div>
+          <p className="text-[#5F5E5A]">
+            • <strong>Registering Staff:</strong> When a staff member registers a child, only that staff member can view the child's profile automatically.
+          </p>
+          <p className="text-[#5F5E5A]">
+            • <strong>Admin Permission Required:</strong> All other staff require explicit permission from Administrator <strong>Dr. Radha</strong> to access this profile.
+          </p>
+          <p className="text-[#5F5E5A]">
+            • <strong>Admin Controls:</strong> The Administrator can add and remove staff members who can view this profile at any time.
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outlined" onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
+          </Button>
+          <Button variant="primary" onClick={() => navigate("/children")}>
+            View My Assigned Students
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -463,10 +788,81 @@ export default function ChildProfile() {
                 </>
               )}
             </div>
+
+            {/* Staff Access & Permissions Status Pill */}
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              {isAdmin ? (
+                authorizedStaffList.length > 0 ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-emerald-800">
+                    <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>
+                      Permitted Staff ({authorizedStaffList.length}): {authorizedStaffList.map((s) => s.name).join(", ")}
+                    </span>
+                    <button
+                      onClick={() => setShowPermissionsModal(true)}
+                      className="ml-1 text-[11px] underline text-[#0F6E56] hover:text-emerald-950 cursor-pointer font-bold"
+                    >
+                      Manage Access
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-xs font-bold text-amber-800">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Admin Only (No staff permitted)</span>
+                    <button
+                      onClick={() => setShowPermissionsModal(true)}
+                      className="ml-1 text-[11px] underline text-[#854F0B] hover:text-amber-950 cursor-pointer font-bold"
+                    >
+                      + Add Staff
+                    </button>
+                  </div>
+                )
+              ) : (
+                (() => {
+                  const myPerm = authorizedStaffList.find(
+                    (s) => s.id === user?.id || (s.name && s.name.toLowerCase() === (user?.name || "").toLowerCase())
+                  );
+                  const isRegistrar =
+                    myPerm?.isRegistrar ||
+                    currentAssignment?.registeredByStaffId === user?.id ||
+                    data?.registered_by === user?.id;
+
+                  return isRegistrar ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 rounded-full text-xs font-bold text-purple-800">
+                      <UserCheck className="h-3.5 w-3.5 text-purple-600" />
+                      <span>Access Granted: Registered by you</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-xs font-bold text-emerald-800">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Access Granted by Admin Dr. Radha</span>
+                    </div>
+                  );
+                })()
+              )}
+
+              {currentAssignment?.registeredByStaffName && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F8F8F6] border border-[#D3D1C7] rounded-full text-xs font-medium text-[#5F5E5A]">
+                  <span>Registered by: {currentAssignment.registeredByStaffName}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={UserCheck}
+              className="border-[#0F6E56] text-[#0F6E56] hover:bg-emerald-50 font-bold"
+              onClick={() => setShowPermissionsModal(true)}
+              title="Manage staff members who can view this child profile"
+            >
+              Staff Permissions
+            </Button>
+          )}
           <Button variant="outlined" size="sm" icon={Edit3} onClick={() => navigate(`/children/${data?.id}/edit`)}>
             Edit Child
           </Button>
@@ -639,7 +1035,23 @@ export default function ChildProfile() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        size="sm"
+                        variant="outlined"
+                        icon={Edit3}
+                        onClick={() => {
+                          let editRoute = `/assessment/new/${data?.id}?assessmentId=${ass.id}`;
+                          if (isDelayAss) editRoute = `/therapy/delay/assessment/${data?.id}?assessmentId=${ass.id}`;
+                          else if (isAdhdAss) editRoute = `/therapy/adhd/assessment/${data?.id}?assessmentId=${ass.id}`;
+                          else if (isLdstAss) editRoute = `/therapy/sld/assessment/${data?.id}?assessmentId=${ass.id}`;
+                          else if (isAsdAss) editRoute = `/therapy/asd/assessment/${data?.id}?assessmentId=${ass.id}`;
+                          navigate(editRoute);
+                        }}
+                        className="border-[#185FA5] text-[#185FA5] hover:bg-blue-50"
+                      >
+                        Edit Assessment
+                      </Button>
                       <Button
                         size="sm"
                         variant="outlined"
@@ -647,6 +1059,16 @@ export default function ChildProfile() {
                         onClick={() => navigate(`/reports/new/${data?.id}?assessmentId=${ass.id}`)}
                       >
                         Create / View Report
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outlined"
+                        icon={Trash2}
+                        onClick={() => handleDeleteAssessment(ass.id)}
+                        className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                        title="Delete Assessment"
+                      >
+                        Delete
                       </Button>
                     </div>
                   </div>
@@ -979,10 +1401,52 @@ export default function ChildProfile() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-[#2C2C2A]">Published Reports</h3>
+              <h3 className="text-sm font-bold text-[#2C2C2A]">Clinical Reports</h3>
               <p className="text-xs text-[#5F5E5A]">Official assessment &amp; IEP progress reports published by Admin</p>
             </div>
           </div>
+
+          {/* Pending Admin Review Alert */}
+          {pendingReports.length > 0 && (
+            <div className="bg-amber-50/90 border border-amber-300 rounded-[12px] p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-amber-950 flex items-center gap-2">
+                      Report Generated — Awaiting Admin Review &amp; Submission
+                    </h4>
+                    <p className="text-xs text-amber-900/80 mt-0.5">
+                      Staff have completed the assessment report. Once reviewed and submitted by the administrator, it will become published and visible to therapists and parents.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="self-end sm:self-auto shrink-0">
+                  {isAdmin ? (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(`/reports/${id}/review`)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold"
+                    >
+                      Review &amp; Submit / Publish
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outlined"
+                      onClick={() => navigate(`/reports/${id}/therapist`)}
+                      className="border-amber-300 text-amber-900 hover:bg-amber-100 font-semibold"
+                    >
+                      View Submitted Draft
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {reports.length === 0 ? (
             <Card padding="p-8">
@@ -1029,6 +1493,18 @@ export default function ChildProfile() {
                     >
                       View Published Report
                     </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outlined"
+                        size="sm"
+                        icon={Trash2}
+                        onClick={() => handleDeleteReport(rep.id, rep.assessment_type)}
+                        className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                        title="Delete Report"
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1076,6 +1552,14 @@ export default function ChildProfile() {
               </Button>
               <Button variant="outlined" icon={Key} onClick={handleOpenResetModal}>
                 Reset Password
+              </Button>
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={handleTogglePortalStatus}
+                className={isPortalActive ? "border-amber-300 text-amber-700 hover:bg-amber-50" : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"}
+              >
+                {isPortalActive ? "Deactivate Access" : "Activate Access"}
               </Button>
             </div>
           </div>
@@ -1295,6 +1779,191 @@ export default function ChildProfile() {
           <div className="flex justify-end pt-2 border-t border-[#D3D1C7]">
             <Button variant="outlined" onClick={() => setPreviewExerciseModal(null)}>
               Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Admin Manage Staff Access & Permissions Modal */}
+      <Modal
+        isOpen={showPermissionsModal}
+        onClose={() => setShowPermissionsModal(false)}
+        title={`Staff Profile Access Permissions — ${data?.name || "Child"}`}
+      >
+        <div className="space-y-5 text-xs text-[#2C2C2A]">
+          {/* Child Summary Header */}
+          <div className="p-3.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7] space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-sm text-[#2C2C2A]">{data?.name}</span>
+              <span className="font-mono text-xs font-bold text-[#9B9A96] bg-white px-2 py-0.5 rounded border border-[#D3D1C7]">
+                {data?.id}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[#5F5E5A] flex-wrap">
+              <span>Program: <strong>{data?.program_type === "iep" ? "IEP Special School" : (data?.therapy_category || "Therapy")}</strong></span>
+              <span>•</span>
+              <span>
+                Registered by: <strong>{currentAssignment?.registeredByStaffName || "Administrator"}</strong>
+              </span>
+            </div>
+            <p className="text-[11px] text-[#5F5E5A] leading-relaxed pt-1 border-t border-[#E5E5E0]">
+              <strong>Access Policy:</strong> If a particular staff registers the child, only that staff can view the profile. Other staff require permission from the Admin. As Admin, you can add and remove staff who can view this child's profile.
+            </p>
+          </div>
+
+          {/* Section 1: Currently Permitted Staff */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#5F5E5A] uppercase tracking-wider">
+                Staff With Viewing Permission ({authorizedStaffList.length})
+              </label>
+              <span className="text-[11px] text-[#9B9A96]">
+                {authorizedStaffList.length === 0 ? "No staff currently permitted" : "Can view child profile"}
+              </span>
+            </div>
+
+            {authorizedStaffList.length === 0 ? (
+              <div className="p-4 bg-amber-50/60 rounded-[8px] border border-amber-200 text-center space-y-1">
+                <p className="font-bold text-amber-900">No staff members currently have access</p>
+                <p className="text-[11px] text-amber-700">
+                  This profile is visible only to Administrator Dr. Radha. Use the form below to grant access to clinical staff.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {authorizedStaffList.map((staff) => (
+                  <div
+                    key={staff.id}
+                    className="p-3 rounded-[8px] border border-[#D3D1C7] bg-white flex items-center justify-between gap-3 shadow-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-[#185FA5]/10 text-[#185FA5] flex items-center justify-center font-bold text-xs shrink-0">
+                        {staff.name?.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-xs text-[#2C2C2A]">{staff.name}</p>
+                          {staff.isRegistrar ? (
+                            <Badge label="Registrar" variant="purple" size="sm" />
+                          ) : (
+                            <Badge label="Permitted by Admin" variant="green" size="sm" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#5F5E5A]">
+                          {staff.designation || "Clinical Specialist"}
+                          {staff.grantedAt && (
+                            <span className="text-[#9B9A96]"> • Added {new Date(staff.grantedAt).toLocaleDateString()}</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outlined"
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 text-xs py-1 px-2.5 shrink-0"
+                      icon={Trash2}
+                      disabled={isRemovingStaff}
+                      onClick={() => handleRemoveStaffAccess(staff.id, staff.name)}
+                      title={`Remove ${staff.name}'s permission to view this child profile`}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Add Staff Member */}
+          <div className="pt-3 border-t border-[#D3D1C7] space-y-3">
+            <label className="block text-xs font-bold text-[#5F5E5A] uppercase tracking-wider">
+              Grant Viewing Permission to Staff Member
+            </label>
+
+            {(() => {
+              const unpermittedStaff = (staffList || [])
+                .filter((s) => s.isActive !== false)
+                .filter((s) => !authorizedStaffList.some((a) => a.id === s.id));
+
+              if (unpermittedStaff.length === 0) {
+                return (
+                  <p className="text-[11px] text-[#5F5E5A] italic p-2.5 bg-[#F8F8F6] rounded-[8px] border border-[#D3D1C7]">
+                    All registered clinical staff members already have viewing access to this child.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                    {unpermittedStaff.map((staff) => {
+                      const isSelected = selectedStaffToAdd === staff.id;
+                      return (
+                        <div
+                          key={staff.id}
+                          onClick={() => setSelectedStaffToAdd(staff.id)}
+                          className={`p-2.5 rounded-[8px] border cursor-pointer transition-all flex items-center justify-between ${
+                            isSelected
+                              ? "border-[#0F6E56] bg-[#0F6E56]/5 ring-1 ring-[#0F6E56]"
+                              : "border-[#D3D1C7] hover:border-[#0F6E56]/50 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                              isSelected ? "bg-[#0F6E56] text-white" : "bg-[#F8F8F6] text-[#2C2C2A]"
+                            }`}>
+                              {staff.name?.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-xs text-[#2C2C2A]">{staff.name}</p>
+                              <p className="text-[11px] text-[#5F5E5A]">{staff.designation || "Clinical Specialist"}</p>
+                            </div>
+                          </div>
+
+                          <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                            isSelected ? "border-[#0F6E56] bg-[#0F6E56] text-white" : "border-[#D3D1C7]"
+                          }`}>
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#5F5E5A] mb-1">
+                      Clinical Notes / Reason for Access (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={permissionNotes}
+                      onChange={(e) => setPermissionNotes(e.target.value)}
+                      placeholder="e.g. Granted for sensory integration assessment and therapy sessions..."
+                      className="w-full p-2.5 rounded-[8px] border border-[#D3D1C7] text-xs outline-none focus:border-[#0F6E56]"
+                    />
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    icon={UserCheck}
+                    className="w-full bg-[#0F6E56] hover:bg-[#08503E] justify-center"
+                    disabled={!selectedStaffToAdd || isAddingStaff}
+                    loading={isAddingStaff}
+                    onClick={handleAddStaffAccess}
+                  >
+                    + Grant Profile Access
+                  </Button>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Modal Footer */}
+          <div className="flex items-center justify-end pt-3 border-t border-[#D3D1C7]">
+            <Button size="sm" variant="outlined" onClick={() => setShowPermissionsModal(false)}>
+              Done
             </Button>
           </div>
         </div>

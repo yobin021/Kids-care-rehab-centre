@@ -58,12 +58,41 @@ export const reportService = {
         therapist_report: reportData.therapist_report || reportData.therapistReport || null,
         parent_report: reportData.parent_report || reportData.parentReport || null,
         therapy_details: reportData.therapy_details || reportData.therapyDetails || null,
-        clinic_exercises: reportData.clinic_exercises || reportData.clinicExercises || null,
-        home_exercises: reportData.home_exercises || reportData.homeExercises || null,
         prepared_by: reportData.prepared_by || reportData.preparedBy || null,
         prepared_by_id: toUUID(reportData.prepared_by_id || reportData.preparedById),
         status: reportData.status || 'draft',
         last_edited_at: new Date().toISOString()
+      }
+
+      // Preserve clinic & home exercises if provided
+      const cEx = reportData.clinic_exercises || reportData.clinicExercises
+      if (Array.isArray(cEx) && cEx.length > 0) {
+        payload.clinic_exercises = cEx
+      }
+      const hEx = reportData.home_exercises || reportData.homeExercises
+      if (Array.isArray(hEx) && hEx.length > 0) {
+        payload.home_exercises = hEx
+      }
+
+      // If exercises not provided, check assessment fallback across all tables
+      if ((!payload.clinic_exercises || !payload.home_exercises) && childId) {
+        const assTablesToCheck = targetTable
+          ? ['assessment_' + targetTable.replace('reports_', ''), 'assessment_asd', 'assessment_adhd', 'assessment_developmental_delay', 'assessment_learning_disability', 'assessment_special_school']
+          : ['assessment_asd', 'assessment_adhd', 'assessment_developmental_delay', 'assessment_learning_disability', 'assessment_special_school']
+        for (const assTable of assTablesToCheck) {
+          try {
+            const assList = await db.select(assTable, { match: { child_id: childId }, order: { column: 'assessment_date', ascending: false }, limit: 1 })
+            if (Array.isArray(assList) && assList.length > 0) {
+              if (!payload.clinic_exercises && Array.isArray(assList[0].clinic_exercises) && assList[0].clinic_exercises.length > 0) {
+                payload.clinic_exercises = assList[0].clinic_exercises
+              }
+              if (!payload.home_exercises && Array.isArray(assList[0].home_exercises) && assList[0].home_exercises.length > 0) {
+                payload.home_exercises = assList[0].home_exercises
+              }
+              if (payload.clinic_exercises && payload.home_exercises) break
+            }
+          } catch (_) {}
+        }
       }
 
       // Assessment-specific score fields
@@ -102,13 +131,18 @@ export const reportService = {
           if (toUUID(reportData.id)) {
             savedResult = await db.update(targetTable, payload, { id: reportData.id })
           } else {
-            const existingInTarget = await db.select(targetTable, {
-              match: { child_id: childId },
-              order: { column: 'created_at', ascending: false },
-              limit: 1
-            })
-            if (Array.isArray(existingInTarget) && existingInTarget.length > 0) {
-              savedResult = await db.update(targetTable, payload, { id: existingInTarget[0].id })
+            let existingInTarget = null
+            if (payload.assessment_id) {
+              const byAss = await db.select(targetTable, {
+                match: { assessment_id: payload.assessment_id },
+                limit: 1
+              })
+              if (Array.isArray(byAss) && byAss.length > 0) {
+                existingInTarget = byAss[0]
+              }
+            }
+            if (existingInTarget) {
+              savedResult = await db.update(targetTable, payload, { id: existingInTarget.id })
             } else {
               savedResult = await db.insert(targetTable, payload)
             }
@@ -126,14 +160,9 @@ export const reportService = {
         let existingMaster = null
         if (toUUID(masterPayload.id || reportData.id)) {
           existingMaster = await db.select('reports', { match: { id: masterPayload.id || reportData.id }, single: true })
-        }
-        if (!existingMaster && childId) {
-          const reps = await db.select('reports', {
-            match: { child_id: childId, assessment_type: assessmentType },
-            order: { column: 'created_at', ascending: false },
-            limit: 1
-          })
-          if (Array.isArray(reps) && reps.length > 0) existingMaster = reps[0]
+        } else if (payload.assessment_id) {
+          const byAss = await db.select('reports', { match: { assessment_id: payload.assessment_id }, limit: 1 })
+          if (Array.isArray(byAss) && byAss.length > 0) existingMaster = byAss[0]
         }
 
         if (existingMaster) {
@@ -186,6 +215,28 @@ export const reportService = {
       if (reportData.home_exercises || reportData.homeExercises) {
         payload.home_exercises = reportData.home_exercises || reportData.homeExercises
       }
+
+      // If exercises not in reportData, check assessment fallback across all tables
+      if ((!payload.clinic_exercises || !payload.home_exercises) && childId) {
+        const assTablesToCheck = targetTable
+          ? ['assessment_' + targetTable.replace('reports_', ''), 'assessment_asd', 'assessment_adhd', 'assessment_developmental_delay', 'assessment_learning_disability', 'assessment_special_school']
+          : ['assessment_asd', 'assessment_adhd', 'assessment_developmental_delay', 'assessment_learning_disability', 'assessment_special_school']
+        for (const assTable of assTablesToCheck) {
+          try {
+            const assList = await db.select(assTable, { match: { child_id: childId }, order: { column: 'assessment_date', ascending: false }, limit: 1 })
+            if (Array.isArray(assList) && assList.length > 0) {
+              if (!payload.clinic_exercises && Array.isArray(assList[0].clinic_exercises) && assList[0].clinic_exercises.length > 0) {
+                payload.clinic_exercises = assList[0].clinic_exercises
+              }
+              if (!payload.home_exercises && Array.isArray(assList[0].home_exercises) && assList[0].home_exercises.length > 0) {
+                payload.home_exercises = assList[0].home_exercises
+              }
+              if (payload.clinic_exercises && payload.home_exercises) break
+            }
+          } catch (_) {}
+        }
+      }
+
       if (reportData.prepared_by || reportData.preparedBy) {
         payload.prepared_by = reportData.prepared_by || reportData.preparedBy
       }
@@ -227,15 +278,16 @@ export const reportService = {
           if (toUUID(reportId)) {
             await db.update(targetTable, payload, { id: reportId })
           } else {
-            const existing = await db.select(targetTable, {
-              match: { child_id: childId },
-              order: { column: 'created_at', ascending: false },
-              limit: 1
-            })
-            if (Array.isArray(existing) && existing.length > 0) {
-              await db.update(targetTable, payload, { id: existing[0].id })
+            let existing = null
+            if (payload.assessment_id) {
+              const byAss = await db.select(targetTable, { match: { assessment_id: payload.assessment_id }, limit: 1 })
+              if (Array.isArray(byAss) && byAss.length > 0) existing = byAss[0]
+            }
+            if (existing) {
+              await db.update(targetTable, payload, { id: existing.id })
             } else {
-              await db.insert(targetTable, { child_id: childId, ...payload })
+              const inserted = await db.insert(targetTable, { child_id: childId, ...payload })
+              if (inserted?.id) reportId = inserted.id
             }
           }
         } catch (tableErr) {
@@ -248,13 +300,13 @@ export const reportService = {
         if (toUUID(reportId)) {
           return await db.update('reports', payload, { id: reportId })
         }
-        const reps = await db.select('reports', {
-          match: { child_id: childId, assessment_type: assessmentType },
-          order: { column: 'created_at', ascending: false },
-          limit: 1
-        })
-        if (Array.isArray(reps) && reps.length > 0) {
-          return await db.update('reports', payload, { id: reps[0].id })
+        let existingMaster = null
+        if (payload.assessment_id) {
+          const reps = await db.select('reports', { match: { assessment_id: payload.assessment_id }, limit: 1 })
+          if (Array.isArray(reps) && reps.length > 0) existingMaster = reps[0]
+        }
+        if (existingMaster) {
+          return await db.update('reports', payload, { id: existingMaster.id })
         }
         return await db.insert('reports', { child_id: childId, ...payload })
       } catch (masterErr) {
@@ -283,10 +335,14 @@ export const reportService = {
         payload.parent_report = updates.parent_report || updates.parentReport
       if (updates.therapy_details || updates.therapyDetails)
         payload.therapy_details = updates.therapy_details || updates.therapyDetails
-      if (updates.clinic_exercises || updates.clinicExercises)
-        payload.clinic_exercises = updates.clinic_exercises || updates.clinicExercises
-      if (updates.home_exercises || updates.homeExercises)
-        payload.home_exercises = updates.home_exercises || updates.homeExercises
+      const cEx = updates.clinic_exercises || updates.clinicExercises
+      if (Array.isArray(cEx) && cEx.length > 0) {
+        payload.clinic_exercises = cEx
+      }
+      const hEx = updates.home_exercises || updates.homeExercises
+      if (Array.isArray(hEx) && hEx.length > 0) {
+        payload.home_exercises = hEx
+      }
       if (updates.prepared_by || updates.preparedBy)
         payload.prepared_by = updates.prepared_by || updates.preparedBy
       if (updates.status) payload.status = updates.status
@@ -403,6 +459,19 @@ export const reportService = {
   async getPublishedByChildId(childId, category = null) {
     if (!childId) return null
     try {
+      const allReps = await this.getByChildId(childId)
+      if (Array.isArray(allReps) && allReps.length > 0) {
+        const publishedList = allReps.filter(r => r && (r.status === 'published' || r.review_status === 'published'))
+        if (publishedList.length > 0) {
+          publishedList.sort((a, b) => {
+            const dateA = new Date(a.published_at || a.created_at || a.last_edited_at || 0).getTime()
+            const dateB = new Date(b.published_at || b.created_at || b.last_edited_at || 0).getTime()
+            return dateB - dateA
+          })
+          return publishedList[0]
+        }
+      }
+
       const targetTable = resolveReportTable(category)
       const tablesToCheck = targetTable ? [targetTable, ...ALL_REPORT_TABLES.filter(t => t !== targetTable)] : ALL_REPORT_TABLES
 
@@ -503,13 +572,13 @@ export const reportService = {
           if (toUUID(reportId)) {
             await db.update(targetTable, payload, { id: reportId })
           } else {
-            const existing = await db.select(targetTable, {
-              match: { child_id: childId },
-              order: { column: 'created_at', ascending: false },
-              limit: 1
-            })
-            if (Array.isArray(existing) && existing.length > 0) {
-              await db.update(targetTable, payload, { id: existing[0].id })
+            let existing = null
+            if (payload.assessment_id) {
+              const byAss = await db.select(targetTable, { match: { assessment_id: payload.assessment_id }, limit: 1 })
+              if (Array.isArray(byAss) && byAss.length > 0) existing = byAss[0]
+            }
+            if (existing) {
+              await db.update(targetTable, payload, { id: existing.id })
             } else {
               await db.insert(targetTable, { child_id: childId, ...payload })
             }
@@ -524,13 +593,13 @@ export const reportService = {
         if (toUUID(reportId)) {
           return await db.update('reports', payload, { id: reportId })
         }
-        const reps = await db.select('reports', {
-          match: { child_id: childId, assessment_type: assessmentType },
-          order: { column: 'created_at', ascending: false },
-          limit: 1
-        })
-        if (Array.isArray(reps) && reps.length > 0) {
-          return await db.update('reports', payload, { id: reps[0].id })
+        let existingMaster = null
+        if (payload.assessment_id) {
+          const reps = await db.select('reports', { match: { assessment_id: payload.assessment_id }, limit: 1 })
+          if (Array.isArray(reps) && reps.length > 0) existingMaster = reps[0]
+        }
+        if (existingMaster) {
+          return await db.update('reports', payload, { id: existingMaster.id })
         }
         return await db.insert('reports', { child_id: childId, ...payload })
       } catch (_) {}
@@ -635,5 +704,33 @@ export const reportService = {
     } catch {
       return 0
     }
+  },
+
+  async delete(reportId, assessmentType = null) {
+    if (!reportId) return { success: false, error: 'No report ID provided' }
+    const tablesToTry = assessmentType
+      ? [resolveReportTable(assessmentType), 'reports'].filter(Boolean)
+      : [...ALL_REPORT_TABLES, 'reports']
+
+    for (const table of tablesToTry) {
+      try {
+        await db.delete(table, { id: reportId })
+      } catch (_) {}
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(`report_draft_${reportId}`)
+        localStorage.removeItem(`report_${reportId}`)
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.includes(reportId)) {
+            localStorage.removeItem(key)
+          }
+        }
+      } catch (_) {}
+    }
+    return { success: true, id: reportId }
   }
 }
+

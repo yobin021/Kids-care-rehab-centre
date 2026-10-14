@@ -22,7 +22,7 @@ export const DEFAULT_CHILDREN = [
       name: "Rajesh Verma",
       phone: "9876543211",
       relationship: "Father",
-      portalActive: true
+      portalActive: false
     }
   },
   {
@@ -39,7 +39,7 @@ export const DEFAULT_CHILDREN = [
       name: "Mrs. Priya Ramanathan",
       phone: "9876543210",
       relationship: "Mother",
-      portalActive: true
+      portalActive: false
     }
   },
   {
@@ -56,7 +56,7 @@ export const DEFAULT_CHILDREN = [
       name: "Vikram Sharma",
       phone: "9876543212",
       relationship: "Father",
-      portalActive: true
+      portalActive: false
     }
   },
   {
@@ -73,7 +73,7 @@ export const DEFAULT_CHILDREN = [
       name: "Ananya Patel",
       phone: "9876543213",
       relationship: "Mother",
-      portalActive: true
+      portalActive: false
     }
   },
   {
@@ -90,7 +90,7 @@ export const DEFAULT_CHILDREN = [
       name: "Suresh Nair",
       phone: "9876543214",
       relationship: "Father",
-      portalActive: true
+      portalActive: false
     }
   }
 ];

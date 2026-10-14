@@ -79,8 +79,21 @@ export default function ParentExercises() {
       const available = (await exerciseService.getAll()) || [];
 
       // Step 3: Resolve every exercise to a full object with verified image & details
+      const seenIds = new Set();
       const ordered = homeExerciseIds
-        .map((item) => resolveExerciseItem(item, available))
+        .map((item, idx) => {
+          const resolved = resolveExerciseItem(item, available);
+          if (!resolved) return null;
+          let id = resolved.id || `ex-${idx}`;
+          if (seenIds.has(id)) {
+            id = `${id}-${idx}`;
+          }
+          seenIds.add(id);
+          return {
+            ...resolved,
+            id
+          };
+        })
         .filter(Boolean);
 
       setExercises(ordered);
@@ -281,13 +294,14 @@ export default function ParentExercises() {
       ) : (
         <div className="space-y-4">
           {/* EXERCISE LIST */}
-          {exercises.map((ex) => {
+          {exercises.map((ex, index) => {
+            const exerciseKey = ex.id ? `${ex.id}-${index}` : `exercise-${index}`;
             const isDone = !!doneLogs[ex.id];
             const isExpanded = expandedId === ex.id;
 
             return (
               <div
-                key={ex.id}
+                key={exerciseKey}
                 className={`bg-white rounded-[12px] border overflow-hidden transition-all shadow-xs ${
                   isDone ? "border-emerald-400 bg-emerald-50/20" : "border-[#D3D1C7]"
                 }`}
@@ -338,7 +352,7 @@ export default function ParentExercises() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {FEEDBACK_OPTIONS.map((option) => (
                         <button
-                          key={option.value}
+                          key={`${ex.id || index}-${option.value}`}
                           type="button"
                           onClick={() => handleMarkDone(ex.id, option.value)}
                           className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-[8px] text-xs font-bold border transition-all cursor-pointer ${
@@ -380,7 +394,7 @@ export default function ParentExercises() {
                         <h4 className="font-bold text-[#185FA5] uppercase text-[10px]">Benefits</h4>
                         <ul className="list-disc list-inside space-y-1 text-[#5F5E5A]">
                           {ex.benefits.map((b, idx) => (
-                            <li key={idx}>{b}</li>
+                            <li key={`benefit-${idx}`}>{b}</li>
                           ))}
                         </ul>
                       </div>
@@ -401,7 +415,7 @@ export default function ParentExercises() {
               const status = weekStatus[dayStr] || "none";
               const dayName = new Date(dayStr).toLocaleDateString("en-US", { weekday: "short" });
               return (
-                <div key={idx} className="flex-1 text-center space-y-1">
+                <div key={dayStr || `day-${idx}`} className="flex-1 text-center space-y-1">
                   <span className="text-[10px] font-bold text-[#5F5E5A] block">{dayName}</span>
                   <div
                     className={`h-8 rounded-[6px] flex items-center justify-center text-[10px] font-bold transition-all ${

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import AppShell from "../components/layout/AppShell";
 
@@ -41,9 +41,11 @@ import LearningDisabilityAssessmentForm from "../views/LearningDisabilityAssessm
 // Protected Route Wrapper
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, role } = useAuth();
+  const location = useLocation();
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    const isParentPath = location.pathname.startsWith("/parent") || location.pathname.includes("/parent");
+    return <Navigate to={isParentPath ? "/parent/login" : "/login"} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(role)) {
@@ -54,6 +56,18 @@ function ProtectedRoute({ children, allowedRoles }) {
   }
 
   return <AppShell>{children}</AppShell>;
+}
+
+function CatchAllRoute() {
+  const { user, isParent } = useAuth();
+  const location = useLocation();
+
+  if (!user) {
+    const isParentPath = location.pathname.startsWith("/parent") || location.pathname.includes("/parent");
+    return <Navigate to={isParentPath ? "/parent/login" : "/login"} replace />;
+  }
+
+  return isParent ? <Navigate to="/parent/home" replace /> : <Navigate to="/dashboard" replace />;
 }
 
 export default function AppRouter() {
@@ -160,7 +174,7 @@ export default function AppRouter() {
         <Route
           path="/reports/:id/review"
           element={
-            <ProtectedRoute allowedRoles={["admin", "staff"]}>
+            <ProtectedRoute allowedRoles={["admin"]}>
               <TherapistReportView initialEditMode={true} />
             </ProtectedRoute>
           }
@@ -378,18 +392,7 @@ export default function AppRouter() {
         />
 
         {/* Default Catch-all */}
-        <Route
-          path="*"
-          element={
-            !user ? (
-              <Navigate to="/login" replace />
-            ) : isParent ? (
-              <Navigate to="/parent/home" replace />
-            ) : (
-              <Navigate to="/dashboard" replace />
-            )
-          }
-        />
+        <Route path="*" element={<CatchAllRoute />} />
       </Routes>
     </BrowserRouter>
   );

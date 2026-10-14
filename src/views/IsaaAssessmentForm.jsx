@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft,
@@ -17,7 +17,10 @@ import {
   Info,
   ChevronRight,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  Send,
+  Edit3,
+  Trash2
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -26,6 +29,8 @@ import Modal from "../components/ui/Modal";
 import { printReportWithFilename } from "../utils/printHelpers";
 import { calculateISAAScore, classifyProfile, selectExercises, calculateDomainScores } from "../utils/scoringEngine";
 import { therapyAssessmentService } from "../services/therapyAssessmentService";
+import { childAssignmentService } from "../services/childAssignmentService";
+import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
 
 export const ISAA_SECTIONS = [
@@ -132,6 +137,11 @@ export default function IsaaAssessmentForm() {
   const navigate = useNavigate();
   const { user, childrenList, showToast } = useAuth();
 
+  const [searchParams] = useSearchParams();
+  const queryAssessmentId = searchParams.get("assessmentId");
+  const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || null);
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
+
   const [selectedChildId, setSelectedChildId] = useState(routeChildId || "");
   const [child, setChild] = useState(null);
   const [allChildren, setAllChildren] = useState([]);
@@ -146,7 +156,7 @@ export default function IsaaAssessmentForm() {
   // Ratings map: { item1: 1..5, ..., item40: 1..5 }
   const [ratings, setRatings] = useState({});
 
-  // Load children and selected child
+  // Load children and selected child / existing assessment
   useEffect(() => {
     async function loadData() {
       try {
@@ -163,7 +173,35 @@ export default function IsaaAssessmentForm() {
             found = await childrenService.getById(targetId);
           }
           setChild(found || null);
-          loadDraft(targetId);
+
+          // If query assessment ID is passed, load that specific assessment
+          if (queryAssessmentId) {
+            try {
+              let existing = await therapyAssessmentService.getById(queryAssessmentId, "asd");
+              if (!existing) existing = await assessmentService.getById(queryAssessmentId);
+              if (existing) {
+                setCurrentAssessmentId(existing.id);
+                setIsEditingExisting(true);
+                if (existing.form_data?.isaaRatings) {
+                  setRatings(existing.form_data.isaaRatings);
+                }
+                if (existing.form_data?.assessorNotes) {
+                  setAssessorNotes(existing.form_data.assessorNotes);
+                }
+                if (existing.assessment_date) {
+                  setAssessmentDate(existing.assessment_date);
+                }
+                if (existing.form_data?.assessorName) {
+                  setAssessorName(existing.form_data.assessorName);
+                }
+                setLastSavedTime(new Date(existing.created_at || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+              }
+            } catch (err) {
+              console.warn("Could not load existing ISAA assessment:", err);
+            }
+          } else {
+            loadDraft(targetId);
+          }
         }
       } catch (err) {
         console.warn("IsaaAssessmentForm load error:", err.message);
@@ -172,7 +210,7 @@ export default function IsaaAssessmentForm() {
       }
     }
     loadData();
-  }, [routeChildId]);
+  }, [routeChildId, queryAssessmentId]);
 
   const loadDraft = (cId) => {
     if (!cId) return;
@@ -259,6 +297,124 @@ export default function IsaaAssessmentForm() {
     return "success";
   };
 
+  const buildIsaaPayload = (status = "completed") => {
+    const domainScores = calculateDomainScores({
+      s5_communication: {
+        respondsName: ratings.item1 > 2 ? 1 : 3,
+        eyeContact: ratings.item1 > 2 ? 0 : 3,
+        simpleInstructions: ratings.item6 > 2 ? 1 : 3,
+        gestures: ratings.item16 > 2 ? 1 : 3,
+        usesWords: ratings.item17 > 2 ? 1 : 3,
+        answersQuestions: ratings.item20 > 2 ? 0 : 3
+      },
+      s8_social: {
+        respondsAdults: ratings.item5 > 2 ? 1 : 3,
+        respondsPeers: ratings.item9 > 2 ? 1 : 3,
+        greetsOthers: ratings.item2 > 2 ? 1 : 3,
+        takesTurns: ratings.item8 > 2 ? 1 : 3,
+        functionalPlay: ratings.item7 > 2 ? 1 : 3
+      },
+      s6_attention: {
+        sitsForActivity: ratings.item23 > 2 ? 1 : 3,
+        attendsTeacher: ratings.item30 > 2 ? 1 : 3,
+        completesSimpleTask: ratings.item23 > 2 ? 1 : 3,
+        transitionsActivities: ratings.item27 > 2 ? 1 : 3
+      },
+      s14_emotional: {
+        ageAppropriateResponse: ratings.item10 > 2 ? 1 : 3,
+        expressesCalmly: ratings.item14 > 2 ? 1 : 3,
+        calmsAfterUpset: ratings.item25 > 2 ? 1 : 3
+      },
+      s10_fineMotor: {
+        reachesGrasps: 2,
+        stacksBlocks: 2,
+        usesCrayons: 2
+      },
+      s11_grossMotor: {
+        sittingBalance: 3,
+        walking: 3,
+        running: 3
+      },
+      s13_adl: {
+        eatingIndependently: 2,
+        handWashing: 2,
+        dressing: 2
+      },
+      sensoryConcerns: [
+        ratings.item35 > 2 ? "Sound Sensitivity" : null,
+        ratings.item36 > 2 ? "Light Sensitivity" : null,
+        ratings.item37 > 2 ? "Tactile Sensitivity" : null,
+        ratings.item38 > 2 ? "Taste/Smell Sensitivity" : null,
+        ratings.item40 > 2 ? "Sensory Seeking" : null
+      ].filter(Boolean)
+    });
+
+    const profileInfo = classifyProfile(domainScores, isaaResults.severityLevel);
+    const exercises = selectExercises(profileInfo.profile, domainScores);
+
+    return {
+      id: currentAssessmentId || undefined,
+      child_id: selectedChildId,
+      assessment_date: assessmentDate,
+      assessed_by: user?.id || null,
+      isaa_score: isaaResults.totalScore,
+      isaa_severity: isaaResults.severity,
+      isaa_level: isaaResults.severityLevel,
+      isaa_section_scores: isaaResults.sectionScores,
+      domain_scores: domainScores,
+      profile: profileInfo.profile,
+      profile_description: profileInfo.profileDescription,
+      clinic_exercises: exercises.clinicExercises,
+      home_exercises: exercises.homeExercises,
+      form_data: {
+        isaaRatings: ratings,
+        assessorName,
+        assessorNotes,
+        ratedCount: isaaResults.ratedCount,
+        completedDate: new Date().toISOString()
+      },
+      status
+    };
+  };
+
+  // Action 1: Save Assessment Only (Updates existing or creates draft, keeps user on form)
+  const handleSaveAssessmentOnly = async () => {
+    if (!selectedChildId) {
+      showToast("Please select a child before saving.", "danger");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = buildIsaaPayload("draft");
+      const res = await therapyAssessmentService.saveASD(payload);
+      if (res?.id) setCurrentAssessmentId(res.id);
+      setIsEditingExisting(true);
+      const savedPayload = { ...payload, id: res?.id || currentAssessmentId };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`assessment_result_${selectedChildId}`, JSON.stringify(savedPayload));
+        if (res?.id) localStorage.setItem(`assessment_result_${res.id}`, JSON.stringify(savedPayload));
+      }
+
+      // Automatically link child to assessing staff
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "ISAA Autism Assessment");
+      }
+
+      setLastSavedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      showToast("ISAA Assessment saved successfully! You can continue editing or generate a report.", "success");
+    } catch (err) {
+      console.warn("ISAA save notice:", err);
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "ISAA Autism Assessment");
+      }
+      showToast("Assessment saved locally.", "info");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Action 2: Generate Report & Submit for Review
   const handleSubmit = async () => {
     if (!selectedChildId) {
       showToast("Please select a child before submitting.", "danger");
@@ -267,90 +423,14 @@ export default function IsaaAssessmentForm() {
 
     if (isaaResults.ratedCount < 40) {
       const remaining = 40 - isaaResults.ratedCount;
-      if (!window.confirm(`You have ${remaining} unrated item(s). Do you still want to save and submit this ISAA assessment?`)) {
+      if (!window.confirm(`You have ${remaining} unrated item(s). Do you still want to generate report and submit for review?`)) {
         return;
       }
     }
 
     setSubmitting(true);
     try {
-      const domainScores = calculateDomainScores({
-        s5_communication: {
-          respondsName: ratings.item1 > 2 ? 1 : 3,
-          eyeContact: ratings.item1 > 2 ? 0 : 3,
-          simpleInstructions: ratings.item6 > 2 ? 1 : 3,
-          gestures: ratings.item16 > 2 ? 1 : 3,
-          usesWords: ratings.item17 > 2 ? 1 : 3,
-          answersQuestions: ratings.item20 > 2 ? 0 : 3
-        },
-        s8_social: {
-          respondsAdults: ratings.item5 > 2 ? 1 : 3,
-          respondsPeers: ratings.item9 > 2 ? 1 : 3,
-          greetsOthers: ratings.item2 > 2 ? 1 : 3,
-          takesTurns: ratings.item8 > 2 ? 1 : 3,
-          functionalPlay: ratings.item7 > 2 ? 1 : 3
-        },
-        s6_attention: {
-          sitsForActivity: ratings.item23 > 2 ? 1 : 3,
-          attendsTeacher: ratings.item30 > 2 ? 1 : 3,
-          completesSimpleTask: ratings.item23 > 2 ? 1 : 3,
-          transitionsActivities: ratings.item27 > 2 ? 1 : 3
-        },
-        s14_emotional: {
-          ageAppropriateResponse: ratings.item10 > 2 ? 1 : 3,
-          expressesCalmly: ratings.item14 > 2 ? 1 : 3,
-          calmsAfterUpset: ratings.item25 > 2 ? 1 : 3
-        },
-        s10_fineMotor: {
-          reachesGrasps: 2,
-          stacksBlocks: 2,
-          usesCrayons: 2
-        },
-        s11_grossMotor: {
-          sittingBalance: 3,
-          walking: 3,
-          running: 3
-        },
-        s13_adl: {
-          eatingIndependently: 2,
-          handWashing: 2,
-          dressing: 2
-        },
-        sensoryConcerns: [
-          ratings.item35 > 2 ? "Sound Sensitivity" : null,
-          ratings.item36 > 2 ? "Light Sensitivity" : null,
-          ratings.item37 > 2 ? "Tactile Sensitivity" : null,
-          ratings.item38 > 2 ? "Taste/Smell Sensitivity" : null,
-          ratings.item40 > 2 ? "Sensory Seeking" : null
-        ].filter(Boolean)
-      });
-
-      const profileInfo = classifyProfile(domainScores, isaaResults.severityLevel);
-      const exercises = selectExercises(profileInfo.profile, domainScores);
-
-      const payload = {
-        child_id: selectedChildId,
-        assessment_date: assessmentDate,
-        assessed_by: user?.id || null,
-        isaa_score: isaaResults.totalScore,
-        isaa_severity: isaaResults.severity,
-        isaa_level: isaaResults.severityLevel,
-        isaa_section_scores: isaaResults.sectionScores,
-        domain_scores: domainScores,
-        profile: profileInfo.profile,
-        profile_description: profileInfo.profileDescription,
-        clinic_exercises: exercises.clinicExercises,
-        home_exercises: exercises.homeExercises,
-        form_data: {
-          isaaRatings: ratings,
-          assessorName,
-          assessorNotes,
-          ratedCount: isaaResults.ratedCount,
-          completedDate: new Date().toISOString()
-        },
-        status: "completed"
-      };
-
+      const payload = buildIsaaPayload("completed");
       setShowConfirmModal(false);
       let res = null;
       try {
@@ -359,7 +439,8 @@ export default function IsaaAssessmentForm() {
         console.warn("DB save warning, saving locally:", saveErr);
       }
 
-      const assessmentId = res?.id || `local-asd-${Date.now()}`;
+      const assessmentId = res?.id || currentAssessmentId || `local-asd-${Date.now()}`;
+      setCurrentAssessmentId(assessmentId);
       const savedPayload = { ...payload, id: assessmentId };
       if (typeof window !== "undefined") {
         localStorage.setItem(`assessment_result_${selectedChildId}`, JSON.stringify(savedPayload));
@@ -367,16 +448,44 @@ export default function IsaaAssessmentForm() {
         localStorage.removeItem(`isaa_draft_${selectedChildId}`);
       }
 
-      showToast("ISAA Assessment saved and scored successfully!", "success");
-      navigate(`/reports/new/${selectedChildId}?assessmentId=${assessmentId}`);
+      // Automatically link child to assessing staff
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "ISAA Autism Assessment");
+      }
+
+      showToast("ISAA Assessment saved! Directing to report generator...", "success");
+      navigate(`/reports/new/${selectedChildId}?assessmentId=${assessmentId}&submitForReview=true`);
     } catch (err) {
       console.error("ISAA submission error:", err);
       setShowConfirmModal(false);
-      const fallbackId = `local-asd-${Date.now()}`;
+      const fallbackId = currentAssessmentId || `local-asd-${Date.now()}`;
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "ISAA Autism Assessment");
+      }
       showToast("Assessment saved locally. Redirecting to report generator...", "info");
-      navigate(`/reports/new/${selectedChildId}?assessmentId=${fallbackId}`);
+      navigate(`/reports/new/${selectedChildId}?assessmentId=${fallbackId}&submitForReview=true`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssessment = async () => {
+    if (window.confirm("Are you sure you want to delete this ISAA Autism assessment form? All entered item ratings will be permanently removed.")) {
+      try {
+        setSubmitting(true);
+        if (currentAssessmentId) {
+          await assessmentService.delete(currentAssessmentId, selectedChildId);
+        } else if (selectedChildId) {
+          localStorage.removeItem(`isaa_draft_${selectedChildId}`);
+          localStorage.removeItem(`assessment_result_${selectedChildId}`);
+        }
+        showToast("ISAA Assessment deleted successfully.", "success");
+        navigate(selectedChildId ? `/children/${selectedChildId}` : "/therapy");
+      } catch (err) {
+        showToast("Failed to delete assessment: " + err.message, "danger");
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -400,9 +509,16 @@ export default function IsaaAssessmentForm() {
               <Brain className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-[#2C2C2A] tracking-tight">
-                Indian Scale for Assessment of Autism (ISAA)
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black text-[#2C2C2A] tracking-tight">
+                  Indian Scale for Assessment of Autism (ISAA)
+                </h1>
+                {isEditingExisting && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                    <Edit3 className="h-3 w-3" /> Editing Saved Assessment
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-[#5F5E5A] font-semibold">
                 Official 40-item standardized clinical diagnostic scale for ASD evaluation &amp; severity staging.
               </p>
@@ -434,11 +550,32 @@ export default function IsaaAssessmentForm() {
           </Button>
           <Button
             size="sm"
+            variant="outlined"
+            icon={Trash2}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            disabled={submitting}
+            onClick={handleDeleteAssessment}
+            title="Delete this assessment"
+          >
+            Delete Form
+          </Button>
+          <Button
+            size="sm"
+            variant="outlined"
+            icon={Save}
+            loading={submitting}
+            onClick={handleSaveAssessmentOnly}
+          >
+            Save Assessment
+          </Button>
+          <Button
+            size="sm"
             variant="primary"
-            icon={CheckCircle2}
+            icon={Send}
+            className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs"
             onClick={() => setShowConfirmModal(true)}
           >
-            Submit &amp; Generate Report
+            Generate Report &amp; Submit for Review
           </Button>
         </div>
       </div>
@@ -725,22 +862,35 @@ export default function IsaaAssessmentForm() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
             <Button
               size="md"
               variant="outlined"
-              onClick={() => navigate("/therapy")}
+              icon={Trash2}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              disabled={submitting}
+              onClick={handleDeleteAssessment}
             >
-              Cancel
+              Delete
+            </Button>
+            <Button
+              size="md"
+              variant="outlined"
+              icon={Save}
+              loading={submitting}
+              onClick={handleSaveAssessmentOnly}
+            >
+              Save Assessment
             </Button>
             <Button
               size="md"
               variant="primary"
-              icon={CheckCircle2}
+              icon={Send}
+              className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs"
               loading={submitting}
               onClick={() => setShowConfirmModal(true)}
             >
-              Save &amp; Generate Therapy Report
+              Generate Report &amp; Submit for Review
             </Button>
           </div>
         </div>
@@ -750,7 +900,7 @@ export default function IsaaAssessmentForm() {
       <Modal
         open={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
-        title="Confirm ISAA Clinical Assessment Submission"
+        title="Generate Report & Submit for Review"
       >
         <div className="space-y-4 text-xs text-[#2C2C2A]">
           <div className="bg-[#F8F8F6] p-3 rounded-[8px] border border-[#D3D1C7] space-y-2">
@@ -780,9 +930,11 @@ export default function IsaaAssessmentForm() {
             </div>
           </div>
 
-          <p className="text-[#5F5E5A]">
-            Saving this assessment will store the complete 40-item ratings in the clinical database and prepare the diagnosis for therapy planning and report generation.
-          </p>
+          <div className="bg-[#ECFDF5] border border-[#86EFAC] rounded-[8px] p-3 text-[#085041] space-y-1">
+            <p>✓ All 40 ISAA items and severity levels will be saved to the child's profile</p>
+            <p>✓ Dual clinical and parent reports will be prepared</p>
+            <p>✓ Report will be marked as submitted for Admin review</p>
+          </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#D3D1C7]">
             <Button
@@ -790,16 +942,17 @@ export default function IsaaAssessmentForm() {
               variant="outlined"
               onClick={() => setShowConfirmModal(false)}
             >
-              Review Ratings
+              Cancel
             </Button>
             <Button
               size="sm"
               variant="primary"
-              icon={CheckCircle2}
+              icon={Send}
               loading={submitting}
+              className="bg-[#185FA5] hover:bg-[#114B84] text-white"
               onClick={handleSubmit}
             >
-              Confirm &amp; Proceed to Report
+              Generate &amp; Submit for Review
             </Button>
           </div>
         </div>

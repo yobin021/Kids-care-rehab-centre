@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ArrowLeft, Printer, Edit3, CheckCircle2, AlertTriangle, Clock, FileText } from "lucide-react";
+import { ArrowLeft, Printer, Edit3, CheckCircle2, AlertTriangle, Clock, FileText, Trash2 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -16,11 +16,24 @@ import { printReportWithFilename, formatReportFilename } from "../utils/printHel
 export default function IepReportView() {
   const { reportId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, isParent } = useAuth();
+  const { isAdmin, isParent, showToast } = useAuth();
 
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleDeleteReport = async () => {
+    if (window.confirm("Are you sure you want to delete this IEP report? This action cannot be undone.")) {
+      try {
+        await iepService.deleteReport(reportId);
+        if (showToast) showToast("IEP report deleted successfully", "success");
+        navigate(reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep");
+      } catch (err) {
+        console.error("Failed to delete IEP report:", err);
+        if (showToast) showToast("Failed to delete report.", "danger");
+      }
+    }
+  };
 
   const fetchReport = async () => {
     try {
@@ -116,7 +129,7 @@ export default function IepReportView() {
       <div className="flex items-start justify-between gap-4 no-print">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep")}
+            onClick={() => navigate(isParent ? "/parent/report" : (reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep"))}
             className="p-2 rounded-[8px] border border-[#D3D1C7] bg-white hover:bg-slate-100 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
@@ -155,6 +168,18 @@ export default function IepReportView() {
           >
             Print
           </Button>
+          {!isParent && (
+            <Button
+              variant="outlined"
+              size="sm"
+              icon={Trash2}
+              onClick={handleDeleteReport}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              title="Delete this IEP report"
+            >
+              Delete Report
+            </Button>
+          )}
         </div>
       </div>
 

@@ -201,6 +201,29 @@ export async function POST(req) {
         }
       }
 
+      const ASSESSMENT_TABLE_NAMES = [
+        'assessments',
+        'assessment_special_school',
+        'assessment_asd',
+        'assessment_adhd',
+        'assessment_developmental_delay',
+        'assessment_learning_disability'
+      ]
+      if (ASSESSMENT_TABLE_NAMES.includes(table)) {
+        const targetAssessmentId = id || (match && match.id)
+        if (targetAssessmentId) {
+          // Disassociate/nullify any references to this assessment in reports so foreign keys don't block deletion
+          await Promise.allSettled([
+            supabase.from('reports').update({ assessment_id: null }).eq('assessment_id', targetAssessmentId),
+            supabase.from('reports_special_school').update({ assessment_id: null }).eq('assessment_id', targetAssessmentId),
+            supabase.from('reports_asd').update({ assessment_id: null }).eq('assessment_id', targetAssessmentId),
+            supabase.from('reports_adhd').update({ assessment_id: null }).eq('assessment_id', targetAssessmentId),
+            supabase.from('reports_developmental_delay').update({ assessment_id: null }).eq('assessment_id', targetAssessmentId),
+            supabase.from('reports_learning_disability').update({ assessment_id: null }).eq('assessment_id', targetAssessmentId),
+          ])
+        }
+      }
+
       let query = supabase.from(table).delete()
       if (id) {
         query = query.eq('id', id)

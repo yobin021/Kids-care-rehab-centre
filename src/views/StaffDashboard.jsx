@@ -76,7 +76,12 @@ export default function StaffDashboard() {
 
       {/* ─── Dynamic Metric Cards ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
-        <StatCard title="Total Children" value={totalChildrenCount} icon={Users} color="#2563EB" />
+        <StatCard
+          title={user?.role === "admin" ? "Total Children" : "My Assigned Children"}
+          value={totalChildrenCount}
+          icon={Users}
+          color="#2563EB"
+        />
         <StatCard title="Reports Published" value={publishedCount} icon={FileText} color="#059669" />
         <StatCard title="Assessments (Month)" value={assessmentsCount} icon={ClipboardList} color="#7C3AED" />
       </div>
@@ -206,18 +211,26 @@ export default function StaffDashboard() {
         {/* ─── RECENTLY REGISTERED (2/3 width) ─── */}
         <div className="lg:col-span-2 space-y-4 overflow-hidden relative">
           <div className="flex items-center justify-between">
-            <h3 className="text-[18px] font-bold text-slate-900 tracking-tight">Recently Enrolled (Attendance Log)</h3>
+            <h3 className="text-[18px] font-bold text-slate-900 tracking-tight">
+              {user?.role === "admin" ? "Recently Enrolled Children" : "My Assigned Students"}
+            </h3>
             <div className="text-[12px] font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-              {recentChildren.length} Registered Recently
+              {recentChildren.length} {user?.role === "admin" ? "Enrolled" : "In Care Roster"}
             </div>
           </div>
 
           {recentChildren.length === 0 ? (
             <Card className="p-8 text-center bg-slate-50 border-dashed">
-              <p className="text-[14px] font-semibold text-slate-500 mb-4">No children registered yet.</p>
-              <Button icon={PlusCircle} onClick={() => navigate("/children/new")}>
-                Register First Child
-              </Button>
+              <p className="text-[14px] font-semibold text-slate-500 mb-4">
+                {user?.role === "admin"
+                  ? "No children registered yet."
+                  : "No children are currently assigned to your care roster. Profiles will appear here when assigned by the administrator or when you perform an assessment."}
+              </p>
+              {user?.role === "admin" && (
+                <Button icon={PlusCircle} onClick={() => navigate("/children/new")}>
+                  Register First Child
+                </Button>
+              )}
             </Card>
           ) : (
             <div className="relative w-full rounded-2xl overflow-hidden py-2" style={{ maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)' }}>

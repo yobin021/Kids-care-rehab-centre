@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity, School, Calendar, ChevronRight, BookOpen, Clock } from "lucide-react";
+import { Phone, Mail, MapPin, FileText, CheckCircle2, Activity, School, Calendar, ChevronRight, BookOpen, Clock, History } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
@@ -26,54 +26,129 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [reportInfo, setReportInfo] = useState(null);
   const [iepReport, setIepReport] = useState(null);
+  const [allReportsList, setAllReportsList] = useState([]);
   const [exerciseStats, setExerciseStats] = useState({ completed: 0, total: 0 });
   const [nextAppointment, setNextAppointment] = useState(null);
 
   const fetchDashboardData = async () => {
-    if (!child?.id) {
+    if (!child?.id && !user?.childId) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
+      const candidateIds = Array.from(new Set([
+        child?.id,
+        user?.childId,
+        user?.child_id,
+        child?.custom_id
+      ].filter(Boolean)));
+
+      const reportMap = new Map();
+
+      // 1. Fetch IEP reports
+      for (const cid of candidateIds) {
+        try {
+          const reps = await iepService.getReportsByChildId(cid);
+          if (Array.isArray(reps)) {
+            reps.forEach((r) => {
+              if (r && r.id && (r.status === "published" || r.review_status === "published" || r.published_at || r.publishedDate)) {
+                reportMap.set(r.id, r);
+              }
+            });
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fetch Therapy reports
+      for (const cid of candidateIds) {
+        try {
+          const reps = await reportService.getByChildId(cid);
+          if (Array.isArray(reps)) {
+            reps.forEach((r) => {
+              if (r && r.id && (r.status === "published" || r.review_status === "published" || r.published_at || r.publishedDate)) {
+                if (!reportMap.has(r.id)) {
+                  reportMap.set(r.id, r);
+                }
+              }
+            });
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback to localStorage history and single published report
+      if (typeof window !== "undefined") {
+        for (const cid of candidateIds) {
+          try {
+            const histRaw = localStorage.getItem(`reports_history_${cid}`);
+            if (histRaw) {
+              const histList = JSON.parse(histRaw);
+              if (Array.isArray(histList)) {
+                histList.forEach((h, idx) => {
+                  if (h) {
+                    const hId = h.id || `local-${cid}-${idx}`;
+                    if (!reportMap.has(hId)) reportMap.set(hId, { ...h, id: hId });
+                  }
+                });
+              }
+            }
+            const pubRaw = localStorage.getItem(`report_published_${cid}`);
+            if (pubRaw) {
+              const pubObj = JSON.parse(pubRaw);
+              if (pubObj) {
+                const pId = pubObj.id || `local-pub-${cid}`;
+                if (!reportMap.has(pId)) reportMap.set(pId, { ...pubObj, id: pId });
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      const publishedList = Array.from(reportMap.values()).sort((a, b) => {
+        const dateA = new Date(a.published_at || a.publishedDate || a.created_at || a.last_edited_at || 0).getTime();
+        const dateB = new Date(b.published_at || b.publishedDate || b.created_at || b.last_edited_at || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setAllReportsList(publishedList);
+
+      const latest = publishedList[0] || null;
+
       if (isIep) {
-        // 1. Fetch IEP reports — strictly published reports only
-        const reps = await iepService.getReportsByChildId(child.id);
-        const published = (reps || []).find((r) => r.status === "published" || r.review_status === "published") || null;
-        setIepReport(published);
+        setIepReport(latest);
         setReportInfo({
-          hasReport: !!published,
-          status: published?.status || null,
-          date: published?.published_at?.split("T")[0] || published?.created_at?.split("T")[0] || null,
-          cycle: published?.iep_cycle || 1,
-          nextReviewDate: published?.next_review_date || null
+          hasReport: !!latest,
+          status: latest?.status || latest?.review_status || (latest ? "published" : null),
+          date: latest?.published_at?.split("T")[0] || latest?.publishedDate || latest?.created_at?.split("T")[0] || null,
+          cycle: latest?.iep_cycle || latest?.cycle || 1,
+          nextReviewDate: latest?.next_review_date || null,
+          totalReports: publishedList.length
         });
       } else {
-        // 1. Fetch Therapy reports — database is single source of truth for published reports
-        const rep = await reportService.getPublishedByChildId(child.id);
-
-        if (rep && (rep.status === "published" || rep.review_status === "published")) {
+        if (latest) {
           setReportInfo({
             hasReport: true,
-            status: "published",
-            date: rep.published_at?.split("T")[0] || rep.created_at?.split("T")[0] || null
+            status: latest.status || latest.review_status || "published",
+            date: latest.published_at?.split("T")[0] || latest.publishedDate || latest.created_at?.split("T")[0] || null,
+            totalReports: publishedList.length
           });
         } else {
           setReportInfo({ hasReport: false });
         }
 
-        // 2. Fetch today's completed exercise logs strictly from published report
-        const homeExercises = (rep && (rep.status === "published" || rep.review_status === "published"))
-          ? (rep.home_exercises || rep.homeExercises || [])
+        // Home exercises strictly from latest published report
+        const homeExercises = latest
+          ? (latest.home_exercises || latest.homeExercises || latest.homeEx || latest.formState?.exercises?.homeExercises || [])
           : [];
 
-        const logs = await parentService.getTodayLogs(child.id);
+        const targetId = child?.id || user?.childId;
+        const logs = targetId ? await parentService.getTodayLogs(targetId) : [];
         const completedCount = logs ? logs.filter((l) => l.is_done).length : 0;
 
         setExerciseStats({
           completed: completedCount,
-          total: homeExercises.length
+          total: Array.isArray(homeExercises) ? homeExercises.length : 0
         });
       }
 
@@ -151,18 +226,53 @@ export default function ParentDashboard() {
               </div>
 
               {reportInfo?.hasReport ? (
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Latest Document</p>
-                    <p className="text-[13px] font-bold text-slate-800">
-                      {isIep ? `Cycle ${reportInfo.cycle || 1}` : `Date: ${reportInfo.date}`}
-                    </p>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Latest Document</p>
+                      <p className="text-[13px] font-bold text-slate-800">
+                        {isIep ? `Cycle ${reportInfo.cycle || 1}` : `Date: ${reportInfo.date}`}
+                      </p>
+                    </div>
+                    <Badge
+                      label={reportInfo.status === "published" ? "Published" : "Draft"}
+                      variant={reportInfo.status === "published" ? "green" : "amber-soft"}
+                      size="sm"
+                    />
                   </div>
-                  <Badge
-                    label={reportInfo.status === "published" ? "Published" : "Draft"}
-                    variant={reportInfo.status === "published" ? "green" : "amber-soft"}
-                    size="sm"
-                  />
+                  {allReportsList && allReportsList.length > 1 && (
+                    <div className="pt-2.5 border-t border-slate-200/70 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                          <History className="h-3 w-3 text-blue-600" />
+                          <span>Reports History ({allReportsList.length})</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                          Old &amp; New
+                        </span>
+                      </div>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                        {allReportsList.map((r, idx) => (
+                          <div
+                            key={r.id || idx}
+                            onClick={() => navigate(`/parent/report?reportId=${r.id}`)}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                              idx === 0
+                                ? "bg-emerald-50/60 border-emerald-200 hover:bg-emerald-100 text-emerald-950 font-bold"
+                                : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700 font-medium"
+                            }`}
+                          >
+                            <span className="truncate">
+                              {idx === 0 ? "🟢 Latest Report" : `📄 Previous Report (${r.published_at?.split("T")[0] || r.publishedDate || "Past"})`}
+                            </span>
+                            <span className="text-[10px] font-bold text-blue-600 shrink-0 ml-1.5">
+                              View &rarr;
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">

@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, CheckCircle2, AlertCircle, Send, Printer } from "lucide-react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Save, CheckCircle2, AlertCircle, Send, Printer, Edit3, Trash2 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
@@ -15,14 +15,22 @@ import {
   CheckboxGrid
 } from "../components/assessment/RatingComponents";
 import { therapyAssessmentService } from "../services/therapyAssessmentService";
+import { assessmentService } from "../services/assessmentService";
+import { childAssignmentService } from "../services/childAssignmentService";
 import { calculateDomainScores, classifyProfile, selectExercises } from "../utils/scoringEngine";
 
 export default function AssessmentForm() {
   const { childId, id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, childrenList, showToast } = useAuth();
 
-  const targetChildId = childId || id;
+  const queryAssessmentId = searchParams.get("assessmentId");
+  const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || (id && id.length > 20 ? id : null));
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
+  const [loadedChildId, setLoadedChildId] = useState(null);
+
+  const targetChildId = loadedChildId || childId || (id && id.length < 20 ? id : null) || childId;
   const child = childrenList.find((c) => c.id === targetChildId) || childrenList[0];
 
   const [activeTab, setActiveTab] = useState(1);
@@ -275,11 +283,35 @@ export default function AssessmentForm() {
     }
   }, [child]);
 
+  // Load existing assessment if assessmentId is passed
+  useEffect(() => {
+    const targetAssId = queryAssessmentId || (id && id.length > 20 ? id : null);
+    if (targetAssId) {
+      assessmentService.getById(targetAssId)
+        .then((existing) => {
+          if (existing) {
+            setCurrentAssessmentId(existing.id);
+            if (existing.child_id) setLoadedChildId(existing.child_id);
+            setIsEditingExisting(true);
+            if (existing.form_data) {
+              setFormData((prev) => ({
+                ...prev,
+                ...existing.form_data,
+                assessmentDate: existing.assessment_date || existing.form_data.assessmentDate || prev.assessmentDate
+              }));
+            }
+            setLastSaved(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+          }
+        })
+        .catch((err) => console.warn("AssessmentForm existing load notice:", err.message));
+    }
+  }, [queryAssessmentId, id]);
+
   useEffect(() => {
     const draftKey = `iep_assessment_draft_${targetChildId}`;
     const saved = localStorage.getItem(draftKey);
-    if (saved) setShowRestoreBanner(true);
-  }, [targetChildId]);
+    if (saved && !isEditingExisting) setShowRestoreBanner(true);
+  }, [targetChildId, isEditingExisting]);
 
   const handleRestoreDraft = () => {
     const draftKey = `iep_assessment_draft_${targetChildId}`;
@@ -341,6 +373,55 @@ export default function AssessmentForm() {
   const profileInfo = useMemo(() => classifyProfile(domainScores, 1), [domainScores]);
   const exercises = useMemo(() => selectExercises(profileInfo.profile, domainScores), [profileInfo, domainScores]);
 
+  // Action 1: Save Assessment (Keeps user on form, updates existing record or creates draft)
+  const handleSaveAssessmentOnly = async () => {
+    const activeChildId = child?.id || targetChildId;
+    if (!activeChildId) {
+      showToast("Please select a valid child before saving.", "danger");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const assessmentPayload = {
+      id: currentAssessmentId || undefined,
+      child_id: activeChildId,
+      assessment_date: formData.assessmentDate || new Date().toISOString().split("T")[0],
+      assessed_by: user?.id || formData.assessedBy || "Special Educator",
+      isaa_score: null,
+      isaa_severity: null,
+      isaa_level: 1,
+      domain_scores: domainScores,
+      profile: profileInfo.profile,
+      clinic_exercises: exercises.clinicExercises,
+      home_exercises: exercises.homeExercises,
+      form_data: formData,
+      status: "draft"
+    };
+
+    try {
+      const res = await therapyAssessmentService.saveSpecialSchool(assessmentPayload);
+      if (res?.id) setCurrentAssessmentId(res.id);
+      setIsEditingExisting(true);
+      setLastSaved(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+
+      // Automatically link child to this staff member
+      if (user && activeChildId) {
+        await childAssignmentService.recordStaffAssessment(activeChildId, user, "Special School IEP");
+      }
+
+      showToast("IEP Assessment saved successfully! You can continue editing or generate a report.", "success");
+    } catch (err) {
+      console.warn("Save IEP error:", err);
+      if (user && activeChildId) {
+        await childAssignmentService.recordStaffAssessment(activeChildId, user, "Special School IEP");
+      }
+      showToast("Assessment saved locally.", "info");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Action 2: Generate Report and Submit for Review
   const handleSubmitAssessment = async () => {
     const activeChildId = child?.id || targetChildId;
     if (!activeChildId) {
@@ -350,6 +431,7 @@ export default function AssessmentForm() {
 
     setIsSubmitting(true);
     const assessmentPayload = {
+      id: currentAssessmentId || undefined,
       child_id: activeChildId,
       assessment_date: formData.assessmentDate || new Date().toISOString().split("T")[0],
       assessed_by: user?.id || formData.assessedBy || "Special Educator",
@@ -366,14 +448,23 @@ export default function AssessmentForm() {
 
     try {
       const res = await therapyAssessmentService.saveSpecialSchool(assessmentPayload);
+      const assId = res?.id || currentAssessmentId || activeChildId;
+      setCurrentAssessmentId(assId);
       localStorage.removeItem(`iep_assessment_draft_${activeChildId}`);
-      localStorage.setItem(`assessment_result_${res?.id || activeChildId}`, JSON.stringify(res));
-      showToast("IEP Assessment successfully submitted and saved!", "success");
-      navigate(`/iep/${activeChildId}/generate/${res?.id || activeChildId}`);
+      localStorage.setItem(`assessment_result_${assId}`, JSON.stringify(res || assessmentPayload));
+
+      // Automatically link child to this staff member
+      if (user && activeChildId) {
+        await childAssignmentService.recordStaffAssessment(activeChildId, user, "Special School IEP");
+      }
+
+      showToast("IEP Assessment saved! Directing to report generator...", "success");
+      setShowSubmitModal(false);
+      navigate(`/iep/${activeChildId}/generate/${assId}?submitForReview=true`);
     } catch (err) {
       console.warn("Local submission fallback:", err.message);
       const fallbackResult = {
-        id: activeChildId,
+        id: currentAssessmentId || activeChildId,
         child_id: activeChildId,
         assessment_date: formData.assessmentDate,
         assessed_by: formData.assessedBy,
@@ -383,10 +474,37 @@ export default function AssessmentForm() {
       };
       localStorage.removeItem(`iep_assessment_draft_${activeChildId}`);
       localStorage.setItem(`assessment_result_${activeChildId}`, JSON.stringify(fallbackResult));
-      showToast("IEP Assessment submitted successfully!", "success");
-      navigate(`/iep/${activeChildId}/generate/${activeChildId}`);
+
+      if (user && activeChildId) {
+        await childAssignmentService.recordStaffAssessment(activeChildId, user, "Special School IEP");
+      }
+
+      showToast("IEP Assessment saved! Directing to report generator...", "info");
+      setShowSubmitModal(false);
+      navigate(`/iep/${activeChildId}/generate/${activeChildId}?submitForReview=true`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssessment = async () => {
+    const activeChildId = child?.id || targetChildId;
+    if (window.confirm("Are you sure you want to delete this IEP assessment form? All entered domain ratings and exercise configurations will be deleted.")) {
+      try {
+        setIsSubmitting(true);
+        if (currentAssessmentId) {
+          await assessmentService.delete(currentAssessmentId, activeChildId);
+        } else if (activeChildId) {
+          localStorage.removeItem(`iep_assessment_draft_${activeChildId}`);
+          localStorage.removeItem(`assessment_result_${activeChildId}`);
+        }
+        showToast("IEP Assessment deleted successfully.", "success");
+        navigate(activeChildId ? `/children/${activeChildId}` : "/children");
+      } catch (err) {
+        showToast("Failed to delete assessment: " + err.message, "danger");
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -432,14 +550,34 @@ export default function AssessmentForm() {
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-[#2C2C2A]">{child?.name || "Student Assessment"}</h2>
               <span className="font-mono text-xs text-[#9B9A96]">{child?.id}</span>
+              {isEditingExisting && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                  <Edit3 className="h-3 w-3" /> Editing Saved Assessment
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-[#5F5E5A] font-semibold">Kids Care Rehab Special School — IEP Assessment Sheet</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {lastSaved && <span className="text-[11px] font-bold text-[#3B6D11] flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Saved {lastSaved}</span>}
-          <Button variant="outlined" size="sm" icon={Save} onClick={() => showToast("Draft saved.", "success")}>Save Draft</Button>
-          <Button size="sm" icon={Send} onClick={() => setShowSubmitModal(true)}>Submit Assessment</Button>
+          <Button
+            variant="outlined"
+            size="sm"
+            icon={Trash2}
+            onClick={handleDeleteAssessment}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            disabled={isSubmitting}
+            title="Delete this assessment"
+          >
+            Delete Form
+          </Button>
+          <Button variant="outlined" size="sm" icon={Save} onClick={handleSaveAssessmentOnly} loading={isSubmitting}>
+            Save Assessment
+          </Button>
+          <Button size="sm" icon={Send} className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs" onClick={() => setShowSubmitModal(true)}>
+            Generate Report &amp; Submit for Review
+          </Button>
         </div>
       </div>
 
@@ -1226,30 +1364,47 @@ export default function AssessmentForm() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-6 border-t border-[#D3D1C7]">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-[#D3D1C7]">
               <Button variant="outlined" onClick={goPrev}>← Back</Button>
-              <Button size="lg" icon={Send} onClick={() => setShowSubmitModal(true)}>
-                Submit Completed IEP Assessment
-              </Button>
+              <div className="flex items-center gap-2.5">
+                <Button
+                  variant="outlined"
+                  size="lg"
+                  icon={Trash2}
+                  onClick={handleDeleteAssessment}
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                  disabled={isSubmitting}
+                >
+                  Delete
+                </Button>
+                <Button variant="outlined" size="lg" icon={Save} onClick={handleSaveAssessmentOnly} loading={isSubmitting}>
+                  Save Assessment
+                </Button>
+                <Button size="lg" icon={Send} className="bg-[#185FA5] hover:bg-[#114B84] text-white shadow-xs" onClick={() => setShowSubmitModal(true)}>
+                  Generate Report &amp; Submit for Review
+                </Button>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Submit Confirmation Modal */}
-      <Modal isOpen={showSubmitModal} onClose={() => setShowSubmitModal(false)} title="Submit IEP Assessment">
+      <Modal isOpen={showSubmitModal} onClose={() => setShowSubmitModal(false)} title="Generate Report & Submit for Review">
         <div className="space-y-4 text-xs font-semibold">
           <p className="text-[#2C2C2A]">
-            Submit this completed IEP Assessment for <strong>{formData.childName || child?.name}</strong>?
+            Generate the IEP report and submit it for clinical review for <strong>{formData.childName || child?.name}</strong>?
           </p>
           <div className="bg-[#ECFDF5] border border-[#86EFAC] rounded-[8px] p-3 text-[#085041] space-y-1">
-            <p>✓ All 24 sections recorded according to official IEP protocol</p>
-            <p>✓ Domain ratings and milestone summaries saved</p>
-            <p>✓ Assessment results will be calculated and ready for report generation</p>
+            <p>✓ Current assessment inputs and 24-domain ratings will be saved</p>
+            <p>✓ 3-Month IEP report with baseline comparisons will be compiled</p>
+            <p>✓ Report will be queued for Admin review</p>
           </div>
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D3D1C7]">
             <Button variant="outlined" onClick={() => setShowSubmitModal(false)}>Cancel</Button>
-            <Button onClick={handleSubmitAssessment} loading={isSubmitting}>Confirm & Submit</Button>
+            <Button onClick={handleSubmitAssessment} loading={isSubmitting} className="bg-[#185FA5] hover:bg-[#114B84] text-white">
+              Generate &amp; Submit
+            </Button>
           </div>
         </div>
       </Modal>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft,
@@ -16,7 +16,11 @@ import {
   ChevronRight,
   TrendingUp,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Save,
+  Send,
+  Edit3,
+  Trash2
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -24,6 +28,8 @@ import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import { calculateDomainScores, classifyProfile, selectExercises } from "../utils/scoringEngine";
 import { therapyAssessmentService } from "../services/therapyAssessmentService";
+import { childAssignmentService } from "../services/childAssignmentService";
+import { assessmentService } from "../services/assessmentService";
 import { childrenService } from "../services/childrenService";
 import { printReportWithFilename } from "../utils/printHelpers";
 
@@ -527,8 +533,14 @@ export const DEVELOPMENTAL_AGE_TIERS = [
 
 export default function DevelopmentalDelayAssessmentForm() {
   const { childId: routeChildId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, childrenList, showToast } = useAuth();
+
+  const queryAssessmentId = searchParams.get("assessmentId");
+  const [currentAssessmentId, setCurrentAssessmentId] = useState(queryAssessmentId || null);
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
+  const [savingOnly, setSavingOnly] = useState(false);
 
   const [selectedChildId, setSelectedChildId] = useState(routeChildId || "");
   const [child, setChild] = useState(null);
@@ -578,7 +590,30 @@ export default function DevelopmentalDelayAssessmentForm() {
           }
           setChild(found || null);
           autoSelectTierForChild(found);
-          loadDraft(targetId);
+
+          if (queryAssessmentId) {
+            try {
+              let existing = await therapyAssessmentService.getById(queryAssessmentId, "developmental_delay");
+              if (!existing) existing = await assessmentService.getById(queryAssessmentId);
+              if (existing) {
+                setCurrentAssessmentId(existing.id);
+                setIsEditingExisting(true);
+                if (existing.form_data?.milestones) setMilestones(existing.form_data.milestones);
+                if (existing.form_data?.datesObserved) setDatesObserved(existing.form_data.datesObserved);
+                if (existing.form_data?.remarks) setRemarks(existing.form_data.remarks);
+                if (existing.form_data?.redFlags) setRedFlags(existing.form_data.redFlags);
+                if (existing.form_data?.tierComments) setTierComments(existing.form_data.tierComments);
+                if (existing.form_data?.assessorNotes) setAssessorNotes(existing.form_data.assessorNotes);
+                if (existing.form_data?.assessorName) setAssessorName(existing.form_data.assessorName);
+                if (existing.assessment_date) setAssessmentDate(existing.assessment_date);
+                setLastSavedTime(new Date(existing.created_at || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+              }
+            } catch (err) {
+              console.warn("Could not load existing developmental delay assessment:", err);
+            }
+          } else {
+            loadDraft(targetId);
+          }
         }
       } catch (err) {
         console.warn("DevelopmentalDelayForm load error:", err.message);
@@ -587,7 +622,7 @@ export default function DevelopmentalDelayAssessmentForm() {
       }
     }
     loadData();
-  }, [routeChildId]);
+  }, [routeChildId, queryAssessmentId]);
 
   const autoSelectTierForChild = (c) => {
     if (!c) return;
@@ -795,6 +830,131 @@ export default function DevelopmentalDelayAssessmentForm() {
     return DEVELOPMENTAL_AGE_TIERS.find((t) => t.id === activeTierId) || DEVELOPMENTAL_AGE_TIERS[0];
   }, [activeTierId]);
 
+  const buildDelayPayload = (status = "completed") => {
+    const grossMotorScore = Math.max(20, Math.min(100, stats.achieveRate));
+    const fineMotorScore = Math.max(20, Math.min(100, stats.achieveRate + 5));
+
+    const domainScores = calculateDomainScores({
+      s11_grossMotor: {
+        sittingBalance: stats.achieveRate > 60 ? 3 : 1,
+        standingBalance: stats.achieveRate > 70 ? 3 : 1,
+        walking: stats.achieveRate > 60 ? 3 : 1,
+        running: stats.achieveRate > 80 ? 3 : 0,
+        climbingStairs: stats.achieveRate > 75 ? 3 : 1,
+        postureControl: stats.redFlagsTriggered > 2 ? 1 : 3
+      },
+      s10_fineMotor: {
+        reachesGrasps: stats.achieveRate > 60 ? 3 : 1,
+        transfersHand: stats.achieveRate > 65 ? 3 : 1,
+        stacksBlocks: stats.achieveRate > 70 ? 2 : 0,
+        pencilGrip: stats.achieveRate > 75 ? 2 : 0
+      },
+      s5_communication: {
+        respondsName: 3,
+        simpleInstructions: stats.achieveRate > 60 ? 2 : 1
+      },
+      s8_social: {
+        respondsAdults: 2,
+        functionalPlay: stats.achieveRate > 50 ? 2 : 1
+      },
+      s13_adl: {
+        eatingIndependently: stats.achieveRate > 70 ? 2 : 1,
+        handWashing: stats.achieveRate > 70 ? 2 : 1
+      },
+      sensoryConcerns: stats.redFlagsTriggered > 0 ? ["Motor Tone / Delay Signs"] : []
+    });
+
+    const profileInfo = classifyProfile(domainScores, 0);
+    const exercises = selectExercises("D", domainScores);
+
+    const payload = {
+      child_id: selectedChildId,
+      assessment_date: assessmentDate,
+      assessed_by: user?.id || null,
+      isaa_score: stats.achievedCount,
+      isaa_severity: stats.delayLevel,
+      isaa_level: stats.redFlagsTriggered >= 4 ? 3 : stats.redFlagsTriggered >= 2 ? 2 : 1,
+      domain_scores: {
+        ...domainScores,
+        grossMotor: grossMotorScore,
+        fineMotor: fineMotorScore
+      },
+      profile: "D",
+      profile_description:
+        "Developmental Delay & Motor Milestones Pathway — Physiotherapy, postural control, and milestone stimulation focus.",
+      clinic_exercises: exercises.clinicExercises,
+      home_exercises: exercises.homeExercises,
+      form_data: {
+        formType: "DEVELOPMENTAL_CHECKLIST_BIRTH_TO_FIVE",
+        milestones,
+        datesObserved,
+        remarks,
+        redFlags,
+        tierComments,
+        stats,
+        assessorName,
+        assessorNotes,
+        completedDate: new Date().toISOString()
+      },
+      status
+    };
+
+    if (currentAssessmentId) {
+      payload.id = currentAssessmentId;
+    }
+
+    return payload;
+  };
+
+  const handleSaveAssessmentOnly = async () => {
+    if (!selectedChildId) {
+      showToast("Please select a child before saving.", "danger");
+      return;
+    }
+
+    setSavingOnly(true);
+    try {
+      const payload = buildDelayPayload("draft");
+      let res = null;
+      try {
+        res = await therapyAssessmentService.saveDelay(payload);
+      } catch (saveErr) {
+        console.warn("DB save warning, saving locally:", saveErr);
+      }
+
+      const assessmentId = res?.id || currentAssessmentId || `local-dev-${Date.now()}`;
+      setCurrentAssessmentId(assessmentId);
+      setIsEditingExisting(true);
+
+      const savedPayload = { ...payload, id: assessmentId };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`assessment_result_${selectedChildId}`, JSON.stringify(savedPayload));
+        localStorage.setItem(`assessment_result_${assessmentId}`, JSON.stringify(savedPayload));
+      }
+
+      // Automatically link child to assessing staff
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "Developmental Delay Checklist");
+      }
+
+      setLastSavedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      showToast(
+        isEditingExisting
+          ? "Assessment updated successfully!"
+          : "Assessment saved successfully as draft!",
+        "success"
+      );
+    } catch (err) {
+      console.error("Save assessment error:", err);
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "Developmental Delay Checklist");
+      }
+      showToast("Failed to save assessment. Stored in draft.", "danger");
+    } finally {
+      setSavingOnly(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedChildId) {
       showToast("Please select a child before submitting.", "danger");
@@ -803,75 +963,9 @@ export default function DevelopmentalDelayAssessmentForm() {
 
     setSubmitting(true);
     try {
-      const grossMotorScore = Math.max(20, Math.min(100, stats.achieveRate));
-      const fineMotorScore = Math.max(20, Math.min(100, stats.achieveRate + 5));
-
-      const domainScores = calculateDomainScores({
-        s11_grossMotor: {
-          sittingBalance: stats.achieveRate > 60 ? 3 : 1,
-          standingBalance: stats.achieveRate > 70 ? 3 : 1,
-          walking: stats.achieveRate > 60 ? 3 : 1,
-          running: stats.achieveRate > 80 ? 3 : 0,
-          climbingStairs: stats.achieveRate > 75 ? 3 : 1,
-          postureControl: stats.redFlagsTriggered > 2 ? 1 : 3
-        },
-        s10_fineMotor: {
-          reachesGrasps: stats.achieveRate > 60 ? 3 : 1,
-          transfersHand: stats.achieveRate > 65 ? 3 : 1,
-          stacksBlocks: stats.achieveRate > 70 ? 2 : 0,
-          pencilGrip: stats.achieveRate > 75 ? 2 : 0
-        },
-        s5_communication: {
-          respondsName: 3,
-          simpleInstructions: stats.achieveRate > 60 ? 2 : 1
-        },
-        s8_social: {
-          respondsAdults: 2,
-          functionalPlay: stats.achieveRate > 50 ? 2 : 1
-        },
-        s13_adl: {
-          eatingIndependently: stats.achieveRate > 70 ? 2 : 1,
-          handWashing: stats.achieveRate > 70 ? 2 : 1
-        },
-        sensoryConcerns: stats.redFlagsTriggered > 0 ? ["Motor Tone / Delay Signs"] : []
-      });
-
-      const profileInfo = classifyProfile(domainScores, 0);
-      const exercises = selectExercises("D", domainScores);
-
-      const payload = {
-        child_id: selectedChildId,
-        assessment_date: assessmentDate,
-        assessed_by: user?.id || null,
-        isaa_score: stats.achievedCount,
-        isaa_severity: stats.delayLevel,
-        isaa_level: stats.redFlagsTriggered >= 4 ? 3 : stats.redFlagsTriggered >= 2 ? 2 : 1,
-        domain_scores: {
-          ...domainScores,
-          grossMotor: grossMotorScore,
-          fineMotor: fineMotorScore
-        },
-        profile: "D",
-        profile_description:
-          "Developmental Delay & Motor Milestones Pathway — Physiotherapy, postural control, and milestone stimulation focus.",
-        clinic_exercises: exercises.clinicExercises,
-        home_exercises: exercises.homeExercises,
-        form_data: {
-          formType: "DEVELOPMENTAL_CHECKLIST_BIRTH_TO_FIVE",
-          milestones,
-          datesObserved,
-          remarks,
-          redFlags,
-          tierComments,
-          stats,
-          assessorName,
-          assessorNotes,
-          completedDate: new Date().toISOString()
-        },
-        status: "completed"
-      };
-
+      const payload = buildDelayPayload("completed");
       setShowConfirmModal(false);
+
       let res = null;
       try {
         res = await therapyAssessmentService.saveDelay(payload);
@@ -879,7 +973,8 @@ export default function DevelopmentalDelayAssessmentForm() {
         console.warn("DB save warning, saving locally:", saveErr);
       }
 
-      const assessmentId = res?.id || `local-dev-${Date.now()}`;
+      const assessmentId = res?.id || currentAssessmentId || `local-dev-${Date.now()}`;
+      setCurrentAssessmentId(assessmentId);
       const savedPayload = { ...payload, id: assessmentId };
       if (typeof window !== "undefined") {
         localStorage.setItem(`assessment_result_${selectedChildId}`, JSON.stringify(savedPayload));
@@ -887,16 +982,44 @@ export default function DevelopmentalDelayAssessmentForm() {
         localStorage.removeItem(`dev_delay_draft_${selectedChildId}`);
       }
 
-      showToast("Developmental Checklist saved successfully!", "success");
-      navigate(`/reports/new/${selectedChildId}?assessmentId=${assessmentId}`);
+      // Automatically link child to assessing staff
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "Developmental Delay Checklist");
+      }
+
+      showToast("Developmental Checklist saved! Submitting for report review...", "success");
+      navigate(`/reports/new/${selectedChildId}?assessmentId=${assessmentId}&submitForReview=true`);
     } catch (err) {
       console.error("Developmental checklist submission error:", err);
       setShowConfirmModal(false);
-      const fallbackId = `local-dev-${Date.now()}`;
+      const fallbackId = currentAssessmentId || `local-dev-${Date.now()}`;
+      if (user && selectedChildId) {
+        await childAssignmentService.recordStaffAssessment(selectedChildId, user, "Developmental Delay Checklist");
+      }
       showToast("Checklist saved locally. Redirecting to report generator...", "info");
-      navigate(`/reports/new/${selectedChildId}?assessmentId=${fallbackId}`);
+      navigate(`/reports/new/${selectedChildId}?assessmentId=${fallbackId}&submitForReview=true`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssessment = async () => {
+    if (window.confirm("Are you sure you want to delete this Developmental Delay checklist form? All entered milestone ratings will be permanently removed.")) {
+      try {
+        setSavingOnly(true);
+        if (currentAssessmentId) {
+          await assessmentService.delete(currentAssessmentId, selectedChildId);
+        } else if (selectedChildId) {
+          localStorage.removeItem(`dev_delay_draft_${selectedChildId}`);
+          localStorage.removeItem(`assessment_result_${selectedChildId}`);
+        }
+        showToast("Developmental Delay Checklist deleted successfully.", "success");
+        navigate(selectedChildId ? `/children/${selectedChildId}` : "/therapy");
+      } catch (err) {
+        showToast("Failed to delete checklist: " + err.message, "danger");
+      } finally {
+        setSavingOnly(false);
+      }
     }
   };
 
@@ -914,6 +1037,14 @@ export default function DevelopmentalDelayAssessmentForm() {
             <span className="text-[#854F0B] font-bold">Developmental Delay</span>
             <ChevronRight className="h-3.5 w-3.5" />
             <span className="text-[#2C2C2A] font-bold">Checklists Birth to Five</span>
+            {isEditingExisting && (
+              <Badge
+                variant="blue"
+                size="sm"
+                icon={Edit3}
+                label={`Editing Assessment #${String(currentAssessmentId).slice(0, 8)}`}
+              />
+            )}
           </div>
           <div className="flex items-center gap-2.5 mt-1">
             <div className="h-8 w-8 rounded-[8px] bg-[#854F0B]/10 flex items-center justify-center text-[#854F0B]">
@@ -954,12 +1085,34 @@ export default function DevelopmentalDelayAssessmentForm() {
           </Button>
           <Button
             size="sm"
+            variant="outlined"
+            icon={Trash2}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            disabled={savingOnly}
+            onClick={handleDeleteAssessment}
+            title="Delete this assessment"
+          >
+            Delete Form
+          </Button>
+          <Button
+            size="sm"
+            variant="outlined"
+            icon={Save}
+            loading={savingOnly}
+            onClick={handleSaveAssessmentOnly}
+            title="Save the checklist data without generating report"
+          >
+            Save Assessment
+          </Button>
+          <Button
+            size="sm"
             variant="primary"
-            icon={CheckCircle2}
+            icon={Send}
             className="bg-[#854F0B] hover:bg-[#683C07]"
             onClick={() => setShowConfirmModal(true)}
+            title="Save assessment and submit report for review"
           >
-            Submit &amp; Generate Report
+            Generate Report & Submit for Review
           </Button>
         </div>
       </div>
@@ -1351,19 +1504,38 @@ export default function DevelopmentalDelayAssessmentForm() {
             <Button
               size="md"
               variant="outlined"
+              icon={Trash2}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              disabled={savingOnly}
+              onClick={handleDeleteAssessment}
+            >
+              Delete
+            </Button>
+            <Button
+              size="md"
+              variant="outlined"
               onClick={() => navigate("/therapy")}
             >
               Cancel
             </Button>
             <Button
               size="md"
+              variant="outlined"
+              icon={Save}
+              loading={savingOnly}
+              onClick={handleSaveAssessmentOnly}
+            >
+              Save Assessment
+            </Button>
+            <Button
+              size="md"
               variant="primary"
-              icon={CheckCircle2}
+              icon={Send}
               className="bg-[#854F0B] hover:bg-[#683C07]"
               loading={submitting}
               onClick={() => setShowConfirmModal(true)}
             >
-              Save &amp; Generate Therapy Plan
+              Generate Report &amp; Submit for Review
             </Button>
           </div>
         </div>

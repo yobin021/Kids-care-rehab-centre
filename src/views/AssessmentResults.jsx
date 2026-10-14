@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useParams, useNavigate } from "react-router-dom";
 import { calculateISAAScore, calculateDomainScores, classifyProfile, selectExercises } from "../utils/scoringEngine";
-import { ArrowLeft, CheckCircle2, FileText, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileText, Plus, Trash2 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -24,6 +24,17 @@ export default function AssessmentResults() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("clinic");
+
+  const handleDeleteAssessment = async () => {
+    if (window.confirm("Are you sure you want to delete this assessment? This will permanently delete the assessment record.")) {
+      try {
+        await assessmentService.delete(id, child?.id);
+        navigate(child?.id ? `/children/${child.id}` : "/children");
+      } catch (err) {
+        console.error("Failed to delete assessment:", err);
+      }
+    }
+  };
 
   const fetchAssessment = async () => {
     try {
@@ -143,6 +154,15 @@ export default function AssessmentResults() {
         <div className="flex items-center gap-2">
           <Button icon={FileText} onClick={() => navigate(`/iep/${child?.id}/generate/${id}`)}>
             Generate IEP Report →
+          </Button>
+          <Button
+            variant="outlined"
+            icon={Trash2}
+            onClick={handleDeleteAssessment}
+            className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            title="Delete this assessment"
+          >
+            Delete Assessment
           </Button>
         </div>
       </div>

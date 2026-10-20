@@ -89,11 +89,11 @@ export default function IepPage() {
             Individualized Education Program · 24-Section Assessment Sheets &amp; 3-Month Progress Review Cycles
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           {isAdmin && pendingCount > 0 && (
             <div
               onClick={() => navigate("/iep?filter=pending")}
-              className="bg-[#FEF3C7] border border-[#F59E0B]/50 rounded-[8px] px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-amber-100 transition-colors"
+              className="bg-[#FEF3C7] border border-[#F59E0B]/50 rounded-[8px] px-3 py-1.5 flex items-center justify-center gap-2 cursor-pointer hover:bg-amber-100 transition-colors"
             >
               <AlertTriangle className="h-4 w-4 text-[#B45309]" />
               <span className="text-xs font-bold text-[#92400E]">
@@ -103,6 +103,7 @@ export default function IepPage() {
           )}
           <Button
             icon={PlusCircle}
+            className="w-full sm:w-auto justify-center"
             onClick={() => navigate("/children/new?program=iep")}
           >
             Register Student for IEP

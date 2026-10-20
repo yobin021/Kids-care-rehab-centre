@@ -258,7 +258,7 @@ export default function ChildrenList() {
 
             {/* Assignment Status Filter (Admin Only) */}
             {isAdmin && (
-              <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll no-scrollbar touch-pan-x flex-nowrap w-full sm:w-auto pb-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll no-scrollbar touch-pan-x flex-nowrap w-full sm:w-auto pb-1 mobile-pill-scroller">
                 <span className="text-[11px] font-bold text-[#5F5E5A] uppercase tracking-wider mr-1 shrink-0">Assignment:</span>
                 {[
                   { id: "all", label: "All Statuses" },
@@ -282,7 +282,7 @@ export default function ChildrenList() {
           </div>
 
           {/* Program Filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll no-scrollbar touch-pan-x flex-nowrap w-full pb-1 pt-1 border-t border-[#D3D1C7]/50">
+          <div className="flex items-center gap-1.5 overflow-x-auto touch-scroll no-scrollbar touch-pan-x flex-nowrap w-full pb-1 pt-1 border-t border-[#D3D1C7]/50 mobile-pill-scroller">
             <span className="text-[11px] font-bold text-[#5F5E5A] uppercase tracking-wider mr-1 shrink-0">Program:</span>
             {[
               { id: "all", label: "All Students" },

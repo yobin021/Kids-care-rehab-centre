@@ -334,14 +334,14 @@ export default function AdminDashboard() {
                       Review & Edit Report
                     </Button>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <Button
                         variant="secondary"
                         size="sm"
                         icon={CheckCircle2}
                         onClick={() => handleQuickPublish(rep)}
                         loading={isPublishingThis}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-none"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold border-none w-full sm:w-auto"
                         title="Publish directly to Parent & Staff portals"
                       >
                         Publish to Portals
@@ -357,7 +357,7 @@ export default function AdminDashboard() {
                               : `/reports/${rep.id || rep.childId}/therapist`
                           )
                         }
-                        className="shrink-0"
+                        className="w-full sm:w-auto shrink-0 justify-center"
                         title="Preview report"
                       >
                         Preview

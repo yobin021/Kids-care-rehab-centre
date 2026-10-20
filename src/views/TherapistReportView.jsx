@@ -1314,11 +1314,11 @@ export default function TherapistReportView({ initialEditMode = false }) {
       {/* ────────────────────────────────────────────────────────── */}
       <div
         id="report-document"
-        className="max-w-[860px] mx-auto bg-white rounded-[12px] p-[40px] shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-[#D3D1C7] space-y-8 print:max-w-none print:w-full print:p-0 print:m-0 print:shadow-none print:border-none print:rounded-none print:bg-white print:block print:visible print:opacity-100"
+        className="max-w-[860px] mx-auto bg-white rounded-[12px] p-4 sm:p-8 md:p-[40px] shadow-[0_2px_12px_rgba(0,0,0,0.08)] border border-[#D3D1C7] space-y-6 sm:space-y-8 print:max-w-none print:w-full print:p-0 print:m-0 print:shadow-none print:border-none print:rounded-none print:bg-white print:block print:visible print:opacity-100"
       >
         {/* ═══ SECTION 1 — CLINIC HEADER (Tailored per Assessment) ═══ */}
         <div className="avoid-break space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             {/* Logo Area */}
             <div className="flex items-center gap-3">
               <img
@@ -1338,7 +1338,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
             </div>
 
             {/* Report Title Block Right */}
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <span
                 className="inline-block text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1 border"
                 style={{
@@ -1381,23 +1381,25 @@ export default function TherapistReportView({ initialEditMode = false }) {
               {currentTheme.badgeLabel}
             </span>
           </div>
-          <table className="w-full text-xs border-collapse border border-[#D3D1C7] rounded-[8px] overflow-hidden">
-            <tbody>
-              {childDetailsRows.map(([label, value], idx) => (
-                <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-[#F8F8F6]"}>
-                  <td
-                    className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#5F5E5A] w-2/5"
-                    style={idx === 0 ? { borderTopColor: currentTheme.themeColor } : {}}
-                  >
-                    {label}
-                  </td>
-                  <td className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#2C2C2A]">
-                    {value}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto touch-scroll mobile-table-wrapper">
+            <table className="w-full text-xs border-collapse border border-[#D3D1C7] rounded-[8px] overflow-hidden">
+              <tbody>
+                {childDetailsRows.map(([label, value], idx) => (
+                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-[#F8F8F6]"}>
+                    <td
+                      className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#5F5E5A] w-2/5"
+                      style={idx === 0 ? { borderTopColor: currentTheme.themeColor } : {}}
+                    >
+                      {label}
+                    </td>
+                    <td className="p-2.5 px-3 border border-[#D3D1C7] font-bold text-[#2C2C2A]">
+                      {value}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* ═══ SECTION 3 — CLINICAL ASSESSMENT ANALYSIS & EVALUATION TABLE ═══ */}
@@ -1975,7 +1977,7 @@ export default function TherapistReportView({ initialEditMode = false }) {
       {/* ────────────────────────────────────────────────────────── */}
       {/* BOTTOM ACTION BAR (no-print)                               */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#D3D1C7] p-3 shadow-lg flex items-center justify-center gap-3 no-print">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#D3D1C7] p-2.5 sm:p-3 shadow-lg flex flex-wrap items-center justify-center gap-2 sm:gap-3 safe-area-bottom no-print">
         {!isEditing ? (
           <>
             {isAdmin && !isPublished && (

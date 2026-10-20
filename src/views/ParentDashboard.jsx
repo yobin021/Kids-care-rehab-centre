@@ -204,10 +204,10 @@ export default function ParentDashboard() {
       {loading ? (
         <SkeletonCard count={3} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
           
           {/* Card 1: Assessment / IEP Report */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] transition-all hover:-translate-y-1 flex flex-col h-full group">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] transition-all hover:-translate-y-1 flex flex-col h-full group">
             <div className="h-14 w-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm mb-6 group-hover:scale-110 transition-transform">
               <FileText className="h-7 w-7" />
             </div>
@@ -260,7 +260,7 @@ export default function ParentDashboard() {
 
           {/* Card 2: IEP Milestones OR Home Exercises */}
           {isIep ? (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(124,58,237,0.12)] transition-all hover:-translate-y-1 flex flex-col h-full group">
+            <div className="relative bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(124,58,237,0.12)] transition-all hover:-translate-y-1 flex flex-col h-full group">
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-violet rounded-t-3xl" />
               <div className="h-14 w-14 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center shadow-sm mb-6 group-hover:scale-110 transition-transform">
                 <BookOpen className="h-7 w-7" />
@@ -289,7 +289,7 @@ export default function ParentDashboard() {
               </div>
             </div>
           ) : (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(5,150,105,0.12)] transition-all hover:-translate-y-1 flex flex-col h-full group">
+            <div className="relative bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(5,150,105,0.12)] transition-all hover:-translate-y-1 flex flex-col h-full group">
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-emerald rounded-t-3xl" />
               <div className="h-14 w-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-sm mb-6 group-hover:scale-110 transition-transform">
                 <Activity className="h-7 w-7" />
@@ -326,7 +326,7 @@ export default function ParentDashboard() {
           )}
 
           {/* Card 3: Next Appointment */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(245,158,11,0.12)] transition-all hover:-translate-y-1 flex flex-col h-full group">
+          <div className="relative bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_32px_rgba(245,158,11,0.12)] transition-all hover:-translate-y-1 flex flex-col h-full group">
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-amber rounded-t-3xl" />
             <div className="h-14 w-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-sm mb-6 group-hover:scale-110 transition-transform">
               <Calendar className="h-7 w-7" />

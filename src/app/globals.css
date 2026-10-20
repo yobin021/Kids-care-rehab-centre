@@ -491,6 +491,126 @@ body {
 }
 
 /* ─────────────────────────────────────────────
+   Mobile-First Responsive Overrides
+───────────────────────────────────────────── */
+
+/* Horizontal pill scrollers - better touch experience */
+.mobile-pill-scroller {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+.mobile-pill-scroller::-webkit-scrollbar {
+  display: none;
+}
+.mobile-pill-scroller > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Mobile-friendly table wrapper */
+.mobile-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-left: -12px;
+  margin-right: -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* Stack flex items vertically on mobile */
+@media screen and (max-width: 640px) {
+  .mobile-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .mobile-stack > * {
+    width: 100% !important;
+  }
+  
+  /* Full-width buttons on mobile */
+  .mobile-full-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Reduce border-radius on very small screens for tighter layout */
+  .rounded-3xl {
+    border-radius: 16px;
+  }
+}
+
+/* Bottom sheet modal on mobile */
+@media screen and (max-width: 640px) {
+  .modal-mobile-sheet {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-mobile-sheet > div:last-child {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 92dvh !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Ensure interactive elements have sufficient touch targets */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Safe area padding for modern phones with notches/gesture bars */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Responsive text that prevents overflow */
+.text-balance {
+  text-wrap: balance;
+}
+.break-word {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Smooth momentum scrolling container */
+.scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Disable hover effects on touch devices for cleaner UX */
+@media (hover: none) {
+  .card-premium:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+  .card-premium:hover::before {
+    opacity: 0;
+  }
+  .glass-panel-hover:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* ─────────────────────────────────────────────
    Global Clean Print Media Styles
 ───────────────────────────────────────────── */
 @media print {

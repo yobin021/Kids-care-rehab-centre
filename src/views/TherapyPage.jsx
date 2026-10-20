@@ -269,7 +269,7 @@ export default function TherapyPage() {
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-[#D3D1C7]/60 flex items-center justify-between gap-1.5 flex-wrap">
+                  <div className="pt-2 border-t border-[#D3D1C7]/60 grid grid-cols-3 gap-1.5">
                     {(() => {
                       const childCat = detectChildCategory(c);
                       const CatIcon = childCat.icon || Activity;
@@ -278,7 +278,7 @@ export default function TherapyPage() {
                           size="sm"
                           variant="primary"
                           icon={CatIcon}
-                          className="text-[11px] px-2.5 py-1 text-white shadow-2xs font-semibold"
+                          className="text-[11px] px-1.5 py-1 text-white shadow-2xs font-semibold justify-center"
                           style={{ backgroundColor: childCat.color }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -293,7 +293,7 @@ export default function TherapyPage() {
                       size="sm"
                       variant="outlined"
                       icon={Activity}
-                      className="text-[11px] px-2.5 py-1"
+                      className="text-[11px] px-1.5 py-1 justify-center"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/children/${c.id}?tab=exercises`);
@@ -305,7 +305,7 @@ export default function TherapyPage() {
                       size="sm"
                       variant="outlined"
                       icon={FileText}
-                      className="text-[11px] px-2.5 py-1"
+                      className="text-[11px] px-1.5 py-1 justify-center"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/reports/new/${c.id}`);

@@ -159,10 +159,10 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Mobile Bottom Navigation Bar (Parent) */}
-        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-4 py-2 flex items-center justify-around pb-safe">
+        <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] px-2 py-1.5 flex items-center justify-around safe-area-bottom">
           <Link
             to="/parent/home"
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all min-w-[56px] ${
               location.pathname === "/parent/home" ? "text-emerald-700 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
             }`}
           >
@@ -171,7 +171,7 @@ export default function AppShell({ children }) {
           </Link>
           <Link
             to="/parent/report"
-            className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+            className={`flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all min-w-[56px] ${
               location.pathname.startsWith("/parent/report") || location.pathname.startsWith("/iep/report") ? "text-emerald-700 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
             }`}
           >
@@ -181,7 +181,7 @@ export default function AppShell({ children }) {
           {!isIep && (
             <Link
               to="/parent/exercises"
-              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl transition-all ${
+              className={`flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-all min-w-[56px] ${
                 location.pathname === "/parent/exercises" ? "text-emerald-700 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
@@ -191,7 +191,7 @@ export default function AppShell({ children }) {
           )}
           <button
             onClick={handleLogout}
-            className="flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-rose-500 hover:text-rose-700 font-medium transition-all"
+            className="flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl text-rose-500 hover:text-rose-700 font-medium transition-all min-w-[56px]"
             aria-label="Logout"
           >
             <LogOut className="h-5 w-5" />
@@ -263,7 +263,7 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Navigation Links */}
-        <div className="flex-1 px-3 py-4 space-y-6 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 px-3 py-4 space-y-6 overflow-y-auto custom-scrollbar scroll-container">
           
           {/* Main Menu */}
           <div className="space-y-1">
@@ -409,7 +409,7 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:m-0 print:max-w-none print:w-full print:block print:opacity-100 print:transform-none touch-scroll p-3 sm:p-6 lg:p-8 pb-16 sm:pb-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
+        <main className="flex-1 overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:m-0 print:max-w-none print:w-full print:block print:opacity-100 print:transform-none touch-scroll scroll-container p-3 sm:p-6 lg:p-8 pb-20 sm:pb-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
           <div className="animate-slide-up print:animate-none print:opacity-100 print:transform-none print:block print:w-full">
             {children}
           </div>

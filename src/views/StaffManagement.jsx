@@ -187,82 +187,145 @@ export default function StaffManagement() {
       ) : error ? (
         <ErrorMessage error={error} onRetry={fetchStaff} />
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Staff Details</th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Login Credentials</th>
-                  <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider text-right">Management</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {(data || []).map((s) => {
-                  const isOnline =
-                    (user?.id && user.id === s.id) ||
-                    (user?.username && s.username && user.username.toLowerCase() === s.username.toLowerCase());
+        <div className="space-y-3">
+          {/* Mobile Card View (< sm) */}
+          <div className="sm:hidden space-y-3">
+            {(data || []).map((s) => {
+              const isOnline =
+                (user?.id && user.id === s.id) ||
+                (user?.username && s.username && user.username.toLowerCase() === s.username.toLowerCase());
 
-                  return (
-                    <tr key={s.id} className="hover:bg-blue-50/30 transition-colors group">
-                      <td className="py-4 px-6 align-middle">
-                        <div className="flex flex-col">
-                          <span className="text-[15px] font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{s.name}</span>
-                          <span className="text-[12.5px] font-semibold text-slate-500 mt-1">{s.designation}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 align-middle">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase w-16">User:</span>
-                            <span className="font-mono text-[13px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
-                              {s.username}
-                            </span>
+              return (
+                <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-[15px] font-bold text-slate-900">{s.name}</h4>
+                      <span className="text-xs font-semibold text-slate-500">{s.designation}</span>
+                    </div>
+                    {s.role === "admin" && (
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold">Admin</span>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex items-center justify-between text-xs font-semibold">
+                    <span className="text-slate-400 font-bold uppercase text-[10px]">Username:</span>
+                    <span className="font-mono text-blue-700 font-bold">{s.username}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    <Button
+                      variant="outlined"
+                      size="sm"
+                      icon={Key}
+                      className="flex-1 justify-center"
+                      onClick={() => {
+                        setSelectedStaff(s);
+                        setShowResetModal(true);
+                      }}
+                    >
+                      Reset Password
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      icon={Trash2}
+                      className="justify-center"
+                      disabled={isOnline || s.role === "admin"}
+                      title={
+                        s.role === "admin"
+                          ? "Primary Administrator cannot be deleted"
+                          : isOnline
+                          ? "Cannot delete currently logged-in account"
+                          : "Delete account"
+                      }
+                      onClick={() => confirmDeleteStaff(s)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (>= sm) */}
+          <div className="hidden sm:block bg-white rounded-2xl border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Staff Details</th>
+                    <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider">Login Credentials</th>
+                    <th className="py-4 px-6 text-[12px] font-bold text-slate-500 uppercase tracking-wider text-right">Management</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(data || []).map((s) => {
+                    const isOnline =
+                      (user?.id && user.id === s.id) ||
+                      (user?.username && s.username && user.username.toLowerCase() === s.username.toLowerCase());
+
+                    return (
+                      <tr key={s.id} className="hover:bg-blue-50/30 transition-colors group">
+                        <td className="py-4 px-6 align-middle">
+                          <div className="flex flex-col">
+                            <span className="text-[15px] font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{s.name}</span>
+                            <span className="text-[12.5px] font-semibold text-slate-500 mt-1">{s.designation}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase w-16">Pass:</span>
-                            <span className="font-mono text-[13px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md tracking-widest">
-                              ••••••••
-                            </span>
+                        </td>
+                        <td className="py-4 px-6 align-middle">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-slate-400 uppercase w-16">User:</span>
+                              <span className="font-mono text-[13px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-md">
+                                {s.username}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-slate-400 uppercase w-16">Pass:</span>
+                              <span className="font-mono text-[13px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md tracking-widest">
+                                ••••••••
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 align-middle">
-                        <div className="flex items-center justify-end gap-3">
-                          <Button
-                            variant="outlined"
-                            size="sm"
-                            icon={Key}
-                            onClick={() => {
-                              setSelectedStaff(s);
-                              setShowResetModal(true);
-                            }}
-                          >
-                            Reset
-                          </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            icon={Trash2}
-                            disabled={isOnline || s.role === "admin"}
-                            title={
-                              s.role === "admin"
-                                ? "Primary Administrator cannot be deleted"
-                                : isOnline
-                                ? "Cannot delete currently logged-in account"
-                                : "Delete account"
-                            }
-                            onClick={() => confirmDeleteStaff(s)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className="py-4 px-6 align-middle">
+                          <div className="flex items-center justify-end gap-3">
+                            <Button
+                              variant="outlined"
+                              size="sm"
+                              icon={Key}
+                              onClick={() => {
+                                setSelectedStaff(s);
+                                setShowResetModal(true);
+                              }}
+                            >
+                              Reset
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              icon={Trash2}
+                              disabled={isOnline || s.role === "admin"}
+                              title={
+                                s.role === "admin"
+                                  ? "Primary Administrator cannot be deleted"
+                                  : isOnline
+                                  ? "Cannot delete currently logged-in account"
+                                  : "Delete account"
+                              }
+                              onClick={() => confirmDeleteStaff(s)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

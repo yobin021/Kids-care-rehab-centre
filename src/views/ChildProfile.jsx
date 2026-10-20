@@ -830,9 +830,9 @@ export default function ChildProfile() {
   return (
     <div className="space-y-6 text-[#2C2C2A]">
       {/* Header Profile Bar */}
-      <div className="bg-white p-6 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="h-16 w-16 rounded-full bg-[#185FA5] text-white flex items-center justify-center font-black text-xl shadow-xs shrink-0">
+      <div className="bg-white p-4 sm:p-6 rounded-[12px] border border-[#D3D1C7] shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-[#185FA5] text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-xs shrink-0">
             {initials}
           </div>
           <div className="space-y-1">
@@ -918,7 +918,7 @@ export default function ChildProfile() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 xs:flex xs:items-center gap-2 w-full md:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full md:w-auto">
           {isAdmin && (
             <Button
               variant="outlined"
@@ -945,7 +945,7 @@ export default function ChildProfile() {
               variant="outlined"
               size="sm"
               icon={Trash2}
-              className="border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400 font-bold justify-center col-span-2 xs:col-span-1"
+              className="border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400 font-bold justify-center col-span-2 sm:col-span-1"
               onClick={() => {
                 setDeleteConfirmName("");
                 setShowDeleteChildModal(true);
@@ -960,7 +960,7 @@ export default function ChildProfile() {
               variant="outlined"
               size="sm"
               icon={ClipboardList}
-              className="justify-center col-span-2 xs:col-span-1"
+              className="justify-center col-span-2 sm:col-span-1"
               onClick={() => navigate(`/iep/${data?.id}`)}
             >
               IEP History
@@ -971,7 +971,7 @@ export default function ChildProfile() {
 
 
       {/* Tabs Row */}
-      <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center gap-1 overflow-x-auto touch-scroll no-scrollbar touch-pan-x">
+      <div className="bg-white rounded-[12px] border border-[#D3D1C7] p-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center gap-1 overflow-x-auto touch-scroll no-scrollbar touch-pan-x mobile-pill-scroller">
         {[
           { id: "overview", label: "Overview" },
           { id: "assessments", label: `Assessments (${assessments.length})` },
@@ -1754,20 +1754,24 @@ export default function ChildProfile() {
                 return (
                   <div
                     key={a.id}
-                    className="bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#185FA5] transition-all flex items-center gap-4 p-4 cursor-pointer shadow-xs"
+                    className="bg-white rounded-[12px] border border-[#D3D1C7] hover:border-[#185FA5] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 cursor-pointer shadow-xs"
                     onClick={() => setSelectedApt(a)}
                   >
-                    <div className="shrink-0 w-24 text-center">
-                      <p className="text-[13px] font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
-                      <p className="text-[11px] text-[#9B9A96] font-semibold">{a.appointment_date}</p>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="shrink-0 w-20 text-center">
+                        <p className="text-[13px] font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
+                        <p className="text-[11px] text-[#9B9A96] font-semibold">{a.appointment_date}</p>
+                      </div>
+                      <div className="w-px h-8 sm:h-10 bg-[#D3D1C7]/60 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-[#2C2C2A] truncate">{getTypeLabel(a.appointment_type)} Session</p>
+                        <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} min{a.notes ? ` · ${a.notes.slice(0, 30)}...` : ""}</p>
+                      </div>
                     </div>
-                    <div className="w-px h-10 bg-[#D3D1C7]/60 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-[#2C2C2A]">{getTypeLabel(a.appointment_type)} Session</p>
-                      <p className="text-[11px] text-[#5F5E5A] font-semibold">{a.duration_minutes || 60} minutes{a.notes ? ` · ${a.notes.slice(0, 40)}...` : ""}</p>
+                    <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>{getTypeLabel(a.appointment_type)}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>{getStatusLabel(a.status)}</span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ts.bg, color: ts.text, border: `1px solid ${ts.border}` }}>{getTypeLabel(a.appointment_type)}</span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ backgroundColor: ss.bg, color: ss.text }}>{getStatusLabel(a.status)}</span>
                   </div>
                 );
               })}

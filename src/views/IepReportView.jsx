@@ -126,7 +126,7 @@ export default function IepReportView() {
   return (
     <div className="space-y-6 text-[#2C2C2A] max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 no-print">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 no-print">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(isParent ? "/parent/report" : (reportData?.child_id ? `/iep/${reportData.child_id}` : "/iep"))}
@@ -135,7 +135,7 @@ export default function IepReportView() {
             <ArrowLeft className="h-4 w-4 text-[#5F5E5A]" />
           </button>
           <div>
-            <h2 className="text-[20px] font-bold text-[#2C2C2A]">IEP Report — {iep.period || `Cycle ${iep.cycle || 1}`}</h2>
+            <h2 className="text-[18px] sm:text-[20px] font-bold text-[#2C2C2A]">IEP Report — {iep.period || `Cycle ${iep.cycle || 1}`}</h2>
             <p className="text-xs font-semibold text-[#5F5E5A]">{child?.name || "Student"}</p>
           </div>
         </div>
@@ -191,24 +191,24 @@ export default function IepReportView() {
       {/* Report Document */}
       <div className="space-y-5" id="iep-report-printable">
         {/* Title Header */}
-        <Card padding="p-6" className="bg-gradient-to-br from-[#185FA5] to-[#0F3F6E] text-white border-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
+        <Card padding="p-4 sm:p-6" className="bg-gradient-to-br from-[#185FA5] to-[#0F3F6E] text-white border-0">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <img
                 src="/kids_care_rehab_center_logo.jpg"
                 alt="KIDS CARE 360 Logo"
-                className="h-14 w-14 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
+                className="h-12 w-12 sm:h-14 sm:w-14 rounded-[10px] object-cover bg-white p-0.5 shadow-sm shrink-0"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
-              <div className="space-y-0.5">
-                <p className="text-[10px] font-bold uppercase tracking-widest opacity-85">KIDS CARE 360 — Neurodiversity Clinical System</p>
-                <h1 className="text-xl font-black">IEP Progress Report</h1>
-                <p className="text-sm font-semibold opacity-90">
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest opacity-85 truncate">KIDS CARE 360 — Clinical System</p>
+                <h1 className="text-lg sm:text-xl font-black truncate">IEP Progress Report</h1>
+                <p className="text-xs sm:text-sm font-semibold opacity-90 truncate">
                   Cycle {iep.cycle || 1} · {iep.period || ""}
                 </p>
               </div>
             </div>
-            <div className="text-right shrink-0">
+            <div className="text-left sm:text-right shrink-0">
               <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${isPublished ? "bg-white/20" : "bg-yellow-400/30"}`}>
                 {isPublished ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                 {isPublished ? "Published" : "Draft"}

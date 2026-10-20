@@ -225,7 +225,7 @@ export function BookAppointmentModal({ isOpen, onClose, onBooked, preselectedChi
         </div>
 
         {/* Date + Time */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="font-bold text-[#2C2C2A] text-xs">Date *</label>
             <input
@@ -424,7 +424,7 @@ export function AppointmentDetailModal({ appointment, isOpen, onClose, onUpdated
                   <option value="therapy">Therapy</option>
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="font-bold text-[#2C2C2A]">Date</label>
                   <input type="date" value={editForm.appointment_date} onChange={e => setEditForm(f => ({ ...f, appointment_date: e.target.value }))}
@@ -453,9 +453,9 @@ export function AppointmentDetailModal({ appointment, isOpen, onClose, onUpdated
                 <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                   className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2.5 resize-none focus:outline-none focus:border-[#185FA5]" />
               </div>
-              <div className="flex gap-2 pt-1">
-                <Button type="submit" disabled={loading}>{loading ? "Saving..." : "Save Changes"}</Button>
-                <Button type="button" variant="outlined" onClick={() => setIsEditing(false)}>Cancel</Button>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
+                <Button type="button" variant="outlined" onClick={() => setIsEditing(false)} className="w-full sm:w-auto">Cancel</Button>
+                <Button type="submit" disabled={loading} className="w-full sm:w-auto">{loading ? "Saving..." : "Save Changes"}</Button>
               </div>
             </form>
           )}
@@ -465,7 +465,7 @@ export function AppointmentDetailModal({ appointment, isOpen, onClose, onUpdated
             <div className="flex flex-col gap-2 pt-1">
               <Button variant="outlined" icon={Edit3} onClick={() => setIsEditing(true)}>Edit Appointment</Button>
               {(canComplete || canCancel) && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {canComplete && (
                     <button onClick={() => setShowDoneConfirm(true)}
                       className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-[8px] border-2 border-[#3B6D11] text-[#3B6D11] font-bold text-xs hover:bg-[#EAF3DE] transition-colors cursor-pointer">
@@ -638,7 +638,7 @@ export default function AppointmentsPage() {
 
       {/* Filters + View toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex sm:items-center gap-2 flex-1 min-w-0">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1 min-w-0">
           <select value={filterDate} onChange={e => setFilterDate(e.target.value)}
             className="w-full border border-[#D3D1C7] rounded-[8px] px-3 py-2 text-xs font-bold text-[#2C2C2A] bg-white focus:outline-none focus:border-[#185FA5] cursor-pointer">
             <option value="all">All dates</option>
@@ -708,7 +708,7 @@ export default function AppointmentsPage() {
                         
                         {/* Left Info: Time + Child */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="shrink-0 w-18 sm:w-20 text-center">
+                          <div className="shrink-0 w-20 text-center">
                             <p className="text-sm sm:text-[16px] font-bold text-[#185FA5]">{formatAppointmentTime(a.appointment_time)}</p>
                             <p className="text-[10px] sm:text-[11px] text-[#9B9A96] font-semibold">{a.duration_minutes || 60} min</p>
                           </div>
@@ -815,12 +815,16 @@ export default function AppointmentsPage() {
                 calDayApts.map(a => {
                   const child = a.children || children.find(c => c.id === a.child_id);
                   return (
-                    <div key={a.id} className="flex items-center gap-3 p-3 bg-[#F8F8F6] rounded-[8px] hover:bg-[#E6F1FB] transition-colors cursor-pointer"
+                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-[#F8F8F6] rounded-[8px] hover:bg-[#E6F1FB] transition-colors cursor-pointer"
                       onClick={() => setSelectedApt(a)}>
-                      <span className="font-bold text-[#185FA5] text-xs w-16 shrink-0">{formatAppointmentTime(a.appointment_time)}</span>
-                      <span className="font-bold text-xs text-[#2C2C2A] flex-1">{child?.name || "Child"}</span>
-                      <TypeBadge type={a.appointment_type} />
-                      <StatusBadge status={a.status} />
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-bold text-[#185FA5] text-xs w-16 shrink-0">{formatAppointmentTime(a.appointment_time)}</span>
+                        <span className="font-bold text-xs text-[#2C2C2A] truncate">{child?.name || "Child"}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        <TypeBadge type={a.appointment_type} />
+                        <StatusBadge status={a.status} />
+                      </div>
                     </div>
                   );
                 })

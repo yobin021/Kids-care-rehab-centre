@@ -225,30 +225,38 @@ export default function ChildRegistration() {
 
       {/* Step Progress Indicator */}
       {step < 5 && (
-        <div className="bg-white p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs flex items-center justify-between">
-          {[
-            { num: 1, name: "Program & Info" },
-            { num: 2, name: "Pathway Details" },
-            { num: 3, name: "Parent Info" },
-            { num: 4, name: "Review & Confirm" }
-          ].map((s) => (
-            <div key={s.num} className="flex items-center gap-2">
-              <div
-                className={`h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs ${
-                  step === s.num
-                    ? "bg-[#185FA5] text-white shadow-xs"
-                    : step > s.num
-                    ? "bg-[#3B6D11] text-white"
-                    : "bg-[#F8F8F6] text-[#5F5E5A] border border-[#D3D1C7]"
-                }`}
-              >
-                {step > s.num ? "✓" : s.num}
-              </div>
-              <span className={`text-xs font-bold hidden sm:inline ${step === s.num ? "text-[#185FA5]" : "text-[#5F5E5A]"}`}>
-                {s.name}
-              </span>
-            </div>
-          ))}
+        <div className="bg-white p-3 sm:p-4 rounded-[12px] border border-[#D3D1C7] shadow-xs">
+          <div className="flex items-center justify-between gap-1 sm:gap-0">
+            {[
+              { num: 1, name: "Program & Info", shortName: "Program" },
+              { num: 2, name: "Pathway Details", shortName: "Pathway" },
+              { num: 3, name: "Parent Info", shortName: "Parent" },
+              { num: 4, name: "Review & Confirm", shortName: "Review" }
+            ].map((s, idx) => (
+              <React.Fragment key={s.num}>
+                <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 min-w-0">
+                  <div
+                    className={`h-7 w-7 sm:h-7 sm:w-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      step === s.num
+                        ? "bg-[#185FA5] text-white shadow-xs"
+                        : step > s.num
+                        ? "bg-[#3B6D11] text-white"
+                        : "bg-[#F8F8F6] text-[#5F5E5A] border border-[#D3D1C7]"
+                    }`}
+                  >
+                    {step > s.num ? "✓" : s.num}
+                  </div>
+                  <span className={`text-[10px] sm:text-xs font-bold text-center sm:text-left truncate ${step === s.num ? "text-[#185FA5]" : "text-[#5F5E5A]"}`}>
+                    <span className="hidden sm:inline">{s.name}</span>
+                    <span className="sm:hidden">{s.shortName}</span>
+                  </span>
+                </div>
+                {idx < 3 && (
+                  <div className={`hidden xs:block flex-1 h-px mx-1 sm:mx-2 ${step > s.num ? "bg-[#3B6D11]" : "bg-[#D3D1C7]"}`} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       )}
 
@@ -363,7 +371,7 @@ export default function ChildRegistration() {
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button type="submit">Next: Pathway Details →</Button>
+              <Button type="submit" className="w-full sm:w-auto">Next: Pathway Details →</Button>
             </div>
           </form>
         </Card>
@@ -482,11 +490,11 @@ export default function ChildRegistration() {
               />
             )}
 
-            <div className="flex items-center justify-between pt-2">
-              <Button type="button" variant="outlined" onClick={() => setStep(1)}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+              <Button type="button" variant="outlined" onClick={() => setStep(1)} className="w-full sm:w-auto">
                 ← Back
               </Button>
-              <Button type="submit">Next: Parent Info →</Button>
+              <Button type="submit" className="w-full sm:w-auto">Next: Parent Info →</Button>
             </div>
           </form>
         </Card>
@@ -571,11 +579,11 @@ export default function ChildRegistration() {
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <Button type="button" variant="outlined" onClick={() => setStep(2)}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+              <Button type="button" variant="outlined" onClick={() => setStep(2)} className="w-full sm:w-auto">
                 ← Back
               </Button>
-              <Button type="submit">Next: Review & Confirm →</Button>
+              <Button type="submit" className="w-full sm:w-auto">Next: Review & Confirm →</Button>
             </div>
           </form>
         </Card>
@@ -617,11 +625,11 @@ export default function ChildRegistration() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-[#D3D1C7]">
-              <Button type="button" variant="outlined" onClick={() => setStep(3)}>
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-[#D3D1C7]">
+              <Button type="button" variant="outlined" onClick={() => setStep(3)} className="w-full sm:w-auto">
                 ← Back
               </Button>
-              <Button type="button" onClick={handleSubmit} loading={isSubmitting}>
+              <Button type="button" onClick={handleSubmit} loading={isSubmitting} className="w-full sm:w-auto">
                 Confirm & Complete Registration
               </Button>
             </div>

@@ -72,9 +72,9 @@ export default function AppShell({ children }) {
     const isIep = activeChild?.program_type === "iep";
 
     return (
-      <div className="min-h-screen bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden print:block print:overflow-visible print:h-auto print:min-h-0 print:bg-white">
+      <div className="min-h-screen bg-[#F0F4FF] text-slate-800 font-sans relative overflow-x-clip print:block print:overflow-visible print:h-auto print:min-h-0 print:bg-white">
         {/* Background Mesh */}
-        <div className="absolute inset-0 bg-gradient-mesh opacity-50 pointer-events-none fixed" />
+        <div className="fixed inset-0 bg-gradient-mesh opacity-50 pointer-events-none" />
 
         {/* Toast Overlay */}
         <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4">
@@ -211,9 +211,9 @@ export default function AppShell({ children }) {
   const initials = getInitials(user?.name);
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F0F4FF] text-slate-800 font-sans relative overflow-hidden print:block print:overflow-visible print:h-auto print:min-h-0 print:bg-white">
+    <div className="flex min-h-screen md:h-screen md:overflow-hidden w-full bg-[#F0F4FF] text-slate-800 font-sans relative overflow-x-clip print:block print:overflow-visible print:h-auto print:min-h-0 print:bg-white">
       {/* Background Mesh */}
-      <div className="absolute inset-0 bg-gradient-mesh opacity-40 pointer-events-none fixed" />
+      <div className="fixed inset-0 bg-gradient-mesh opacity-40 pointer-events-none" />
 
       {/* Toast Overlay */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4">
@@ -367,10 +367,10 @@ export default function AppShell({ children }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible print:h-auto print:block print:w-full print:static min-w-0 relative z-10">
+      <div className="flex flex-1 flex-col md:h-screen md:min-h-0 md:overflow-hidden print:overflow-visible print:h-auto print:block print:w-full print:static min-w-0 relative z-10">
         
         {/* Top Header Bar (Glass) */}
-        <header className="sticky top-0 z-30 glass border-b border-white/50 px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)] no-print">
+        <header className="sticky top-0 z-30 shrink-0 glass border-b border-white/50 px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)] no-print">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setMobileOpen(true)}
@@ -409,7 +409,7 @@ export default function AppShell({ children }) {
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:m-0 print:max-w-none print:w-full print:block print:opacity-100 print:transform-none touch-scroll scroll-container p-3 sm:p-6 lg:p-8 pb-20 sm:pb-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
+        <main className="flex-1 md:min-h-0 overflow-y-visible md:overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:m-0 print:max-w-none print:w-full print:block print:opacity-100 print:transform-none touch-scroll p-3 sm:p-6 lg:p-8 pb-24 sm:pb-8 max-w-7xl w-full mx-auto animate-fade-in custom-scrollbar">
           <div className="animate-slide-up print:animate-none print:opacity-100 print:transform-none print:block print:w-full">
             {children}
           </div>

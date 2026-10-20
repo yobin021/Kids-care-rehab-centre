@@ -35,10 +35,10 @@ export default function ParentLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F0F4FF] p-4 sm:p-8 font-sans selection:bg-emerald-600 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[#F0F4FF] p-4 sm:p-8 font-sans selection:bg-emerald-600 selection:text-white relative overflow-x-clip">
       {/* Background Mesh */}
-      <div className="absolute inset-0 bg-gradient-mesh opacity-60 pointer-events-none" />
-      <div className="absolute top-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-emerald-500/20 rounded-full blur-[100px] animate-float pointer-events-none" />
+      <div className="fixed inset-0 bg-gradient-mesh opacity-60 pointer-events-none" />
+      <div className="fixed top-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-emerald-500/20 rounded-full blur-[100px] animate-float pointer-events-none" />
       
       <div className="w-full max-w-[1000px] bg-white rounded-3xl shadow-[0_24px_64px_rgba(5,150,105,0.12)] flex flex-col md:flex-row overflow-hidden relative z-10 border border-white">
         

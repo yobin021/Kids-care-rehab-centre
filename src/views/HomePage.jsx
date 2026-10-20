@@ -26,12 +26,12 @@ export default function HomePage() {
   const { user, isParent } = useAuth();
 
   return (
-    <div className="min-h-screen bg-[#F0F4FF] text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen bg-[#F0F4FF] text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white relative overflow-x-clip">
       
       {/* ─── Animated Background ─── */}
-      <div className="absolute inset-0 bg-gradient-mesh opacity-60 pointer-events-none" />
-      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-blue-400/20 rounded-full blur-[100px] animate-float-slow pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-emerald-400/20 rounded-full blur-[100px] animate-float pointer-events-none" style={{ animationDelay: "2s" }} />
+      <div className="fixed inset-0 bg-gradient-mesh opacity-60 pointer-events-none" />
+      <div className="fixed top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-blue-400/20 rounded-full blur-[100px] animate-float-slow pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-emerald-400/20 rounded-full blur-[100px] animate-float pointer-events-none" style={{ animationDelay: "2s" }} />
 
       {/* ─── Top Navigation Bar ─── */}
       <header className="sticky top-0 z-50 glass border-b border-white/50 shadow-sm">
